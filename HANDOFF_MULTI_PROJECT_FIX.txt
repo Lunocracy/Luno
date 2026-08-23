@@ -1,0 +1,79 @@
+================================================================================
+🌙 LUNO WORKSPACE - MULTI-PROJECT PATCH/SAVE ISOLATION HANDOFF (v3.6.1)
+================================================================================
+Date: August 22, 2026
+Git Commit: 435f02a ("Checkpoint 8/22/2026, 12:46:55 PM")
+Status: 100% Operational, All 9 Diagnostic Tests Passing (9/9)
+
+--------------------------------------------------------------------------------
+1. ARCHITECTURAL MILESTONE OVERVIEW
+--------------------------------------------------------------------------------
+The Luno Workspace multi-project resolution pipeline has been transitioned
+from an ambient global singleton architecture to an explicit, end-to-end
+project-scoped pipeline.
+
+Key System Changes:
+1. CANONICAL PROJECT RESOLVER (core/LunoServer.js):
+   - Introduced `LunoServer.resolveProjectBaseDir(projectName)`.
+   - Resolves workspace-relative project folder names against the workspace
+     parent directory, falling back cleanly to the global active root.
+   - Standardized across `handleFsLs`, `handleFsRead`, `handleAppPreview`,
+     `serveAsset`, `handleAllCode`, and `parseAndSaveFiles`.
+
+2. PROJECT-SCOPED SERVER WRITES (core/LunoServer.js):
+   - `parseAndSaveFiles(bodyText, projectName)` resolves all file writes and
+     `LunoPatchLog.html` within the specified project directory.
+   - `updateLunoMetadata` updates `luno.json` within the target project.
+   - `executeServerScript` binds `env.rootDir = baseDir` to prevent server
+     scripts from operating in the wrong workspace folder.
+
+3. PROJECT-AWARE OUTBOX CODEBASE BUNDLING (core/LunoServer.js & app/OutboxQueue.js):
+   - `GET /api/all-code?project=<name>` dynamically scans and packages
+     only the targeted project directory.
+   - Outbox packaging accurately calculates tokens and file counts per project.
+
+4. CLIENT-SIDE API THREADING (app/LunoApiClient.js):
+   - Added optional `project` argument across `fetchFsRead`, `fetchFsList`,
+     `fetchFsListRecursive`, `fetchAllCode`, `savePayload`, and `requestContext`.
+
+5. EXPLICIT ACTIVE TARGET PROJECT SELECTOR (app/ClientApp.js & app/ClientAppUI.js):
+   - `ClientApp.targetProjectName` stores the destination project target
+     independently of the server's global root.
+   - A dedicated "Target Project" dropdown and "Pasting into: <name>" live badge
+     are mounted visibly in the Inbox card on the Workspace view.
+
+6. SURGICAL AST PATCH MERGE SCOPING (app/LunoManifestDecisionEngine.js & app/ClientAppPaster.js):
+   - `LunoManifestDecisionEngine.processPayload` queries base files from the
+     targeted project via `LunoApiClient.fetchFsRead(normPath, projectName)`
+     prior to AST class method merging.
+
+7. PROJECT-SCOPED CONSOLIDATION & CHECKPOINTS (app/LunoPatchConsolidator.js & app/LunoCheckpointView.js):
+   - `LunoPatchConsolidator.consolidate(projectName)` validates and merges
+     patches into the target project base files and clears the target patch log.
+   - `LunoCheckpointView` inspects pending modifications and executes git commits
+     scoped to the active target project.
+
+8. EXTENDED REGRESSION SUITE (test/LunoTestRunner.js):
+   - 9 automated assertions verified:
+     ✅ LunoClassPatcher: ES6 Class Body AST Method Replacement
+     ✅ LunoManifestDecisionEngine: Client vs Server File Routing
+     ✅ LunoPlaybackLogger: Telemetry Event Store
+     ✅ LunoPayloadParser: HTML Container & Fence Stripping
+     ✅ OutboxQueue: Smart Bundle Modal Method Attached
+     ✅ LunoApiClient: API Fetcher Available
+     ✅ Multi-Project: Target Save Isolation
+     ✅ Multi-Project: Outbox Codebase Scoping (/api/all-code?project=...)
+     ✅ Multi-Project: Manifest AST Base Read Scoping
+
+--------------------------------------------------------------------------------
+2. INSTRUCTIONS FOR FUTURE AI SESSIONS
+--------------------------------------------------------------------------------
+1. Always maintain explicit project targeting: pass `ClientApp.getTargetProject()`
+   when querying files, saving payloads, or bundling Outbox packages.
+2. Respect the dumb server rule: AST parsing and code decomposition must run
+   in browser JavaScript, not on Node.js server.
+3. Keep class methods as standard ES6 class declarations followed by global exports:
+     globalThis.ClassName = ClassName;
+     if (typeof module !== "undefined" && module.exports) module.exports = ClassName;
+4. Prompt the user for Git Checkpoints and feedback after key milestones.
+================================================================================

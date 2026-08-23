@@ -1,0 +1,305 @@
+class LunoSpaHeaderNav {
+  /**
+   * ⚙️ CONSTRUCTOR: LunoSpaHeaderNav()
+   */
+  constructor() {}
+
+  /**
+   * ⚙️ METHOD: getOpenProjectTabs()
+   * - Type: Static Method
+   * - Modifier: sync
+   */
+  static getOpenProjectTabs() {
+    try {
+      var raw = localStorage.getItem('luno_open_project_tabs');
+      if (raw) return JSON.parse(raw);
+    } catch(e) {}
+    return [];
+  }
+
+  /**
+   * ⚙️ METHOD: saveOpenProjectTabs(tabs)
+   * - Type: Static Method
+   * - Modifier: sync
+   */
+  static saveOpenProjectTabs(tabs) {
+    try {
+      localStorage.setItem('luno_open_project_tabs', JSON.stringify(tabs));
+    } catch(e) {}
+  }
+
+  /**
+   * ⚙️ METHOD: openProjectTab(projName)
+   * - Type: Static Method
+   * - Modifier: sync
+   */
+  static openProjectTab(projName) {
+    if (!projName) return;
+    var invalidNames = (typeof LunoSettings !== 'undefined' && LunoSettings.INVALID_PROJECT_NAMES) ? LunoSettings.INVALID_PROJECT_NAMES : ['web', 'storage', 'emulated', 'LunoWeb', '0'];
+    if (invalidNames.includes(projName)) return;
+
+    var tabs = LunoSpaHeaderNav.getOpenProjectTabs();
+    if (!tabs.includes(projName)) {
+      tabs.push(projName);
+      LunoSpaHeaderNav.saveOpenProjectTabs(tabs);
+    }
+  }
+
+  /**
+   * ⚙️ METHOD: closeProjectTab(projName, e)
+   * - Type: Static Method
+   * - Modifier: sync
+   */
+  static closeProjectTab(projName, e) {
+    if (e && e.stopPropagation) e.stopPropagation();
+    var tabs = LunoSpaHeaderNav.getOpenProjectTabs();
+    tabs = tabs.filter(function(t) { return t !== projName; });
+    LunoSpaHeaderNav.saveOpenProjectTabs(tabs);
+
+    var activeProj = (typeof localStorage !== 'undefined' && localStorage.getItem('luno_active_app_proj')) || '';
+    if (activeProj === projName) {
+      if (typeof localStorage !== 'undefined') localStorage.removeItem('luno_active_app_proj');
+    }
+
+    if (typeof LunoSpaDock !== 'undefined' && LunoSpaDock._iframeCache && LunoSpaDock._iframeCache[projName]) {
+      var holder = LunoSpaDock._iframeCache[projName];
+      if (holder && holder.parentNode) {
+        holder.parentNode.removeChild(holder);
+      }
+      delete LunoSpaDock._iframeCache[projName];
+    }
+
+    if (typeof LunoSpaDock !== 'undefined') {
+      var activeView = LunoSpaDock.activeDockView;
+      if (activeView === ('app_' + projName) || (activeView === 'app' && activeProj === projName)) {
+        LunoSpaDock.mountView('workspace');
+      } else {
+        var root = document.getElementById('app-root') || document.body;
+        if (activeView === 'workspace' && typeof ClientAppUI !== 'undefined') {
+          ClientAppUI.renderOutboxFirstLayout(root);
+        } else {
+          LunoSpaDock.mountView(activeView);
+        }
+      }
+    }
+  }
+
+  /**
+   * ⚙️ METHOD: render(activeViewKey)
+   * - Type: Static Method
+   * - Modifier: sync
+   */
+  static render(activeViewKey) {
+    var activeKey = activeViewKey || 'workspace';
+    var m = function(tag, attrs) {
+      var children = Array.prototype.slice.call(arguments, 2);
+      if (typeof LunoUIComponents !== 'undefined' && LunoUIComponents.makeElement) {
+        return LunoUIComponents.makeElement.apply(LunoUIComponents, [tag, attrs].concat(children));
+      }
+      var el = document.createElement(tag);
+      if (attrs && typeof attrs === 'object') {
+        for (var k in attrs) {
+          if (Object.prototype.hasOwnProperty.call(attrs, k)) {
+            var v = attrs[k];
+            if (k.indexOf('on') === 0 && typeof v === 'function') el.addEventListener(k.slice(2).toLowerCase(), v);
+            else if (k === 'style') {
+              if (typeof v === 'object') Object.assign(el.style, v);
+              else el.style.cssText = String(v);
+            } else if (k === 'className' || k === 'class') el.className = String(v);
+            else try { el[k] = v; } catch (e) { el.setAttribute(k, v); }
+          }
+        }
+      }
+      children.forEach(function(c) { if (c) el.appendChild(typeof c === 'string' ? document.createTextNode(c) : c); });
+      return el;
+    };
+
+    var baseNavItems = [
+      { key: 'workspace', label: '🏠 Home' },
+      { key: 'projects', label: '🚀 Projects' }
+    ];
+
+    var invalidNames = (typeof LunoSettings !== 'undefined' && LunoSettings.INVALID_PROJECT_NAMES) ? LunoSettings.INVALID_PROJECT_NAMES : ['web', 'storage', 'emulated', 'LunoWeb', '0'];
+    var activeAppProj = (typeof localStorage !== 'undefined' && localStorage.getItem('luno_active_app_proj')) || '';
+
+    if (invalidNames.includes(activeAppProj)) {
+      activeAppProj = '';
+      if (typeof localStorage !== 'undefined') localStorage.removeItem('luno_active_app_proj');
+    }
+
+    if (activeKey.startsWith('app_')) {
+      var viewProj = activeKey.replace(/^app_/, '');
+      if (viewProj && !invalidNames.includes(viewProj)) {
+        activeAppProj = viewProj;
+        if (typeof localStorage !== 'undefined') localStorage.setItem('luno_active_app_proj', viewProj);
+        LunoSpaHeaderNav.openProjectTab(viewProj);
+      }
+    }
+
+    var openProjects = LunoSpaHeaderNav.getOpenProjectTabs().filter(function(name) {
+      return name && !invalidNames.includes(name);
+    });
+
+    var projectNavItems = openProjects.map(function(projName) {
+      return {
+        key: 'app_' + projName,
+        projName: projName,
+        label: '📱 ' + projName,
+        isProjectTab: true
+      };
+    });
+
+    var endNavItems = [
+      { key: 'browser', label: '🛠️ Files' },
+      { key: 'docs', label: '📖 Docs' }
+    ];
+
+    var allNavItems = baseNavItems.concat(projectNavItems, endNavItems);
+
+    var tabButtons = allNavItems.map(function(item) {
+      var isActive = (activeKey === item.key) ||
+        (item.isProjectTab && (activeKey === 'app' || activeKey === ('app_' + item.projName)) && activeAppProj === item.projName);
+
+      var btnContent = [item.label];
+      if (item.isProjectTab) {
+        btnContent.push(m('span', {
+          style: { marginLeft: '0.45rem', opacity: 0.7, cursor: 'pointer', fontSize: '0.72rem', fontWeight: 'bold' },
+          title: 'Close tab',
+          onclick: function(e) { LunoSpaHeaderNav.closeProjectTab(item.projName, e); }
+        }, '✖'));
+      }
+
+      return m('button', {
+        style: {
+          padding: '0.35rem 0.65rem',
+          fontSize: '0.75rem',
+          fontWeight: 'bold',
+          fontFamily: 'monospace',
+          borderRadius: '6px',
+          cursor: 'pointer',
+          whiteSpace: 'nowrap',
+          display: 'inline-flex',
+          alignItems: 'center',
+          background: isActive ? '#238636' : '#21262d',
+          color: isActive ? '#ffffff' : '#c9d1d9',
+          border: '1px solid ' + (isActive ? '#3fb950' : '#30363d'),
+          boxShadow: isActive ? '0 0 10px rgba(57,211,83,0.3)' : 'none'
+        },
+        onclick: function() {
+          if (typeof LunoSpaDock !== 'undefined') {
+            if (item.isProjectTab) {
+              if (typeof localStorage !== 'undefined') localStorage.setItem('luno_active_app_proj', item.projName);
+              LunoSpaDock.mountView('app_' + item.projName);
+            } else {
+              LunoSpaDock.mountView(item.key);
+            }
+          }
+        }
+      }, ...btnContent);
+    });
+
+    var currentTarget = (typeof ClientApp !== 'undefined' && ClientApp.getTargetProject) ? ClientApp.getTargetProject() : 'Luno';
+
+    // Elevated Global Target Project Selector in the Top Header
+    var projectSelect = m('select', {
+      id: 'global-target-project-select',
+      style: {
+        background: '#0d1117',
+        color: '#00f2fe',
+        border: '1px solid #00f2fe',
+        padding: '0.25rem 0.55rem',
+        borderRadius: '6px',
+        fontSize: '0.75rem',
+        fontFamily: 'monospace',
+        fontWeight: 'bold',
+        cursor: 'pointer',
+        outline: 'none',
+        maxWidth: '180px'
+      },
+      onchange: function(e) {
+        var val = e.target.value;
+        if (typeof ClientApp !== 'undefined' && ClientApp.setTargetProject) {
+          ClientApp.setTargetProject(val);
+        }
+      }
+    }, m('option', { value: currentTarget }, '📁 ' + currentTarget));
+
+    setTimeout(async function() {
+      try {
+        if (typeof LunoApiClient !== 'undefined' && LunoApiClient.fetchProjectsList) {
+          var data = await LunoApiClient.fetchProjectsList();
+          if (data && Array.isArray(data.projects)) {
+            var activeTarget = (typeof ClientApp !== 'undefined' && ClientApp.getTargetProject) ? ClientApp.getTargetProject() : '';
+            projectSelect.innerHTML = '';
+            data.projects.forEach(function(p) {
+              if (p.isLibrary || p.name === 'Library') return;
+              var opt = document.createElement('option');
+              opt.value = p.name;
+              opt.textContent = '📁 ' + p.name + (p.name === 'Luno' ? ' (Core)' : '');
+              if (p.name === activeTarget) opt.selected = true;
+              projectSelect.appendChild(opt);
+            });
+          }
+        }
+      } catch (e) {}
+    }, 40);
+
+    var btnSettings = m('button', {
+      style: {
+        padding: '0.35rem 0.55rem',
+        fontSize: '0.85rem',
+        fontWeight: 'bold',
+        fontFamily: 'monospace',
+        borderRadius: '6px',
+        cursor: 'pointer',
+        whiteSpace: 'nowrap',
+        background: '#161b22',
+        color: '#00f2fe',
+        border: '1px solid #00f2fe'
+      },
+      title: 'Workspace Settings & Theme Float',
+      onclick: function() {
+        if (typeof LunoThemeEngine !== 'undefined' && LunoThemeEngine.createSettingsModal) {
+          LunoThemeEngine.createSettingsModal();
+        }
+      }
+    }, '⚙️');
+
+    return m('header', {
+      style: {
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        paddingBottom: '0.55rem',
+        marginBottom: '0.65rem',
+        borderBottom: '1px solid #30363d',
+        gap: '0.5rem',
+        flexWrap: 'wrap'
+      }
+    },
+      m('div', { style: { display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' } },
+        m('span', { style: { fontSize: '1rem', fontWeight: 'bold', color: '#00f2fe' } }, '🌙 Luno'),
+        m('div', { style: { display: 'flex', alignItems: 'center', gap: '0.3rem' } },
+          m('span', { style: { fontSize: '0.72rem', color: '#8b949e', fontWeight: 'bold' } }, 'Project:'),
+          projectSelect
+        )
+      ),
+      m('div', {
+        style: {
+          display: 'flex',
+          gap: '0.35rem',
+          alignItems: 'center',
+          overflowX: 'auto',
+          maxWidth: '100%',
+          paddingBottom: '0.2rem'
+        }
+      },
+        tabButtons,
+        btnSettings
+      )
+    );
+  }
+}
+
+globalThis.LunoSpaHeaderNav = LunoSpaHeaderNav;
+if (typeof module !== "undefined" && module.exports) module.exports = LunoSpaHeaderNav;
