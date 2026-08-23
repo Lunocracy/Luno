@@ -1,65 +1,12 @@
 {
-  "name": "Luno Workspace",
-  "version": "3.6.2",
-  "description": "Mobile-first dual-mode AI development workspace",
-  "maxPackageSizeBytes": 500000,
-  "type": "luno-core",
-  "verbosityLevel": "chatty",
-  "entrypoint": {
-    "file": "Luno/app/ClientApp.js",
-    "class": "ClientApp",
-    "method": "init"
-  },
+  "version": "3.6.3",
   "main": [
-    "Luno/app/LunoCssChunks.js",
-    "Luno/app/LunoThemeEngine.js",
-    "Luno/app/LunoUIComponents.js",
-    "Luno/app/LunoApiClient.js",
-    "Luno/app/LunoPromptInstructions.js",
-    "Luno/app/LunoLinearParser.js",
-    "Luno/app/LunoContainerParser.js",
-    "Luno/app/LunoPayloadParser.js",
-    "Luno/core/LunoClassPatcher.js",
-    "Luno/app/LunoManifestDecisionEngine.js",
-    "Luno/app/LunoPlaybackLogger.js",
-    "Luno/app/LunoPatchConsolidator.js",
-    "Luno/app/LunoLinePatcher.js",
-    "Luno/app/MicroApprovalBadge.js",
-    "Luno/app/OrphanHeaderStitcher.js",
-    "Luno/app/SvgCountdownClock.js",
-    "Luno/app/OutboxQueue.js",
-    "Luno/app/OutboxPromptBox.js",
-    "Luno/app/OutboxClearBanner.js",
-    "Luno/app/OutboxOptionsModal.js",
-    "Luno/app/OutboxWidgetRenderer.js",
-    "Luno/app/ClientAppUI.js",
-    "Luno/app/ClientAppPaster.js",
-    "Luno/app/ClientApp.js",
-    "Luno/app/LunoSpaHeaderNav.js",
-    "Luno/app/LunoSpaDock.js",
-    "Luno/app/LunoProjectTemplates.js",
-    "Luno/app/LunoCheckpointView.js",
-    "Luno/app/LunoGuideEngine.js",
-    "Luno/app/LunoHelperHooks.js",
-    "Luno/browser/DiskBrowser.js",
-    "Luno/docs/LunoDocsWidgets.js",
-    "Luno/docs/LunoMetricsAnalyzer.js",
-    "Luno/docs/AiStudioRelayDocs.js",
-    "Luno/docs/LunoEs6Converter.js",
-    "Luno/docs/LunoSvgStudio.js",
-    "Luno/docs/LunoDocs.js",
-    "Luno/test/LunoTestRunner.js"
+    "Luno/app/LunoAnimationEngine.js"
   ],
-  "docs": [
-    "Luno/docs/HANDOFF_AUGUST_2026.md",
-    "Luno/docs/BookmarkletStudioRoadmap.md"
-  ],
-  "patchJournal": "LunoPatchLog.html",
-  "processedCountSinceCheckpoint": 2,
   "changedMethods": {
-    "Luno/app/LunoLoader.js": "2026-08-23T19:48:39.805Z",
-    "Luno/luno.json": "2026-08-23T19:48:39.805Z"
-  },
-  "lastCheckpointTime": "2026-08-23T19:40:00.000Z",
-  "pendingCheckpointDescription": "Clean working tree"
+    "Luno/app/LunoAnimationEngine.js": "2026-08-23T23:55:00.000Z",
+    "Luno/app/OutboxPromptBox.js": "2026-08-23T23:55:00.000Z",
+    "Luno/app/OutboxWidgetRenderer.js": "2026-08-23T23:55:00.000Z",
+    "Luno/app/ClientAppUI.js": "2026-08-23T23:55:00.000Z"
+  }
 }

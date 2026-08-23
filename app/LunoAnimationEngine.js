@@ -1,0 +1,238 @@
+class LunoAnimationEngine {
+  constructor() {}
+
+  /**
+   * ⚙️ METHOD: flyElement(sourceElOrRect, targetElOrRect, options)
+   * Calculates dynamic 2D coordinates and propels a glowing holographic capsule
+   * from the source element directly into the target container.
+   */
+  static flyElement(sourceElOrRect, targetElOrRect, options) {
+    if (typeof document === 'undefined') return;
+    var opts = options || {};
+    var duration = opts.duration || 600;
+    var color = opts.color || '#00f2fe';
+    var glowColor = opts.glowColor || 'rgba(0, 242, 254, 0.8)';
+    var label = opts.label || '📦 Payload';
+    var onComplete = typeof opts.onComplete === 'function' ? opts.onComplete : null;
+
+    var sRect = sourceElOrRect instanceof Element
+      ? sourceElOrRect.getBoundingClientRect()
+      : (sourceElOrRect || { top: 100, left: 100, width: 60, height: 30 });
+
+    var targetEl = targetElOrRect instanceof Element ? targetElOrRect : null;
+    var tRect = targetEl
+      ? targetEl.getBoundingClientRect()
+      : (targetElOrRect || { top: 200, left: 200, width: 80, height: 40 });
+
+    var startX = sRect.left + (sRect.width / 2);
+    var startY = sRect.top + (sRect.height / 2);
+    var endX = tRect.left + (tRect.width / 2);
+    var endY = tRect.top + (tRect.height / 2);
+
+    // Create glowing flight capsule
+    var flyer = document.createElement('div');
+    flyer.className = 'luno-flight-capsule';
+    flyer.style.cssText = [
+      'position: fixed;',
+      'z-index: 100000;',
+      'pointer-events: none;',
+      'top: 0;',
+      'left: 0;',
+      'transform: translate3d(' + startX + 'px, ' + startY + 'px, 0) scale(1);',
+      'background: ' + (opts.bg || '#161b22') + ';',
+      'color: ' + color + ';',
+      'border: 2px solid ' + color + ';',
+      'border-radius: 20px;',
+      'padding: 0.35rem 0.75rem;',
+      'font-family: monospace;',
+      'font-size: 0.75rem;',
+      'font-weight: bold;',
+      'white-space: nowrap;',
+      'box-shadow: 0 0 16px ' + glowColor + ', 0 4px 12px rgba(0,0,0,0.8);',
+      'transition: none;',
+      'display: flex;',
+      'align-items: center;',
+      'gap: 0.35rem;',
+      'opacity: 1;'
+    ].join('\n');
+
+    flyer.innerHTML = '<span>' + (opts.icon || '⚡') + '</span><span>' + label + '</span>';
+    document.body.appendChild(flyer);
+
+    // Spawn initial particle burst at launch
+    LunoAnimationEngine.burstSparks(startX, startY, color, 8);
+
+    var startTime = performance.now();
+    var deltaX = endX - startX;
+    var deltaY = endY - startY;
+    var archHeight = Math.min(120, Math.max(40, Math.abs(deltaX) * 0.25));
+
+    function step(now) {
+      var elapsed = now - startTime;
+      var p = Math.min(1, elapsed / duration);
+      // Fluid ease-in-out cubic
+      var ease = p < 0.5 ? 4 * p * p * p : 1 - Math.pow(-2 * p + 2, 3) / 2;
+
+      var currentX = startX + (deltaX * ease);
+      // Arched trajectory
+      var arch = Math.sin(p * Math.PI) * archHeight;
+      var currentY = startY + (deltaY * ease) - arch;
+      var scale = 1 + (Math.sin(p * Math.PI) * 0.2) - (p * 0.25);
+      var opacity = p > 0.85 ? ((1 - p) / 0.15) : 1;
+
+      flyer.style.transform = 'translate3d(' + currentX + 'px, ' + currentY + 'px, 0) translate(-50%, -50%) scale(' + scale + ')';
+      flyer.style.opacity = String(opacity);
+
+      if (p < 1) {
+        requestAnimationFrame(step);
+      } else {
+        if (flyer.parentNode) flyer.remove();
+        // Trigger landing particle burst
+        LunoAnimationEngine.burstSparks(endX, endY, color, 14);
+
+        if (targetEl) {
+          LunoAnimationEngine.pulseTarget(targetEl, {
+            color: color,
+            glowColor: glowColor
+          });
+        }
+        if (onComplete) onComplete();
+      }
+    }
+
+    requestAnimationFrame(step);
+  }
+
+  /**
+   * ⚙️ METHOD: pulseTarget(targetEl, options)
+   * Expands the target container with spring overshoot and radial luminous aura.
+   */
+  static pulseTarget(targetEl, options) {
+    if (!targetEl || !targetEl.style) return;
+    var opts = options || {};
+    var color = opts.color || '#8257e5';
+    var glowColor = opts.glowColor || 'rgba(130, 87, 229, 0.7)';
+
+    var origTransform = targetEl.style.transform || '';
+    var origBoxShadow = targetEl.style.boxShadow || '';
+    var origTransition = targetEl.style.transition || '';
+
+    targetEl.style.transition = 'transform 0.18s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.18s ease-out, border-color 0.18s ease-out';
+    targetEl.style.transform = 'scale(1.035)';
+    targetEl.style.boxShadow = '0 0 28px ' + glowColor + ', 0 8px 24px rgba(0,0,0,0.6)';
+    targetEl.style.borderColor = color;
+
+    setTimeout(function() {
+      if (targetEl && targetEl.style) {
+        targetEl.style.transform = origTransform;
+        targetEl.style.boxShadow = origBoxShadow;
+        setTimeout(function() {
+          if (targetEl && targetEl.style) {
+            targetEl.style.transition = origTransition;
+          }
+        }, 220);
+      }
+    }, 280);
+  }
+
+  /**
+   * ⚙️ METHOD: burstSparks(x, y, color, count)
+   * Spawns radiant tactile micro-sparks for dynamic kinetic feedback.
+   */
+  static burstSparks(x, y, color, count) {
+    if (typeof document === 'undefined') return;
+    var sparkCount = count || 10;
+    var sparkColor = color || '#00f2fe';
+
+    for (var i = 0; i < sparkCount; i++) {
+      var spark = document.createElement('div');
+      spark.className = 'luno-spark';
+      var angle = Math.random() * Math.PI * 2;
+      var distance = 18 + Math.random() * 32;
+      var sparkSize = 3 + Math.random() * 4;
+
+      spark.style.cssText = [
+        'position: fixed;',
+        'z-index: 100001;',
+        'pointer-events: none;',
+        'top: ' + y + 'px;',
+        'left: ' + x + 'px;',
+        'width: ' + sparkSize + 'px;',
+        'height: ' + sparkSize + 'px;',
+        'background: ' + sparkColor + ';',
+        'border-radius: 50%;',
+        'box-shadow: 0 0 8px ' + sparkColor + ';',
+        'transform: translate(-50%, -50%) scale(1);',
+        'transition: transform 0.45s cubic-bezier(0.25, 1, 0.5, 1), opacity 0.45s ease-out;',
+        'opacity: 1;'
+      ].join('\n');
+
+      document.body.appendChild(spark);
+
+      (function(s, ang, dist) {
+        requestAnimationFrame(function() {
+          var targetX = Math.cos(ang) * dist;
+          var targetY = Math.sin(ang) * dist;
+          s.style.transform = 'translate(calc(-50% + ' + targetX + 'px), calc(-50% + ' + targetY + 'px)) scale(0.2)';
+          s.style.opacity = '0';
+          setTimeout(function() { if (s.parentNode) s.remove(); }, 460);
+        });
+      })(spark, angle, distance);
+    }
+  }
+
+  /**
+   * ⚙️ METHOD: animateDialogIn(dialogEl, originRect)
+   * Opens floating dialog with spring scale from source button coordinates.
+   */
+  static animateDialogIn(dialogEl, originRect) {
+    if (!dialogEl) return;
+    var origLeft = dialogEl.offsetLeft;
+    var origTop = dialogEl.offsetTop;
+
+    var startScaleX = 0.2;
+    var startScaleY = 0.2;
+    var startLeft = originRect ? (originRect.left + (originRect.width / 2) - (dialogEl.offsetWidth / 2)) : origLeft;
+    var startTop = originRect ? (originRect.top + (originRect.height / 2) - (dialogEl.offsetHeight / 2)) : origTop;
+
+    dialogEl.style.opacity = '0';
+    dialogEl.style.transform = 'translate3d(' + (startLeft - origLeft) + 'px, ' + (startTop - origTop) + 'px, 0) scale(' + startScaleX + ', ' + startScaleY + ')';
+    dialogEl.style.transition = 'none';
+
+    requestAnimationFrame(function() {
+      dialogEl.style.transition = 'transform 0.32s cubic-bezier(0.34, 1.56, 0.64, 1), opacity 0.25s ease-out';
+      dialogEl.style.opacity = '1';
+      dialogEl.style.transform = 'translate3d(0, 0, 0) scale(1, 1)';
+    });
+  }
+
+  /**
+   * ⚙️ METHOD: animateDialogOut(dialogEl, targetRect, onComplete)
+   * Shrinks floating dialog into target element and fades away cleanly.
+   */
+  static animateDialogOut(dialogEl, targetRect, onComplete) {
+    if (!dialogEl) {
+      if (onComplete) onComplete();
+      return;
+    }
+    var origLeft = dialogEl.offsetLeft;
+    var origTop = dialogEl.offsetTop;
+
+    var destLeft = targetRect ? (targetRect.left + (targetRect.width / 2) - (dialogEl.offsetWidth / 2)) : origLeft;
+    var destTop = targetRect ? (targetRect.top + (targetRect.height / 2) - (dialogEl.offsetHeight / 2)) : origTop;
+
+    dialogEl.style.transition = 'transform 0.25s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.22s ease-in';
+    dialogEl.style.opacity = '0';
+    dialogEl.style.transform = 'translate3d(' + (destLeft - origLeft) + 'px, ' + (destTop - origTop) + 'px, 0) scale(0.15, 0.15)';
+
+    setTimeout(function() {
+      dialogEl.style.display = 'none';
+      dialogEl.style.transform = 'none';
+      dialogEl.style.opacity = '1';
+      if (onComplete) onComplete();
+    }, 260);
+  }
+}
+
+globalThis.LunoAnimationEngine = LunoAnimationEngine;
+if (typeof module !== 'undefined' && module.exports) module.exports = LunoAnimationEngine;
