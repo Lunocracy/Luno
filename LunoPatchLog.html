@@ -1,0 +1,45 @@
+<script data-file="app/LunoPromptInstructions.js" data-method="LunoPromptInstructions.getSystemPreamble" data-action="patch">
+static getSystemPreamble() {
+  return [
+    '================================================================================',
+    '🌙 LUNO WORKSPACE - LLM RESPONSE PROTOCOL INSTRUCTIONS',
+    '================================================================================',
+    'You are collaborating with a developer using Luno Workspace, a local file-editing',
+    'environment that processes your responses directly in browser client JavaScript.',
+    'All file paths are relative to the web root directory (e.g. Luno/app/ClientApp.js).'
+  ].join('\n');
+}
+</script>
+
+<script data-file="app/LunoPromptInstructions.js" data-method="LunoPromptInstructions.getContainerDirectivesSpec" data-action="patch">
+static getContainerDirectivesSpec() {
+  var scr = 'scr' + 'ipt';
+  return [
+    'HTML CONTAINER PROTOCOL DIRECTIVES:',
+    '• Full File Write / Replacement (paths are web-rooted):',
+    '  <' + scr + ' data-file="Luno/app/ClientApp.js">',
+    '  // Full file source code here...',
+    '  </' + scr + '>',
+    '',
+    '• Surgical ES6 Class Method Patch (Updates ONLY that specific method):',
+    '  <' + scr + ' data-file="Luno/app/ClientApp.js" data-method="ClassName.methodName" data-action="patch">',
+    '  methodName(args) {',
+    '    // Updated method code only...',
+    '  }',
+    '  </' + scr + '>',
+    '',
+    '• Additive JSON Manifest Merge:',
+    '  <' + scr + ' type="application/json" data-file="Luno/luno.json" data-action="merge">',
+    '  { "newProperty": "value" }',
+    '  </' + scr + '>',
+    '',
+    '• Server Script Execution (Runs with full Node.js process / fs access):',
+    '  <' + scr + ' data-action="run-server">',
+    '  const fs = require("fs");',
+    '  return "Executed successfully";',
+    '  </' + scr + '>',
+    '',
+    '• Stylesheets (<style data-file="Luno/css/style.css">) and Templates (<template data-file="Luno/view.html">).'
+  ].join('\n');
+}
+</script>

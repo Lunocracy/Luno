@@ -136,7 +136,7 @@ class LunoLoader {
    * ⚙️ METHOD: applyPatchLog(projectOverride)
    * - Type: Static Method
    * - Modifier: async
-   * Applies load-time JS patches from local LunoPatchLog.html to browser memory.
+   * Applies load-time JS patches from unified web/LunoPatchLog.html to browser memory.
    */
   static async applyPatchLog(projectOverride) {
     try {
@@ -148,15 +148,13 @@ class LunoLoader {
         return { appliedCount: 0, skipped: true };
       }
 
-      var proj = projectOverride || LunoLoader.getActiveProjectParam() || (typeof ClientApp !== 'undefined' && ClientApp.getTargetProject ? ClientApp.getTargetProject() : '');
-      var journalFile = 'LunoPatchLog.html';
-      var readUrl = '/api/fs/read?path=' + encodeURIComponent(journalFile) + (proj ? '&project=' + encodeURIComponent(proj) : '');
+      var readUrl = '/api/fs/read?path=LunoPatchLog.html';
       var res = await fetch(readUrl);
       var data = await res.json();
 
       if (!res.ok || !data || !data.content || !data.content.trim()) {
         if (typeof LunoPlaybackLogger !== 'undefined') {
-          LunoPlaybackLogger.boot('Patch Log Clean', 'LunoPatchLog.html is empty for ' + (proj || 'active project'));
+          LunoPlaybackLogger.boot('Patch Log Clean', 'web/LunoPatchLog.html is empty');
         }
         return { appliedCount: 0 };
       }
@@ -197,7 +195,6 @@ class LunoLoader {
 
         var normPath = f.filePath.replace(/\\/g, '/').replace(/["']/g, '').replace(/^\/+/, '').trim();
 
-        // Safety check: Skip non-JavaScript files in LunoPatchLog.html
         if (!normPath.endsWith('.js') && !normPath.endsWith('.mjs')) {
           if (typeof LunoPlaybackLogger !== 'undefined') {
             LunoPlaybackLogger.warn('Skipped Non-JS Patch Log Item', normPath);
@@ -220,7 +217,6 @@ class LunoLoader {
           if (f.methodSpec) {
             var specParts = f.methodSpec.split('.prototype.')[0].split('.')[0].replace(/^(?:globalThis|window)\./, '').trim();
             if (specParts && typeof globalThis[specParts] === 'undefined') {
-              var targetMsg = 'Patch Target Missing: Class "' + specParts + '" not found on global scope for ' + f.filePath;
               if (typeof LunoPlaybackLogger !== 'undefined') {
                 LunoPlaybackLogger.warn('Patch Target Missing', specParts + ' in ' + f.filePath);
               }
@@ -256,7 +252,7 @@ class LunoLoader {
       }
 
       if (typeof LunoPlaybackLogger !== 'undefined') {
-        LunoPlaybackLogger.boot('Patch Playback Complete', 'Applied ' + appliedCount + ' of ' + totalAvailable + ' JS patch(es) for ' + (proj || 'active project'));
+        LunoPlaybackLogger.boot('Patch Playback Complete', 'Applied ' + appliedCount + ' of ' + totalAvailable + ' JS patch(es) from web/LunoPatchLog.html');
       }
 
       return { appliedCount: appliedCount, totalAvailable: totalAvailable, supersededCount: supersededCount };
@@ -362,8 +358,8 @@ class LunoLoader {
       return { success: false, errors: loadedSummary.errors };
     }
 
-    // 5. Playback Load-Time Patches from LunoPatchLog.html BEFORE running entrypoint
-    updateLog('Playing back load-time patches from LunoPatchLog.html...');
+    // 5. Playback Load-Time Patches from web/LunoPatchLog.html BEFORE running entrypoint
+    updateLog('Playing back load-time patches from web/LunoPatchLog.html...');
     var patchResult = await LunoLoader.applyPatchLog();
 
     // Clear loading banner
@@ -388,8 +384,6 @@ class LunoLoader {
       if (targetContainer) {
         targetContainer.innerHTML = '<div style="padding:1.5rem; background:#161b22; color:#00f2fe; border:1px solid #00f2fe; border-radius:8px; font-family:monospace;">' +
           '<h3>⚙️ No Entrypoint Defined in luno.json</h3>' +
-          '<p style="margin-top:0.5rem; font-size:12px; color:#8b949e;">Please specify an entrypoint class in luno.json:</p>' +
-          '<pre style="background:#0d1117; padding:0.5rem; border-radius:4px; color:#7ee787; font-size:11px;">"entrypoint": {\n  "file": "src/App.js",\n  "class": "App",\n  "method": "run"\n}</pre>' +
           '</div>';
       }
       return { success: false, error: 'No entrypoint class configured in luno.json' };
@@ -439,7 +433,7 @@ class LunoLoader {
       if (targetContainer) {
         targetContainer.innerHTML = '<div style="padding:1.5rem; background:#161b22; color:#ff7b72; border:1px solid #da3633; border-radius:8px; font-family:monospace;">' +
           '<h3>⚠️ Entrypoint Class Not Found</h3>' +
-          '<p style="margin-top:0.5rem; font-size:12px;">Class <strong>"' + mainClassName + '"</strong> was not found on global scope after loading scripts: ' + mergedConfig.main.join(', ') + '</p>' +
+          '<p style="margin-top:0.5rem; font-size:12px;">Class <strong>"' + mainClassName + '"</strong> was not found on global scope after loading scripts.</p>' +
           '</div>';
       }
     }

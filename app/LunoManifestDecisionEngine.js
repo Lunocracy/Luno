@@ -4,17 +4,25 @@ class LunoManifestDecisionEngine {
   /**
    * ⚙️ METHOD: extractStartupPaths(manifestObj)
    */
-  static extractStartupPaths(manifestObj) {
+    static extractStartupPaths(manifestObj) {
     const meta = manifestObj || {};
     const paths = new Set();
-
+  
     const normalize = (p) => p ? p.replace(/\\/g, '/').replace(/^\/+/, '').trim() : '';
-
+  
     const mainList = [].concat(meta.main || []);
     const libList = [].concat(meta.library || []);
     const fileList = [].concat(meta.files || meta.local || []);
-
-    mainList.forEach(p => { const n = normalize(p); if (n) paths.add(n); });
+  
+    mainList.forEach(p => {
+      const n = normalize(p);
+      if (n) {
+        paths.add(n);
+        if (n.startsWith('Luno/')) paths.add(n.slice(5));
+        else paths.add('Luno/' + n);
+      }
+    });
+  
     libList.forEach(p => {
       const n = normalize(p);
       if (n) {
@@ -22,13 +30,25 @@ class LunoManifestDecisionEngine {
         if (!n.startsWith('Library/')) paths.add('Library/' + n);
       }
     });
-    fileList.forEach(p => { const n = normalize(p); if (n) paths.add(n); });
-
+  
+    fileList.forEach(p => {
+      const n = normalize(p);
+      if (n) {
+        paths.add(n);
+        if (n.startsWith('Luno/')) paths.add(n.slice(5));
+        else paths.add('Luno/' + n);
+      }
+    });
+  
     if (meta.entrypoint && meta.entrypoint.file) {
       const n = normalize(meta.entrypoint.file);
-      if (n) paths.add(n);
+      if (n) {
+        paths.add(n);
+        if (n.startsWith('Luno/')) paths.add(n.slice(5));
+        else paths.add('Luno/' + n);
+      }
     }
-
+  
     return paths;
   }
 
@@ -49,24 +69,24 @@ class LunoManifestDecisionEngine {
   /**
    * ⚙️ METHOD: isStartupClientFile(filePath, manifestObj)
    */
-  static isStartupClientFile(filePath, manifestObj) {
+    static isStartupClientFile(filePath, manifestObj) {
     if (!filePath || typeof filePath !== 'string') return false;
     const norm = filePath.replace(/\\/g, '/').replace(/^\/+/, '').trim();
-
+  
     if (!norm.endsWith('.js') && !norm.endsWith('.mjs')) {
       return false;
     }
-
+  
     const serverPaths = LunoManifestDecisionEngine.extractServerPaths(manifestObj);
-    if (serverPaths.has(norm)) {
+    if (serverPaths.has(norm) || (norm.startsWith('Luno/') && serverPaths.has(norm.slice(5)))) {
       return false;
     }
-
+  
     const startupPaths = LunoManifestDecisionEngine.extractStartupPaths(manifestObj);
-    if (startupPaths.has(norm)) {
+    if (startupPaths.has(norm) || (norm.startsWith('Luno/') && startupPaths.has(norm.slice(5)))) {
       return true;
     }
-
+  
     return false;
   }
 

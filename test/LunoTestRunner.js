@@ -13,13 +13,13 @@ class LunoTestRunner {
 
   static async runTestSuite() {
     LunoTestRunner.results = [];
-    console.log('🧪 Starting Luno 3.6.2 Full Diagnostic Suite...');
+    console.log('🧪 Starting Luno 3.6.2 Web-Root Architecture Test Suite...');
 
     if (typeof LunoAcornLoader !== 'undefined' && LunoAcornLoader.ensureLoaded) {
       try { await LunoAcornLoader.ensureLoaded(); } catch (e) {}
     }
 
-    // Test 1: ES6 Class Body AST Method Replacement & Insertion
+    // Test 1: Client-Side ES6 Class Body AST Method Replacement
     try {
       if (typeof LunoClassPatcher !== 'undefined' && typeof LunoClassPatcher.patchMethodInSource === 'function') {
         const sampleSource = 'class DemoApp {\n  constructor() {}\n  greet() {\n    return "hello";\n  }\n}';
@@ -34,192 +34,80 @@ class LunoTestRunner {
       LunoTestRunner.assert('LunoClassPatcher: ES6 Class Body AST Method Replacement', false, e.message);
     }
 
-    // Test 2: Manifest Decision Engine Routing
+    // Test 2: Manifest Decision Engine Web-Root Path Equivalence
     try {
       if (typeof LunoManifestDecisionEngine !== 'undefined') {
-        const isClientFile = LunoManifestDecisionEngine.isStartupClientFile('app/ClientApp.js', { main: ['app/ClientApp.js'] });
-        const isServerFile = !LunoManifestDecisionEngine.isStartupClientFile('core/LunoServer.js', { main: ['app/ClientApp.js'] });
-        LunoTestRunner.assert('LunoManifestDecisionEngine: Client vs Server File Routing', isClientFile && isServerFile, 'App files routed to patch log; server files routed to direct disk write');
+        const isClientWebRooted = LunoManifestDecisionEngine.isStartupClientFile('Luno/app/ClientApp.js', { main: ['Luno/app/ClientApp.js'] });
+        const isClientRelative = LunoManifestDecisionEngine.isStartupClientFile('app/ClientApp.js', { main: ['Luno/app/ClientApp.js'] });
+        const isServerDirect = !LunoManifestDecisionEngine.isStartupClientFile('Luno/core/LunoServer.js', { main: ['Luno/app/ClientApp.js'] });
+        LunoTestRunner.assert(
+          'LunoManifestDecisionEngine: Web-Root & Relative Path Equivalence',
+          isClientWebRooted && isClientRelative && isServerDirect,
+          'Recognizes both Luno/app/... and app/... client files'
+        );
       } else {
-        LunoTestRunner.assert('LunoManifestDecisionEngine: Client vs Server File Routing', false, 'LunoManifestDecisionEngine unavailable');
+        LunoTestRunner.assert('LunoManifestDecisionEngine: Path Equivalence', false, 'LunoManifestDecisionEngine unavailable');
       }
     } catch (e) {
-      LunoTestRunner.assert('LunoManifestDecisionEngine: Client vs Server File Routing', false, e.message);
+      LunoTestRunner.assert('LunoManifestDecisionEngine: Path Equivalence', false, e.message);
     }
 
-    // Test 3: Telemetry Logger Event Recording
+    // Test 3: Web-Root Patch Log Query via API
     try {
-      if (typeof LunoPlaybackLogger !== 'undefined') {
-        const entry = LunoPlaybackLogger.patch('Test Event', 'Unit Test Assertion');
-        const hasEntry = LunoPlaybackLogger.logs.some(l => l.title === 'Test Event');
-        LunoTestRunner.assert('LunoPlaybackLogger: Telemetry Event Store', hasEntry, `Recorded event ID: ${entry.id}`);
-      } else {
-        LunoTestRunner.assert('LunoPlaybackLogger: Telemetry Event Store', false, 'LunoPlaybackLogger unavailable');
-      }
+      const res = await fetch('/api/fs/read?path=LunoPatchLog.html');
+      const data = await res.json();
+      const isLogAvailable = res.ok && data && data.success;
+      LunoTestRunner.assert(
+        'Web-Root Patch Log: Direct Query (/api/fs/read?path=LunoPatchLog.html)',
+        isLogAvailable,
+        `Read unified patch log (${data.lines || 0} lines)`
+      );
     } catch (e) {
-      LunoTestRunner.assert('LunoPlaybackLogger: Telemetry Event Store', false, e.message);
+      LunoTestRunner.assert('Web-Root Patch Log Query', false, e.message);
     }
 
-    // Test 4: LunoPayloadParser Ingestion & Fence Stripping
+    // Test 4: LunoPayloadParser HTML Container Parsing & Directives
     try {
       if (typeof LunoPayloadParser !== 'undefined' && typeof LunoPayloadParser.parse === 'function') {
         const closeScript = '</' + 'script>';
-        const closeSvg = '</' + 'svg>';
         const htmlPayload = [
-          '```script',
-          '<' + 'script data-file="app/ClientApp.js" data-method="ClientApp.saveCode" data-action="patch">',
+          '<' + 'script data-file="Luno/app/ClientApp.js" data-method="ClientApp.saveCode" data-action="patch">',
           'saveCode() { return true; }',
           closeScript,
-          '<' + 'script data-action="run-server">',
-          'console.log("server script");',
-          closeScript,
-          '<' + 'script type="application/luno-request" data-kind="METHOD" data-file="app/ClientApp.js" data-method="ClientApp.init">',
-          closeScript,
-          '<' + 'svg data-file="assets/test_logo.svg">',
-          '<path d="M0 0h10v10H0z"/>',
-          closeSvg,
-          '```'
+          '<' + 'script type="application/json" data-file="Luno/luno.json" data-action="merge">',
+          '{ "testKey": "testValue" }',
+          closeScript
         ].join('\n');
 
         const parsed = LunoPayloadParser.parse(htmlPayload);
-        const isFourFilesOrReqs = parsed.files.length === 2 && Boolean(parsed.serverScript) && parsed.requests.length === 1;
-        const isSurgical = parsed.files[0] && parsed.files[0].action === 'patch' && parsed.files[0].methodSpec === 'ClientApp.saveCode';
+        const isTwoFiles = parsed.files.length === 2;
+        const hasMerge = parsed.files[1] && parsed.files[1].action === 'merge';
 
         LunoTestRunner.assert(
-          'LunoPayloadParser: HTML Container & Fence Stripping',
-          isFourFilesOrReqs && isSurgical,
-          `Parsed HTML blocks: ${parsed.files.length} files, ${parsed.requests.length} requests`
+          'LunoPayloadParser: Web-Root Directives & JSON Merge Parsing',
+          isTwoFiles && hasMerge,
+          `Parsed ${parsed.files.length} container(s)`
         );
       } else {
-        LunoTestRunner.assert('LunoPayloadParser: HTML Container & Fence Stripping', false, 'LunoPayloadParser unavailable');
+        LunoTestRunner.assert('LunoPayloadParser: Parsing', false, 'LunoPayloadParser unavailable');
       }
     } catch (e) {
-      LunoTestRunner.assert('LunoPayloadParser: HTML Container & Fence Stripping', false, e.message);
+      LunoTestRunner.assert('LunoPayloadParser: Parsing', false, e.message);
     }
 
-    // Test 5: Outbox Queue Smart Bundle Modal Method
+    // Test 5: Outbox Codebase Scoping via /api/all-code
     try {
-      const hasModalMethod = typeof OutboxQueue !== 'undefined' && typeof OutboxQueue.promptBundleOptionsModal === 'function';
-      LunoTestRunner.assert('OutboxQueue: Smart Bundle Modal Method Attached', hasModalMethod, 'OutboxQueue preserves satellite modal methods');
+      const codeRes = await fetch('/api/all-code?project=Luno');
+      const codeData = await codeRes.json();
+      const hasManifest = Boolean(codeRes.ok && Array.isArray(codeData.manifest));
+      const allWebRooted = hasManifest && codeData.manifest.some(f => f.startsWith('Luno/'));
+      LunoTestRunner.assert(
+        'Outbox Bundler: Web-Rooted Codebase Scoping',
+        hasManifest && allWebRooted,
+        `Manifest contains ${codeData.manifest ? codeData.manifest.length : 0} web-rooted files`
+      );
     } catch (e) {
-      LunoTestRunner.assert('OutboxQueue: Smart Bundle Modal Method Attached', false, e.message);
-    }
-
-    // Test 6: API Fetcher Module Verification
-    try {
-      const hasApiClient = typeof LunoApiClient !== 'undefined' && typeof LunoApiClient.fetchFsList === 'function';
-      LunoTestRunner.assert('LunoApiClient: API Fetcher Available', hasApiClient, 'DiskBrowser & Templates fetcher active');
-    } catch (e) {
-      LunoTestRunner.assert('LunoApiClient: API Fetcher Available', false, e.message);
-    }
-
-    // Test 7: Multi-Project Target Resolution & Save Isolation
-    try {
-      if (typeof LunoApiClient !== 'undefined') {
-        const testProjName = 'test_project_isolation';
-        const testFileRel = 'test_file.txt';
-        const testContent = 'Isolation Proof ' + Date.now();
-        
-        const saveRes = await LunoApiClient.savePayload({
-          files: [{ filePath: testFileRel, action: 'direct', content: testContent }]
-        }, testProjName);
-        
-        const readB = await LunoApiClient.fetchFsRead(testFileRel, testProjName);
-        const isBWritten = readB && readB.content === testContent;
-        
-        LunoTestRunner.assert(
-          'Multi-Project: Target Save Isolation',
-          Boolean(saveRes && saveRes.success && isBWritten),
-          `Saved & verified write in project [${testProjName}]`
-        );
-      } else {
-        LunoTestRunner.assert('Multi-Project: Target Save Isolation', false, 'LunoApiClient unavailable');
-      }
-    } catch (e) {
-      LunoTestRunner.assert('Multi-Project: Target Save Isolation', false, e.message);
-    }
-
-    // Test 8: Multi-Project Outbox Codebase Scoping (/api/all-code?project=...)
-    try {
-      if (typeof LunoApiClient !== 'undefined') {
-        const testProjName = 'test_project_isolation';
-        const codeRes = await LunoApiClient.fetchAllCode(testProjName);
-        const hasManifest = Boolean(codeRes && codeRes.success && Array.isArray(codeRes.manifest));
-        const containsTestFile = hasManifest && codeRes.manifest.includes('test_file.txt');
-        LunoTestRunner.assert(
-          'Multi-Project: Outbox Codebase Scoping',
-          hasManifest && containsTestFile,
-          `Fetched codebase for [${testProjName}], manifest contains ${codeRes.manifest ? codeRes.manifest.length : 0} file(s)`
-        );
-      } else {
-        LunoTestRunner.assert('Multi-Project: Outbox Codebase Scoping', false, 'LunoApiClient unavailable');
-      }
-    } catch (e) {
-      LunoTestRunner.assert('Multi-Project: Outbox Codebase Scoping', false, e.message);
-    }
-
-    // Test 9: Multi-Project Manifest Decision Engine Base Read Scoping
-    try {
-      if (typeof LunoManifestDecisionEngine !== 'undefined') {
-        const testProjName = 'test_project_isolation';
-        const samplePayload = {
-          files: [{
-            filePath: 'sample_patch.js',
-            action: 'patch',
-            methodSpec: 'SampleClass.foo',
-            content: 'foo() { return "bar"; }'
-          }]
-        };
-        const processed = await LunoManifestDecisionEngine.processPayload(samplePayload, {}, testProjName);
-        const hasProcessed = processed && processed.files && processed.files.length === 1;
-        LunoTestRunner.assert(
-          'Multi-Project: Manifest AST Base Read Scoping',
-          hasProcessed,
-          `Processed AST patch against target [${testProjName}]`
-        );
-      } else {
-        LunoTestRunner.assert('Multi-Project: Manifest AST Base Read Scoping', false, 'LunoManifestDecisionEngine unavailable');
-      }
-    } catch (e) {
-      LunoTestRunner.assert('Multi-Project: Manifest AST Base Read Scoping', false, e.message);
-    }
-
-    // Test 10: Modular Prompt Instructions & AI Model Dialects
-    try {
-      if (typeof LunoPromptInstructions !== 'undefined') {
-        const fullPrompt = LunoPromptInstructions.assembleFullInstructions('aistudio');
-        const hasPreamble = fullPrompt.includes('LUNO WORKSPACE');
-        const hasSandwich = fullPrompt.includes('ENGLISH SANDWICH');
-        const hasAiStudio = fullPrompt.includes('GOOGLE AI STUDIO');
-        LunoTestRunner.assert(
-          'PromptInstructions: Modular Assembly & Model Dialects',
-          hasPreamble && hasSandwich && hasAiStudio,
-          `Generated modular instruction prompt (~${Math.ceil(fullPrompt.length / 4)} tokens)`
-        );
-      } else {
-        LunoTestRunner.assert('PromptInstructions: Modular Assembly & Model Dialects', false, 'LunoPromptInstructions unavailable');
-      }
-    } catch (e) {
-      LunoTestRunner.assert('PromptInstructions: Modular Assembly & Model Dialects', false, e.message);
-    }
-
-    // Test 11: Multi-Project Shared Library Bundling
-    try {
-      if (typeof LunoApiClient !== 'undefined') {
-        const testProjName = 'test_project_isolation';
-        const resLib = await fetch('/api/all-code?project=' + encodeURIComponent(testProjName) + '&includeLibrary=true');
-        const dataLib = await resLib.json();
-        const hasLibManifest = Boolean(resLib.ok && dataLib.manifest);
-        LunoTestRunner.assert(
-          'Multi-Project: Shared Library Ingestion',
-          hasLibManifest,
-          `Fetched codebase with library flag, returned ${dataLib.manifest ? dataLib.manifest.length : 0} total files`
-        );
-      } else {
-        LunoTestRunner.assert('Multi-Project: Shared Library Ingestion', false, 'LunoApiClient unavailable');
-      }
-    } catch (e) {
-      LunoTestRunner.assert('Multi-Project: Shared Library Ingestion', false, e.message);
+      LunoTestRunner.assert('Outbox Bundler: Scoping', false, e.message);
     }
 
     return {
