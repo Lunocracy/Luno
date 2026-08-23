@@ -306,7 +306,7 @@ class LunoServer {
 
   /**
    * ⚙️ METHOD: handleDeploy(req, res, url)
-   * Executes 1-tap Git push to GitHub for the active project.
+   * Executes robust 1-tap Git push to GitHub for the targeted project.
    */
   static handleDeploy(req, res, url) {
     let body = '';
@@ -325,17 +325,31 @@ class LunoServer {
         const targetDir = LunoServer.resolveProjectBaseDir(targetProj);
         let output = '';
 
+        // Clear stale index.lock if present
+        const lockFile = path.join(targetDir, '.git', 'index.lock');
+        if (fs.existsSync(lockFile)) {
+          try { fs.unlinkSync(lockFile); } catch(e){}
+        }
+
+        const envOpts = {
+          cwd: targetDir,
+          encoding: 'utf8',
+          env: Object.assign({}, process.env, {
+            GIT_SSH_COMMAND: 'ssh -o StrictHostKeyChecking=accept-new'
+          })
+        };
+
         try {
           output += '$ git add .\n';
-          output += (execSync('git add .', { cwd: targetDir, encoding: 'utf8' }) || '');
+          output += (execSync('git add .', envOpts) || '');
           output += '\n$ git commit -m "' + commitMsg + '"\n';
           try {
-            output += (execSync(`git commit -m "${commitMsg}" --allow-empty`, { cwd: targetDir, encoding: 'utf8' }) || '');
+            output += (execSync(`git commit -m "${commitMsg}" --allow-empty`, envOpts) || '');
           } catch(commitErr) {
             output += (commitErr.stdout || '') + '\n';
           }
           output += '\n$ git push origin main\n';
-          output += (execSync('git push origin main', { cwd: targetDir, encoding: 'utf8' }) || '');
+          output += (execSync('git push origin main', envOpts) || '');
 
           return LunoServer.sendJSON(res, 200, {
             success: true,
@@ -343,9 +357,10 @@ class LunoServer {
             output: output.trim()
           });
         } catch (gitErr) {
+          const errDetail = (gitErr.stdout || '') + '\n' + (gitErr.stderr || gitErr.message);
           return LunoServer.sendJSON(res, 500, {
             success: false,
-            error: (gitErr.stdout || '') + '\n' + (gitErr.stderr || gitErr.message)
+            error: errDetail.trim()
           });
         }
       } catch (err) {
