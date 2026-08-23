@@ -25,7 +25,8 @@ class AppLoader {
     const root = document.getElementById(containerId) || document.body;
 
     try {
-      const res = await fetch('luno.json?v=' + Date.now());
+      const projParam = (typeof window !== 'undefined' && window.location && window.location.search) ? window.location.search : '';
+      const res = await fetch('luno.json' + (projParam ? (projParam + '&v=' + Date.now()) : ('?v=' + Date.now())));
       if (!res.ok) throw new Error('HTTP ' + res.status + ' fetching luno.json');
       const config = await res.json();
 
@@ -64,13 +65,17 @@ class AppLoader {
         throw new Error('Entrypoint class "' + entryClass + '" could not be resolved on window scope.');
       }
 
-      const appInstance = new TargetClass();
-      if (typeof appInstance[entryMethod] === 'function') {
-        await appInstance[entryMethod]({ container: root, config });
-      } else if (typeof appInstance.run === 'function') {
-        await appInstance.run({ container: root, config });
+      if (typeof TargetClass[entryMethod] === 'function') {
+        await TargetClass[entryMethod]({ container: root, config });
       } else {
-        throw new Error('Entrypoint method "' + entryMethod + '" not found on ' + entryClass);
+        const appInstance = new TargetClass();
+        if (typeof appInstance[entryMethod] === 'function') {
+          await appInstance[entryMethod]({ container: root, config });
+        } else if (typeof appInstance.run === 'function') {
+          await appInstance.run({ container: root, config });
+        } else {
+          throw new Error('Entrypoint method "' + entryMethod + '" not found on ' + entryClass);
+        }
       }
 
     } catch (err) {

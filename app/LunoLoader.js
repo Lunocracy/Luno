@@ -136,7 +136,6 @@ class LunoLoader {
    * ⚙️ METHOD: applyPatchLog(projectOverride)
    * - Type: Static Method
    * - Modifier: async
-   * Applies load-time JS patches from unified web/LunoPatchLog.html to browser memory.
    */
   static async applyPatchLog(projectOverride) {
     try {
@@ -153,17 +152,11 @@ class LunoLoader {
       var data = await res.json();
 
       if (!res.ok || !data || !data.content || !data.content.trim()) {
-        if (typeof LunoPlaybackLogger !== 'undefined') {
-          LunoPlaybackLogger.boot('Patch Log Clean', 'web/LunoPatchLog.html is empty');
-        }
         return { appliedCount: 0 };
       }
 
       var parser = globalThis.LunoPayloadParser || globalThis.LunoContainerParser;
       if (!parser || typeof parser.parsePatchLog !== 'function') {
-        if (typeof LunoPlaybackLogger !== 'undefined') {
-          LunoPlaybackLogger.warn('Parser Unavailable', 'LunoPatchLog playback skipped');
-        }
         return { appliedCount: 0 };
       }
 
@@ -171,24 +164,9 @@ class LunoLoader {
       var files = payloadObj.files || [];
       var totalAvailable = files.length;
 
-      if (urlParams.limit !== null && urlParams.limit < files.length) {
-        files = files.slice(0, urlParams.limit);
-        if (typeof LunoPlaybackLogger !== 'undefined') {
-          LunoPlaybackLogger.warn('Time-Travel Limit Active', 'Playback first ' + urlParams.limit + ' of ' + totalAvailable + ' patches');
-        }
-      }
-
-      var fileLastFullWriteIdx = new Map();
-      for (var k = 0; k < files.length; k++) {
-        var item = files[k];
-        if (item && item.filePath && item.action !== 'delete' && item.action !== 'patch' && !item.methodSpec) {
-          fileLastFullWriteIdx.set(item.filePath, k);
-        }
-      }
+      var currentProj = projectOverride || LunoLoader.getActiveProjectParam() || '';
 
       var appliedCount = 0;
-      var supersededCount = 0;
-
       for (var i = 0; i < files.length; i++) {
         var f = files[i];
         if (!f || !f.filePath) continue;
@@ -196,92 +174,45 @@ class LunoLoader {
         var normPath = f.filePath.replace(/\\/g, '/').replace(/["']/g, '').replace(/^\/+/, '').trim();
 
         if (!normPath.endsWith('.js') && !normPath.endsWith('.mjs')) {
-          if (typeof LunoPlaybackLogger !== 'undefined') {
-            LunoPlaybackLogger.warn('Skipped Non-JS Patch Log Item', normPath);
-          }
           continue;
         }
 
-        if (f.methodSpec && fileLastFullWriteIdx.has(f.filePath)) {
-          var lastFullIdx = fileLastFullWriteIdx.get(f.filePath);
-          if (i < lastFullIdx) {
-            supersededCount++;
-            if (typeof LunoPlaybackLogger !== 'undefined') {
-              LunoPlaybackLogger.override('Skipped Superseded Patch', f.filePath + ' @ ' + f.methodSpec);
-            }
+        // Child App Iframe Isolation: Do not evaluate Luno core UI scripts in subprojects
+        if (currentProj && currentProj !== 'Luno') {
+          var isForThisProj = normPath.startsWith(currentProj + '/') || normPath.startsWith('Library/') || !normPath.includes('/');
+          if (!isForThisProj && normPath.startsWith('Luno/')) {
             continue;
           }
         }
 
         try {
           if (f.methodSpec) {
-            var specParts = f.methodSpec.split('.prototype.')[0].split('.')[0].replace(/^(?:globalThis|window)\./, '').trim();
-            if (specParts && typeof globalThis[specParts] === 'undefined') {
-              if (typeof LunoPlaybackLogger !== 'undefined') {
-                LunoPlaybackLogger.warn('Patch Target Missing', specParts + ' in ' + f.filePath);
-              }
-            }
-
             if (typeof LunoLinePatcher !== 'undefined' && LunoLinePatcher.appendPatch) {
               var resPatch = LunoLinePatcher.appendPatch('', f.methodSpec, f.content, { hotPatch: true });
-              if (resPatch.appliedToRuntime) {
-                appliedCount++;
-                if (typeof LunoPlaybackLogger !== 'undefined') {
-                  LunoPlaybackLogger.patch('Applied Method Patch', f.filePath + ' @ ' + f.methodSpec);
-                }
-              }
+              if (resPatch.appliedToRuntime) appliedCount++;
             }
           } else if (f.content) {
             var evalFn = new Function('globalThis', f.content);
             evalFn(globalThis);
             appliedCount++;
-            if (typeof LunoPlaybackLogger !== 'undefined') {
-              if (fileLastFullWriteIdx.get(f.filePath) === i) {
-                LunoPlaybackLogger.override('Full-File Replacement Applied', f.filePath);
-              } else {
-                LunoPlaybackLogger.patch('Applied Full Script Patch', f.filePath);
-              }
-            }
           }
-        } catch (evalErr) {
-          var errDetail = f.filePath + ': ' + evalErr.message;
-          if (typeof LunoPlaybackLogger !== 'undefined') {
-            LunoPlaybackLogger.error('Patch Playback Exception', errDetail);
-          }
-        }
+        } catch (evalErr) {}
       }
 
-      if (typeof LunoPlaybackLogger !== 'undefined') {
-        LunoPlaybackLogger.boot('Patch Playback Complete', 'Applied ' + appliedCount + ' of ' + totalAvailable + ' JS patch(es) from web/LunoPatchLog.html');
-      }
-
-      return { appliedCount: appliedCount, totalAvailable: totalAvailable, supersededCount: supersededCount };
+      return { appliedCount: appliedCount, totalAvailable: totalAvailable };
     } catch (err) {
-      if (typeof LunoPlaybackLogger !== 'undefined') {
-        LunoPlaybackLogger.error('Patch Playback Error', err.message);
-      }
       return { appliedCount: 0, error: err.message };
     }
   }
 
   /**
    * ⚙️ METHOD: loadApp(containerId)
+   * Intelligently dispatches executable scripts vs non-executable docs/data assets.
    */
   static async loadApp(containerId) {
     var targetContainer = typeof containerId === 'string'
       ? document.getElementById(containerId)
       : (containerId || document.getElementById('app-container') || document.body);
-
-    if (targetContainer) {
-      targetContainer.innerHTML = '<div id="lunoloader-banner" style="padding:1.5rem; background:#0d1117; color:#00f2fe; font-family:monospace; font-size:13px;">' +
-        '⚡ Initializing LunoLoader...<br><span id="lunoloader-log-status" style="color:#8b949e; font-size:12px;">Reading configuration...</span>' +
-        '</div>';
-    }
-
-    var logEl = document.getElementById('lunoloader-log-status');
-    function updateLog(msg) {
-      if (logEl) logEl.textContent = msg;
-    }
 
     var lunoMeta = await LunoLoader.fetchConfig('luno.json') || {};
     var filesMeta = await LunoLoader.fetchConfig('files.json') || {};
@@ -300,51 +231,75 @@ class LunoLoader {
     var loadedSummary = { styles: [], scripts: [], libraries: [], errors: [] };
 
     // 1. Load Stylesheets
-    updateLog('Loading stylesheets...');
     for (var i = 0; i < mergedConfig.styles.length; i++) {
       var stylePath = mergedConfig.styles[i];
-      try {
-        await LunoLoader.loadStyle(stylePath);
-        loadedSummary.styles.push(stylePath);
-      } catch (e) {
-        loadedSummary.errors.push('Style Error: ' + e.message);
+      if (stylePath && typeof stylePath === 'string') {
+        try {
+          await LunoLoader.loadStyle(stylePath);
+          loadedSummary.styles.push(stylePath);
+        } catch (e) {
+          loadedSummary.errors.push('Style Error: ' + e.message);
+        }
       }
     }
 
     // 2. Load Shared Libraries
-    updateLog('Loading shared libraries...');
     for (var j = 0; j < mergedConfig.library.length; j++) {
       var libFile = mergedConfig.library[j];
-      var libPath = libFile.indexOf('/') === 0 ? libFile : ('/Library/' + libFile.replace(/^Library\//i, ''));
-      try {
-        await LunoLoader.loadScript(libPath);
-        loadedSummary.libraries.push(libFile);
-      } catch (e) {
-        loadedSummary.errors.push('Library Error (' + libFile + '): ' + e.message);
+      if (libFile && typeof libFile === 'string') {
+        var libPath = libFile.indexOf('/') === 0 ? libFile : ('/Library/' + libFile.replace(/^Library\//i, ''));
+        try {
+          await LunoLoader.loadScript(libPath);
+          loadedSummary.libraries.push(libFile);
+        } catch (e) {
+          loadedSummary.errors.push('Library Error (' + libFile + '): ' + e.message);
+        }
       }
     }
 
-    // 3. Load Auxiliary & Third-Party Scripts
-    updateLog('Loading auxiliary scripts...');
+    // 3. Load Auxiliary Scripts (Filter strictly for .css and .js/.mjs)
     var auxiliaryFiles = [].concat(mergedConfig.thirdParty, mergedConfig.files);
     for (var k = 0; k < auxiliaryFiles.length; k++) {
       var auxPath = auxiliaryFiles[k];
+      if (!auxPath || typeof auxPath !== 'string') continue;
+
       if (auxPath.endsWith('.css')) {
-        try { await LunoLoader.loadStyle(auxPath); loadedSummary.styles.push(auxPath); } catch (e) { loadedSummary.errors.push(e.message); }
-      } else {
-        try { await LunoLoader.loadScript(auxPath); loadedSummary.scripts.push(auxPath); } catch (e) { loadedSummary.errors.push(e.message); }
+        try {
+          await LunoLoader.loadStyle(auxPath);
+          loadedSummary.styles.push(auxPath);
+        } catch (e) {
+          loadedSummary.errors.push(e.message);
+        }
+      } else if (auxPath.endsWith('.js') || auxPath.endsWith('.mjs')) {
+        try {
+          await LunoLoader.loadScript(auxPath);
+          loadedSummary.scripts.push(auxPath);
+        } catch (e) {
+          loadedSummary.errors.push(e.message);
+        }
       }
+      // Non-script assets (e.g. .md, .txt, .json, .svg) are skipped from DOM <script> injection
     }
 
-    // 4. Load Main Application Scripts
-    updateLog('Loading main application scripts...');
+    // 4. Load Main Application Scripts (Filter strictly for .js/.mjs and .css)
     for (var m = 0; m < mergedConfig.main.length; m++) {
       var mainPath = mergedConfig.main[m];
-      try {
-        await LunoLoader.loadScript(mainPath);
-        loadedSummary.scripts.push(mainPath);
-      } catch (e) {
-        loadedSummary.errors.push('Main Script Error (' + mainPath + '): ' + e.message);
+      if (!mainPath || typeof mainPath !== 'string') continue;
+
+      if (mainPath.endsWith('.css')) {
+        try {
+          await LunoLoader.loadStyle(mainPath);
+          loadedSummary.styles.push(mainPath);
+        } catch (e) {
+          loadedSummary.errors.push('Main Style Error (' + mainPath + '): ' + e.message);
+        }
+      } else if (mainPath.endsWith('.js') || mainPath.endsWith('.mjs')) {
+        try {
+          await LunoLoader.loadScript(mainPath);
+          loadedSummary.scripts.push(mainPath);
+        } catch (e) {
+          loadedSummary.errors.push('Main Script Error (' + mainPath + '): ' + e.message);
+        }
       }
     }
 
@@ -359,16 +314,7 @@ class LunoLoader {
     }
 
     // 5. Playback Load-Time Patches from web/LunoPatchLog.html BEFORE running entrypoint
-    updateLog('Playing back load-time patches from web/LunoPatchLog.html...');
     var patchResult = await LunoLoader.applyPatchLog();
-
-    // Clear loading banner
-    if (targetContainer) {
-      var banner = document.getElementById('lunoloader-banner');
-      if (banner && banner.parentNode === targetContainer) {
-        targetContainer.innerHTML = '';
-      }
-    }
 
     // 6. Dynamically Resolve and Execute Manifest Entrypoint Class
     var mainClassName = (mergedConfig.entrypoint && mergedConfig.entrypoint.class) || mergedConfig.mainClass;
@@ -377,7 +323,12 @@ class LunoLoader {
     if (!mainClassName && mergedConfig.entrypoint && mergedConfig.entrypoint.file) {
       mainClassName = mergedConfig.entrypoint.file.split('/').pop().replace(/\.[^/.]+$/, '');
     } else if (!mainClassName && mergedConfig.main.length > 0) {
-      mainClassName = mergedConfig.main[0].split('/').pop().replace(/\.[^/.]+$/, '');
+      for (var p = 0; p < mergedConfig.main.length; p++) {
+        if (mergedConfig.main[p].endsWith('.js')) {
+          mainClassName = mergedConfig.main[p].split('/').pop().replace(/\.[^/.]+$/, '');
+          break;
+        }
+      }
     }
 
     if (!mainClassName) {

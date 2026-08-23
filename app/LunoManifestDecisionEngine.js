@@ -4,16 +4,16 @@ class LunoManifestDecisionEngine {
   /**
    * ⚙️ METHOD: extractStartupPaths(manifestObj)
    */
-    static extractStartupPaths(manifestObj) {
+  static extractStartupPaths(manifestObj) {
     const meta = manifestObj || {};
     const paths = new Set();
-  
+
     const normalize = (p) => p ? p.replace(/\\/g, '/').replace(/^\/+/, '').trim() : '';
-  
+
     const mainList = [].concat(meta.main || []);
     const libList = [].concat(meta.library || []);
     const fileList = [].concat(meta.files || meta.local || []);
-  
+
     mainList.forEach(p => {
       const n = normalize(p);
       if (n) {
@@ -22,7 +22,7 @@ class LunoManifestDecisionEngine {
         else paths.add('Luno/' + n);
       }
     });
-  
+
     libList.forEach(p => {
       const n = normalize(p);
       if (n) {
@@ -30,7 +30,7 @@ class LunoManifestDecisionEngine {
         if (!n.startsWith('Library/')) paths.add('Library/' + n);
       }
     });
-  
+
     fileList.forEach(p => {
       const n = normalize(p);
       if (n) {
@@ -39,7 +39,7 @@ class LunoManifestDecisionEngine {
         else paths.add('Luno/' + n);
       }
     });
-  
+
     if (meta.entrypoint && meta.entrypoint.file) {
       const n = normalize(meta.entrypoint.file);
       if (n) {
@@ -48,7 +48,7 @@ class LunoManifestDecisionEngine {
         else paths.add('Luno/' + n);
       }
     }
-  
+
     return paths;
   }
 
@@ -69,31 +69,30 @@ class LunoManifestDecisionEngine {
   /**
    * ⚙️ METHOD: isStartupClientFile(filePath, manifestObj)
    */
-    static isStartupClientFile(filePath, manifestObj) {
+  static isStartupClientFile(filePath, manifestObj) {
     if (!filePath || typeof filePath !== 'string') return false;
     const norm = filePath.replace(/\\/g, '/').replace(/^\/+/, '').trim();
-  
+
     if (!norm.endsWith('.js') && !norm.endsWith('.mjs')) {
       return false;
     }
-  
+
     const serverPaths = LunoManifestDecisionEngine.extractServerPaths(manifestObj);
     if (serverPaths.has(norm) || (norm.startsWith('Luno/') && serverPaths.has(norm.slice(5)))) {
       return false;
     }
-  
+
     const startupPaths = LunoManifestDecisionEngine.extractStartupPaths(manifestObj);
     if (startupPaths.has(norm) || (norm.startsWith('Luno/') && startupPaths.has(norm.slice(5)))) {
       return true;
     }
-  
+
     return false;
   }
 
   /**
    * ⚙️ METHOD: processPayload(payloadObj, manifestObj, projectName)
-   * Surgically scopes file classification, AST base reads, and direct writes
-   * to the targeted project directory.
+   * Hardened against silent truncation: fails loudly if base files or AST patches are invalid.
    */
   static async processPayload(payloadObj, manifestObj, projectName = '') {
     if (!payloadObj || !Array.isArray(payloadObj.files)) {
@@ -121,34 +120,35 @@ class LunoManifestDecisionEngine {
         });
       } else {
         if (f.methodSpec || f.action === 'patch') {
-          try {
-            let baseContent = '';
-            if (typeof LunoApiClient !== 'undefined' && LunoApiClient.fetchFsRead) {
-              const res = await LunoApiClient.fetchFsRead(normPath, targetProj);
+          let baseContent = '';
+          if (typeof LunoApiClient !== 'undefined' && LunoApiClient.fetchFsRead) {
+            // First try targeted project, then try global workspace root
+            let res = await LunoApiClient.fetchFsRead(normPath, targetProj);
+            if (res && res.content) {
+              baseContent = res.content;
+            } else if (targetProj) {
+              res = await LunoApiClient.fetchFsRead(normPath, '');
               if (res && res.content) baseContent = res.content;
             }
-
-            let consolidatedContent = baseContent;
-            if (typeof LunoClassPatcher !== 'undefined' && LunoClassPatcher.patchMethodInSource) {
-              consolidatedContent = LunoClassPatcher.patchMethodInSource(baseContent, f.methodSpec || normPath, f.content);
-            } else {
-              consolidatedContent = baseContent.trimEnd() + '\n\n' + f.content + '\n';
-            }
-
-            processedFiles.push({
-              tagName: f.tagName || 'script',
-              filePath: normPath,
-              action: 'direct',
-              content: consolidatedContent
-            });
-          } catch (err) {
-            processedFiles.push({
-              tagName: f.tagName || 'script',
-              filePath: normPath,
-              action: 'direct',
-              content: f.content
-            });
           }
+
+          if (!baseContent || !baseContent.trim()) {
+            throw new Error(`[Luno AST Guard] Cannot apply surgical method patch to "${normPath}": Target file could not be read from disk. Operation aborted to prevent file corruption.`);
+          }
+
+          if (typeof LunoClassPatcher === 'undefined' || typeof LunoClassPatcher.patchMethodInSource !== 'function') {
+            throw new Error(`[Luno AST Guard] LunoClassPatcher is not loaded in memory to patch "${normPath}". Operation aborted.`);
+          }
+
+          // Strict AST method replacement. Throws loudly if class or method is missing.
+          const consolidatedContent = LunoClassPatcher.patchMethodInSource(baseContent, f.methodSpec || normPath, f.content);
+
+          processedFiles.push({
+            tagName: f.tagName || 'script',
+            filePath: normPath,
+            action: 'direct',
+            content: consolidatedContent
+          });
         } else {
           processedFiles.push({
             tagName: f.tagName || 'script',

@@ -85,7 +85,6 @@ class ClientAppPaster {
       }
     }
 
-    // Fetch target project manifest for isolated routing decisions
     var lunoMeta = {};
     try {
       if (typeof LunoApiClient !== 'undefined' && LunoApiClient.fetchFsRead) {
@@ -155,6 +154,11 @@ class ClientAppPaster {
 
         if (typeof LunoLoader !== 'undefined' && LunoLoader.applyPatchLog) {
           await LunoLoader.applyPatchLog(targetProj);
+        }
+
+        // AUTO-RELOAD PREVIEW IFRAME: Automatically refresh active preview iframe for the targeted project
+        if (typeof LunoSpaDock !== 'undefined' && LunoSpaDock.reloadActivePreviewIframe) {
+          LunoSpaDock.reloadActivePreviewIframe(targetProj);
         }
 
         if (targetApp && targetApp.showToast) {

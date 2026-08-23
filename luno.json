@@ -50,18 +50,16 @@
     "Luno/docs/LunoDocs.js",
     "Luno/test/LunoTestRunner.js"
   ],
+  "docs": [
+    "Luno/docs/HANDOFF_AUGUST_2026.md",
+    "Luno/docs/BookmarkletStudioRoadmap.md"
+  ],
   "patchJournal": "LunoPatchLog.html",
-  "processedCountSinceCheckpoint": 12,
+  "processedCountSinceCheckpoint": 2,
   "changedMethods": {
-    "core/LunoClassPatcher.js": "2026-08-23T17:21:09.889Z",
-    "luno.json": "2026-08-23T17:14:08.011Z",
-    "core/LunoClassPatcher.js.bak": "2026-08-23T17:14:47.428Z",
-    "LunoPatchLog.html": "2026-08-23T17:14:47.428Z",
-    "core/LunoServer.js": "2026-08-23T17:15:23.666Z",
-    "app/LunoPromptInstructions.js": "2026-08-23T17:15:23.666Z",
-    "test/LunoTestRunner.js": "2026-08-23T17:19:19.944Z",
-    "app/LunoPatchConsolidator.js": "2026-08-23T17:19:19.944Z"
+    "Luno/app/LunoLoader.js": "2026-08-23T19:48:39.805Z",
+    "Luno/luno.json": "2026-08-23T19:48:39.805Z"
   },
-  "lastCheckpointTime": "2026-08-23T10:00:00.000Z",
+  "lastCheckpointTime": "2026-08-23T19:40:00.000Z",
   "pendingCheckpointDescription": "Clean working tree"
 }

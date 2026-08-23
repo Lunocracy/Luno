@@ -126,6 +126,10 @@ class LunoServer {
     return fileList;
   }
 
+  /**
+   * ⚙️ METHOD: sanitizeAndResolvePath(relPath, baseDir)
+   * Target-First Resolution: Active target project files always take priority over system fallbacks.
+   */
   static sanitizeAndResolvePath(relPath, baseDir) {
     const webRoot = LunoServer.getWebRootDir();
     const currentRoot = baseDir || LunoServer.getRootDir();
@@ -140,15 +144,25 @@ class LunoServer {
       if (fs.existsSync(normalized)) return path.resolve(normalized);
     }
 
-    // 1. Direct match relative to web root (e.g. "Luno/app/ClientApp.js" or "Library/DomBasics.js")
-    const webResolved = path.resolve(webRoot, normalized);
-    if (fs.existsSync(webResolved)) return webResolved;
-
-    // 2. Relative to baseDir / current project
+    // 1. TARGET PROJECT FIRST: If the active target project has this file, resolve it immediately!
     const relResolved = path.resolve(currentRoot, normalized);
-    if (fs.existsSync(relResolved)) return relResolved;
+    if (fs.existsSync(relResolved) && fs.statSync(relResolved).isFile()) {
+      return relResolved;
+    }
 
-    // 3. Match top-level directory directly under web
+    // 2. Direct match relative to web root (e.g. "Library/DomBasics.js", "Basic3D/Basic3d.js", "Luno/app/ClientApp.js")
+    const webResolved = path.resolve(webRoot, normalized);
+    if (fs.existsSync(webResolved)) {
+      return webResolved;
+    }
+
+    // 3. Fallback within Luno/ core directory (e.g. "app/LunoLoader.js", "app/acorn.js")
+    const lunoResolved = path.resolve(webRoot, 'Luno', normalized);
+    if (fs.existsSync(lunoResolved)) {
+      return lunoResolved;
+    }
+
+    // 4. Match top-level directory directly under web root
     const firstSegment = normalized.split('/')[0];
     const webFirstSegment = path.join(webRoot, firstSegment);
     if (fs.existsSync(webFirstSegment)) {
@@ -427,7 +441,6 @@ class LunoServer {
 
   /**
    * ⚙️ METHOD: handleAllCode(req, res, url)
-   * Builds self-describing, web-rooted Outbox codebase packages (e.g. "Luno/app/ClientApp.js").
    */
   static handleAllCode(req, res, url) {
     const projectName = (url && url.searchParams) ? (url.searchParams.get('project') || '') : '';

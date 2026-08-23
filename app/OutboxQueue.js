@@ -204,8 +204,11 @@ class OutboxQueue {
       parts.push(currentPartText.trim() + '\n\n');
     }
 
+    // Only replace existing packages that belong to this specific project
     OutboxQueue.queue = OutboxQueue.queue.filter(function(i) {
-      return i && i.title && !i.title.startsWith('Codebase Package') && !i.title.startsWith('Smart Bundle');
+      if (!i || !i.title) return false;
+      var isThisProjectPackage = i.title.startsWith('Codebase Package: ' + pName) || i.title.startsWith('Smart Bundle: ' + pName);
+      return !isThisProjectPackage;
     });
 
     for (var i = 0; i < parts.length; i++) {
@@ -339,4 +342,4 @@ if (typeof OutboxWidgetRenderer !== 'undefined') {
 }
 
 globalThis.OutboxQueue = OutboxQueue;
-if (typeof module !== "undefined" && module.exports) module.exports = OutboxQueue;
+if (typeof module !== 'undefined' && module.exports) module.exports = OutboxQueue;

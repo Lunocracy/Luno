@@ -34,7 +34,7 @@ class LunoSpaDock {
 
   /**
    * ⚙️ METHOD: reloadActivePreviewIframe(projectName)
-   * Reloads the iframe preview for a specific project.
+   * Force reloads the active preview iframe for a specific project.
    */
   static reloadActivePreviewIframe(projectName) {
     var pName = projectName || (typeof ClientApp !== 'undefined' && ClientApp.getTargetProject ? ClientApp.getTargetProject() : '');
@@ -51,7 +51,7 @@ class LunoSpaDock {
 
   /**
    * ⚙️ METHOD: mountView(viewKey)
-   * Dynamically mounts active dock views and persistent project preview iframes.
+   * Dynamically mounts active dock views and robust project preview iframes.
    */
   static mountView(viewKey) {
     LunoSpaDock.activeDockView = viewKey;
@@ -115,7 +115,7 @@ class LunoSpaDock {
     var navBar = LunoSpaDock.renderHeaderNav(viewKey);
     var contentArea = document.createElement('div');
     contentArea.id = 'luno-spa-content-area';
-    contentArea.style.cssText = 'width:100%; min-height:82vh;';
+    contentArea.style.cssText = 'width:100%; min-height:82vh; position:relative;';
 
     container.appendChild(navBar);
     container.appendChild(contentArea);
@@ -133,15 +133,22 @@ class LunoSpaDock {
       persistentAppRoot.style.height = '82vh';
       persistentAppRoot.style.display = 'block';
 
-      var iframeUrl = '/app-preview?project=' + encodeURIComponent(targetProj);
+      var iframeUrl = '/app-preview?project=' + encodeURIComponent(targetProj) + '&v=' + Date.now();
 
       if (!LunoSpaDock._iframeCache[targetProj]) {
         var holder = document.createElement('div');
         holder.id = 'iframe-holder-' + targetProj;
         holder.style.cssText = 'width:100%; height:100%; display:block;';
-        holder.innerHTML = '<iframe src="' + iframeUrl + '" style="width:100%; height:100%; border:1px solid #30363d; border-radius:8px; background:#0d1117;"></iframe>';
+        holder.innerHTML = '<iframe src="' + iframeUrl + '" style="width:100%; height:100%; border:1px solid #30363d; border-radius:8px; background:#0d1117;" allow="fullscreen; autoplay"></iframe>';
         persistentAppRoot.appendChild(holder);
         LunoSpaDock._iframeCache[targetProj] = holder;
+      } else {
+        // Refresh stale iframe on demand
+        var holder = LunoSpaDock._iframeCache[targetProj];
+        var iframe = holder.querySelector('iframe');
+        if (iframe && (!iframe.src || iframe.src.indexOf('project=' + targetProj) === -1)) {
+          iframe.src = iframeUrl;
+        }
       }
 
       Object.entries(LunoSpaDock._iframeCache).forEach(function(entry) {
