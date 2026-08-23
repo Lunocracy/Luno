@@ -92,7 +92,6 @@ class LunoManifestDecisionEngine {
 
   /**
    * ⚙️ METHOD: processPayload(payloadObj, manifestObj, projectName)
-   * Hardened against silent truncation: fails loudly if base files or AST patches are invalid.
    */
   static async processPayload(payloadObj, manifestObj, projectName = '') {
     if (!payloadObj || !Array.isArray(payloadObj.files)) {
@@ -108,7 +107,8 @@ class LunoManifestDecisionEngine {
 
       const normPath = f.filePath.replace(/\\/g, '/').replace(/^\/+/, '').trim();
       const isExplicitDirect = (f.action === 'direct');
-      const isClientAsset = !isExplicitDirect && LunoManifestDecisionEngine.isStartupClientFile(normPath, manifestObj);
+      const isExplicitMerge = (f.action === 'merge');
+      const isClientAsset = !isExplicitDirect && !isExplicitMerge && LunoManifestDecisionEngine.isStartupClientFile(normPath, manifestObj);
 
       if (isClientAsset) {
         processedFiles.push({
@@ -122,7 +122,6 @@ class LunoManifestDecisionEngine {
         if (f.methodSpec || f.action === 'patch') {
           let baseContent = '';
           if (typeof LunoApiClient !== 'undefined' && LunoApiClient.fetchFsRead) {
-            // First try targeted project, then try global workspace root
             let res = await LunoApiClient.fetchFsRead(normPath, targetProj);
             if (res && res.content) {
               baseContent = res.content;
@@ -133,14 +132,13 @@ class LunoManifestDecisionEngine {
           }
 
           if (!baseContent || !baseContent.trim()) {
-            throw new Error(`[Luno AST Guard] Cannot apply surgical method patch to "${normPath}": Target file could not be read from disk. Operation aborted to prevent file corruption.`);
+            throw new Error(`[Luno AST Guard] Cannot apply surgical method patch to "${normPath}": Target file could not be read from disk.`);
           }
 
           if (typeof LunoClassPatcher === 'undefined' || typeof LunoClassPatcher.patchMethodInSource !== 'function') {
-            throw new Error(`[Luno AST Guard] LunoClassPatcher is not loaded in memory to patch "${normPath}". Operation aborted.`);
+            throw new Error(`[Luno AST Guard] LunoClassPatcher is not loaded in memory to patch "${normPath}".`);
           }
 
-          // Strict AST method replacement. Throws loudly if class or method is missing.
           const consolidatedContent = LunoClassPatcher.patchMethodInSource(baseContent, f.methodSpec || normPath, f.content);
 
           processedFiles.push({
@@ -153,7 +151,7 @@ class LunoManifestDecisionEngine {
           processedFiles.push({
             tagName: f.tagName || 'script',
             filePath: normPath,
-            action: f.action === 'delete' ? 'delete' : 'direct',
+            action: (f.action === 'delete' || f.action === 'merge') ? f.action : 'direct',
             content: f.content
           });
         }
@@ -171,4 +169,4 @@ class LunoManifestDecisionEngine {
 }
 
 globalThis.LunoManifestDecisionEngine = LunoManifestDecisionEngine;
-if (typeof module !== "undefined" && module.exports) module.exports = LunoManifestDecisionEngine;
+if (typeof module !== 'undefined' && module.exports) module.exports = LunoManifestDecisionEngine;
