@@ -1,5 +1,6 @@
 const fs = require("fs");
 const path = require("path");
+const { execSync } = require("child_process");
 
 class LunoServer {
   /**
@@ -57,7 +58,7 @@ class LunoServer {
         if (meta.version) return "v" + meta.version.replace(/^v/, "");
       }
     } catch (e) {}
-    return "v3.6.1";
+    return "v3.6.2";
   }
 
   static sendJSON(res, status, data) {
@@ -303,6 +304,56 @@ class LunoServer {
     }
   }
 
+  /**
+   * ⚙️ METHOD: handleDeploy(req, res, url)
+   * Executes 1-tap Git push to GitHub for the active project.
+   */
+  static handleDeploy(req, res, url) {
+    let body = '';
+    req.on('data', chunk => { body += chunk; });
+    req.on('end', () => {
+      try {
+        let commitMsg = 'Automated deployment from Luno Workspace';
+        let targetProj = url.searchParams.get('project') || '';
+
+        try {
+          const parsed = JSON.parse(body || '{}');
+          if (parsed.commitMsg) commitMsg = parsed.commitMsg;
+          if (parsed.project) targetProj = parsed.project;
+        } catch(e) {}
+
+        const targetDir = LunoServer.resolveProjectBaseDir(targetProj);
+        let output = '';
+
+        try {
+          output += '$ git add .\n';
+          output += (execSync('git add .', { cwd: targetDir, encoding: 'utf8' }) || '');
+          output += '\n$ git commit -m "' + commitMsg + '"\n';
+          try {
+            output += (execSync(`git commit -m "${commitMsg}" --allow-empty`, { cwd: targetDir, encoding: 'utf8' }) || '');
+          } catch(commitErr) {
+            output += (commitErr.stdout || '') + '\n';
+          }
+          output += '\n$ git push origin main\n';
+          output += (execSync('git push origin main', { cwd: targetDir, encoding: 'utf8' }) || '');
+
+          return LunoServer.sendJSON(res, 200, {
+            success: true,
+            project: path.basename(targetDir),
+            output: output.trim()
+          });
+        } catch (gitErr) {
+          return LunoServer.sendJSON(res, 500, {
+            success: false,
+            error: (gitErr.stdout || '') + '\n' + (gitErr.stderr || gitErr.message)
+          });
+        }
+      } catch (err) {
+        return LunoServer.sendJSON(res, 400, { success: false, error: err.message });
+      }
+    });
+  }
+
   static handleAllCode(req, res, url) {
     const projectName = (url && url.searchParams) ? (url.searchParams.get('project') || '') : '';
     const includeLibrary = (url && url.searchParams) ? (url.searchParams.get('includeLibrary') === 'true' || url.searchParams.get('library') === 'true') : false;
@@ -344,12 +395,10 @@ class LunoServer {
       }
     }
 
-    // 1. Scan active project files
     if (fs.existsSync(targetDir)) {
       scan(targetDir, 0, '');
     }
 
-    // 2. If requested and project is not Library itself, include shared Library dependencies
     if (includeLibrary && fs.existsSync(libraryDir) && path.resolve(targetDir) !== path.resolve(libraryDir)) {
       scan(libraryDir, 0, 'Library');
     }
@@ -597,6 +646,10 @@ class LunoServer {
 
       if (method === 'GET' && url.pathname === '/api/all-code') {
         return LunoServer.handleAllCode(req, res, url);
+      }
+
+      if (method === 'POST' && url.pathname === '/api/deploy') {
+        return LunoServer.handleDeploy(req, res, url);
       }
 
       if (method === 'POST' && url.pathname === '/api/save') {
