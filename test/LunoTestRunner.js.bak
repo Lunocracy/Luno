@@ -13,7 +13,7 @@ class LunoTestRunner {
 
   static async runTestSuite() {
     LunoTestRunner.results = [];
-    console.log('🧪 Starting Luno 3.6.2 Full Diagnostic Suite...');
+    console.log('🧪 Starting Luno 3.6 HTML Container Protocol & Multi-Project Test Suite...');
 
     if (typeof LunoAcornLoader !== 'undefined' && LunoAcornLoader.ensureLoaded) {
       try { await LunoAcornLoader.ensureLoaded(); } catch (e) {}
@@ -37,9 +37,9 @@ class LunoTestRunner {
     // Test 2: Manifest Decision Engine Routing
     try {
       if (typeof LunoManifestDecisionEngine !== 'undefined') {
-        const isClientFile = LunoManifestDecisionEngine.isStartupClientFile('app/ClientApp.js', { main: ['app/ClientApp.js'] });
-        const isServerFile = !LunoManifestDecisionEngine.isStartupClientFile('core/LunoServer.js', { main: ['app/ClientApp.js'] });
-        LunoTestRunner.assert('LunoManifestDecisionEngine: Client vs Server File Routing', isClientFile && isServerFile, 'App files routed to patch log; server files routed to direct disk write');
+        const isClientFile = LunoManifestDecisionEngine.isStartupClientFile('app/ClientApp.js', {});
+        const isServerFile = !LunoManifestDecisionEngine.isStartupClientFile('core/LunoServer.js', {});
+        LunoTestRunner.assert('LunoManifestDecisionEngine: Client vs Server File Routing', isClientFile && isServerFile, 'App files routed to patch log; core server files routed to direct disk write');
       } else {
         LunoTestRunner.assert('LunoManifestDecisionEngine: Client vs Server File Routing', false, 'LunoManifestDecisionEngine unavailable');
       }
@@ -120,10 +120,12 @@ class LunoTestRunner {
         const testFileRel = 'test_file.txt';
         const testContent = 'Isolation Proof ' + Date.now();
         
+        // Save to test_project_isolation
         const saveRes = await LunoApiClient.savePayload({
           files: [{ filePath: testFileRel, action: 'direct', content: testContent }]
         }, testProjName);
         
+        // Read back from test_project_isolation
         const readB = await LunoApiClient.fetchFsRead(testFileRel, testProjName);
         const isBWritten = readB && readB.content === testContent;
         
@@ -184,44 +186,6 @@ class LunoTestRunner {
       LunoTestRunner.assert('Multi-Project: Manifest AST Base Read Scoping', false, e.message);
     }
 
-    // Test 10: Modular Prompt Instructions & AI Model Dialects
-    try {
-      if (typeof LunoPromptInstructions !== 'undefined') {
-        const fullPrompt = LunoPromptInstructions.assembleFullInstructions('aistudio');
-        const hasPreamble = fullPrompt.includes('LUNO WORKSPACE');
-        const hasSandwich = fullPrompt.includes('ENGLISH SANDWICH');
-        const hasAiStudio = fullPrompt.includes('GOOGLE AI STUDIO');
-        LunoTestRunner.assert(
-          'PromptInstructions: Modular Assembly & Model Dialects',
-          hasPreamble && hasSandwich && hasAiStudio,
-          `Generated modular instruction prompt (~${Math.ceil(fullPrompt.length / 4)} tokens)`
-        );
-      } else {
-        LunoTestRunner.assert('PromptInstructions: Modular Assembly & Model Dialects', false, 'LunoPromptInstructions unavailable');
-      }
-    } catch (e) {
-      LunoTestRunner.assert('PromptInstructions: Modular Assembly & Model Dialects', false, e.message);
-    }
-
-    // Test 11: Multi-Project Shared Library Bundling
-    try {
-      if (typeof LunoApiClient !== 'undefined') {
-        const testProjName = 'test_project_isolation';
-        const resLib = await fetch('/api/all-code?project=' + encodeURIComponent(testProjName) + '&includeLibrary=true');
-        const dataLib = await resLib.json();
-        const hasLibManifest = Boolean(resLib.ok && dataLib.manifest);
-        LunoTestRunner.assert(
-          'Multi-Project: Shared Library Ingestion',
-          hasLibManifest,
-          `Fetched codebase with library flag, returned ${dataLib.manifest ? dataLib.manifest.length : 0} total files`
-        );
-      } else {
-        LunoTestRunner.assert('Multi-Project: Shared Library Ingestion', false, 'LunoApiClient unavailable');
-      }
-    } catch (e) {
-      LunoTestRunner.assert('Multi-Project: Shared Library Ingestion', false, e.message);
-    }
-
     return {
       total: LunoTestRunner.results.length,
       passed: LunoTestRunner.results.filter(r => r.success).length,
@@ -243,7 +207,7 @@ class LunoTestRunner {
     const card = m('div', {
       style: { background: '#161b22', border: '2px solid #00f2fe', borderRadius: '10px', padding: '1rem', color: '#c9d1d9', fontFamily: 'monospace', maxWidth: '680px', margin: '1rem auto' }
     },
-      m('h2', { style: { color: '#00f2fe', fontSize: '1.1rem', margin: '0 0 0.8rem 0' } }, '🧪 Luno 3.6.2 Diagnostic Test Runner'),
+      m('h2', { style: { color: '#00f2fe', fontSize: '1.1rem', margin: '0 0 0.8rem 0' } }, '🧪 Luno 3.6 Diagnostic Test Runner'),
       m('button', {
         style: { padding: '0.65rem 1.2rem', background: '#238636', color: '#fff', border: 'none', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer', fontFamily: 'monospace', marginBottom: '1rem' },
         onclick: async () => {

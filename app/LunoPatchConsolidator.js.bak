@@ -3,8 +3,8 @@ class LunoPatchConsolidator {
 
   /**
    * ⚙️ METHOD: consolidate(projectOverride)
-   * Surgically scopes consolidation, AST validation, .bak creation, and patch log clearing
-   * to the targeted project directory.
+   * - Type: Static Method
+   * - Modifier: async
    */
   static async consolidate(projectOverride) {
     try {
@@ -35,6 +35,7 @@ class LunoPatchConsolidator {
       var parsed = parser.parsePatchLog(logData.content);
       var files = parsed.files || [];
       if (files.length === 0) {
+        // Reset empty log safely
         await fetch('/api/save' + (targetProj ? ('?project=' + encodeURIComponent(targetProj)) : ''), {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -88,6 +89,7 @@ class LunoPatchConsolidator {
               currentSource = currentSource.trimEnd() + '\n\n' + p.content + '\n';
             }
           } else {
+            // Full file rewrite replaces currentSource
             currentSource = p.content;
           }
         }
@@ -112,7 +114,7 @@ class LunoPatchConsolidator {
 
         filesToWrite.push({
           filePath: relPath,
-          action: 'direct',
+          action: 'direct', // Direct write bypasses appending to patch log
           content: currentSource
         });
         modifiedFilesList.push(relPath);

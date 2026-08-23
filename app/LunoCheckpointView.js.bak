@@ -6,6 +6,8 @@ class LunoCheckpointView {
 
   /**
    * ⚙️ METHOD: mountUI(container)
+   * - Type: Static Method
+   * - Modifier: async
    */
   static async mountUI(container) {
     if (!container) return;
@@ -27,6 +29,7 @@ class LunoCheckpointView {
     var pParam = targetProj ? ('&project=' + encodeURIComponent(targetProj)) : '';
     var uncommittedCount = (typeof ClientApp !== 'undefined' && ClientApp.uncommittedCount) || 0;
 
+    // Read LunoPatchLog.html to check pending patch count for target project
     var pendingPatchesCount = 0;
     var patchLogContent = '';
     try {
@@ -83,35 +86,7 @@ class LunoCheckpointView {
       }
     } catch(e) {}
 
-    var projectSelect = m('select', {
-      style: { background: '#0d1117', color: '#00f2fe', border: '1px solid #00f2fe', padding: '0.25rem 0.55rem', borderRadius: '6px', fontSize: '0.75rem', fontFamily: 'monospace', fontWeight: 'bold', cursor: 'pointer' },
-      onchange: function(e) {
-        if (typeof ClientApp !== 'undefined' && ClientApp.setTargetProject) {
-          ClientApp.setTargetProject(e.target.value);
-        }
-        LunoCheckpointView.mountUI(container);
-      }
-    }, m('option', { value: targetProj }, '📁 ' + targetProj));
-
-    setTimeout(async function() {
-      try {
-        if (typeof LunoApiClient !== 'undefined' && LunoApiClient.fetchProjectsList) {
-          var pData = await LunoApiClient.fetchProjectsList();
-          if (pData && Array.isArray(pData.projects)) {
-            projectSelect.innerHTML = '';
-            pData.projects.forEach(function(p) {
-              if (p.isLibrary || p.name === 'Library') return;
-              var opt = document.createElement('option');
-              opt.value = p.name;
-              opt.textContent = '📁 ' + p.name + (p.name === 'Luno' ? ' (Core)' : '');
-              if (p.name === targetProj) opt.selected = true;
-              projectSelect.appendChild(opt);
-            });
-          }
-        }
-      } catch (e) {}
-    }, 40);
-
+    // STEP 1: Consolidation Control Panel Card
     var consolidationCard = m('div', {
       style: {
         background: '#0d1117',
@@ -139,7 +114,7 @@ class LunoCheckpointView {
         }, pendingPatchesCount + ' patch(es) pending for [' + targetProj + ']')
       ),
       m('p', { style: { color: '#8b949e', margin: 0, fontSize: '0.78rem', lineHeight: '1.4' } },
-        'Client-side consolidation validates ES6 AST syntax, creates .bak sidecar backups, merges methods into ES6 class bodies, and resets LunoPatchLog.html for [' + targetProj + '].'
+        'Client-side consolidation validates ES6 AST syntax, creates .bak sidecar backups, merges methods into ES6 class bodies, and resets LunoPatchLog.html.'
       ),
       m('button', {
         id: 'btn-consolidate-patches',
@@ -164,7 +139,7 @@ class LunoCheckpointView {
           }
 
           if (typeof ClientApp !== 'undefined' && ClientApp.showToast) {
-            ClientApp.showToast('Validating AST syntax & consolidating patches for ' + targetProj + '...', 'info', '🧩');
+            ClientApp.showToast('Validating AST syntax & consolidating patches...', 'info', '🧩');
           }
 
           try {
@@ -216,7 +191,7 @@ class LunoCheckpointView {
       m('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #30363d', paddingBottom: '0.6rem', flexWrap: 'wrap', gap: '0.4rem' } },
         m('div', { style: { display: 'flex', alignItems: 'center', gap: '0.4rem' } },
           m('h2', { style: { color: '#f0f6fc', fontSize: '1.2rem', margin: 0 } }, '📸 Checkpoint Manager'),
-          projectSelect
+          m('span', { style: { fontSize: '0.72rem', color: '#00f2fe', background: '#0d2d4a', border: '1px solid #0088cc', padding: '0.2rem 0.5rem', borderRadius: '10px', fontWeight: 'bold' } }, 'Target: ' + targetProj)
         ),
         m('button', {
           style: { padding: '0.3rem 0.65rem', background: '#21262d', color: '#c9d1d9', border: '1px solid #30363d', borderRadius: '6px', cursor: 'pointer', fontFamily: 'monospace', fontWeight: 'bold' },
@@ -232,17 +207,17 @@ class LunoCheckpointView {
       m('div', { style: { background: '#0d1117', border: '1px solid #238636', padding: '0.85rem', borderRadius: '8px', fontSize: '0.82rem' } },
         m('strong', { style: { color: '#3fb950', display: 'block', marginBottom: '0.35rem' } }, '📊 Uncommitted Modifications for [' + targetProj + ']: ' + uncommittedCount + ' file(s)'),
         m('p', { style: { color: '#8b949e', margin: 0, lineHeight: '1.4' } },
-          'Recording a Checkpoint creates a Git commit snapshot of the active [' + targetProj + '] directory.'
+          'Recording a Checkpoint creates a Git commit snapshot of the active target project directory.'
         )
       ),
 
       m('div', { style: { display: 'flex', flexDirection: 'column', gap: '0.4rem' } },
-        m('label', { style: { fontSize: '0.78rem', color: '#8b949e', fontWeight: 'bold' } }, 'STEP 2: 📸 Git Commit Note:'),
+        m('label', { style: { fontSize: '0.78rem', color: '#8b949e', fontWeight: 'bold' } }, 'STEP 2: 📸 Git Commit Note (Optional):'),
         m('input', {
           id: 'checkpoint-note-input',
           type: 'text',
           value: pendingNote,
-          placeholder: 'e.g. Updated project files and verified tests',
+          placeholder: 'e.g. Consolidated patch log and verified ES6 class migrations',
           style: { width: '100%', padding: '0.65rem', background: '#0d1117', color: '#00f2fe', border: '1px solid #30363d', borderRadius: '6px', fontFamily: 'monospace', fontSize: '0.82rem', outline: 'none', boxSizing: 'border-box' }
         })
       ),
@@ -259,7 +234,7 @@ class LunoCheckpointView {
           if (outputCard) outputCard.style.display = 'block';
           if (outputPre) {
             outputPre.style.color = '#00f2fe';
-            outputPre.textContent = '⚡ Executing Git Commit for [' + targetProj + ']...';
+            outputPre.textContent = '⚡ Executing High-Speed Git Commit for [' + targetProj + ']...';
           }
 
           if (typeof ClientApp !== 'undefined' && ClientApp.showToast) {
@@ -348,7 +323,7 @@ class LunoCheckpointView {
         }
       },
         m('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.45rem', borderBottom: '1px solid #30363d', paddingBottom: '0.3rem' } },
-          m('span', { style: { fontWeight: 'bold', color: '#00f2fe', fontSize: '0.78rem' } }, '⚡ Git Terminal Output:'),
+          m('span', { style: { fontWeight: 'bold', color: '#00f2fe', fontSize: '0.78rem' } }, '⚡ Git Terminal Output & Response:'),
           m('button', {
             style: { padding: '0.3rem 0.65rem', background: '#271052', color: '#d2a8ff', border: '1px solid #8257e5', borderRadius: '4px', fontSize: '0.72rem', fontWeight: 'bold', cursor: 'pointer', fontFamily: 'monospace' },
             onclick: function() {

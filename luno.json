@@ -1,6 +1,6 @@
 {
   "name": "Luno Workspace",
-  "version": "3.6.1",
+  "version": "3.6.2",
   "description": "Mobile-first dual-mode AI development workspace",
   "maxPackageSizeBytes": 500000,
   "type": "luno-core",
@@ -51,36 +51,11 @@
     "test/LunoTestRunner.js"
   ],
   "patchJournal": "LunoPatchLog.html",
-  "processedCountSinceCheckpoint": 17,
+  "processedCountSinceCheckpoint": 6,
   "changedMethods": {
-    "app/LunoPromptInstructions.js": "2026-08-23T05:39:11.439Z",
-    "app/OutboxOptionsModal.js": "2026-08-23T05:26:50.493Z",
-    "app/OutboxQueue.js": "2026-08-23T05:26:50.493Z",
-    "luno.json": "2026-08-23T04:42:50.708Z",
-    "app/LunoSpaHeaderNav.js": "2026-08-23T05:05:18.532Z",
-    "app/ClientAppUI.js": "2026-08-23T05:05:18.532Z",
-    "app/LunoSpaHeaderNav.js.bak": "2026-08-23T05:05:18.532Z",
-    "app/ClientAppUI.js.bak": "2026-08-23T05:05:18.532Z",
-    "LunoPatchLog.html": "2026-08-23T05:39:11.439Z",
-    "app/ClientApp.js": "2026-08-23T05:23:06.911Z",
-    "app/LunoProjectTemplates.js": "2026-08-23T05:23:06.911Z",
-    "browser/DiskBrowser.js": "2026-08-23T05:23:06.911Z",
-    "app/ClientApp.js.bak": "2026-08-23T05:23:06.911Z",
-    "app/LunoProjectTemplates.js.bak": "2026-08-23T05:23:06.911Z",
-    "browser/DiskBrowser.js.bak": "2026-08-23T05:23:06.911Z",
-    "docs/LunoDocs.js": "2026-08-23T05:25:55.352Z",
-    "app/LunoPromptInstructions.js.bak": "2026-08-23T05:39:11.439Z",
-    "docs/LunoDocs.js.bak": "2026-08-23T05:25:55.352Z",
-    "app/OutboxOptionsModal.js.bak": "2026-08-23T05:26:50.493Z",
-    "app/OutboxQueue.js.bak": "2026-08-23T05:26:50.493Z",
-    "core/LunoServer.js": "2026-08-23T05:26:28.788Z",
-    "app/LunoManifestDecisionEngine.js": "2026-08-23T05:37:15.498Z",
-    "app/ClientAppPaster.js": "2026-08-23T05:39:11.439Z",
-    "app/LunoManifestDecisionEngine.js.bak": "2026-08-23T05:37:15.498Z",
-    "app/ClientAppPaster.js.bak": "2026-08-23T05:39:11.439Z",
-    "app/LunoSpaDock.js": "2026-08-23T05:39:11.439Z",
-    "app/LunoSpaDock.js.bak": "2026-08-23T05:39:11.439Z"
-  },
-  "lastCheckpointTime": "2026-08-23T05:28:28.973Z",
-  "pendingCheckpointDescription": "Clean working tree"
+    "test/LunoTestRunner.js": "2026-08-23T05:42:23.450Z",
+    "luno.json": "2026-08-23T05:42:01.457Z",
+    "test/LunoTestRunner.js.bak": "2026-08-23T05:42:23.450Z",
+    "LunoPatchLog.html": "2026-08-23T05:42:23.450Z"
+  }
 }
