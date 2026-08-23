@@ -3,6 +3,8 @@ class ClientAppPaster {
 
   /**
    * ⚙️ METHOD: pasteClipboard()
+   * - Type: Static Method
+   * - Modifier: async
    */
   static async pasteClipboard() {
     var pastedText = '';
@@ -22,6 +24,8 @@ class ClientAppPaster {
 
   /**
    * ⚙️ METHOD: processPastedText(text)
+   * - Type: Static Method
+   * - Modifier: async
    */
   static async processPastedText(text) {
     if (!text || !text.trim()) return;
@@ -44,6 +48,8 @@ class ClientAppPaster {
 
   /**
    * ⚙️ METHOD: saveCode()
+   * - Type: Static Method
+   * - Modifier: async
    */
   static async saveCode() {
     var input = document.getElementById('code-input') || document.getElementById('payload-input');
@@ -60,6 +66,8 @@ class ClientAppPaster {
 
   /**
    * ⚙️ METHOD: executeSave(overrideText)
+   * - Type: Static Method
+   * - Modifier: async
    */
   static async executeSave(overrideText) {
     var input = document.getElementById('code-input') || document.getElementById('payload-input');
@@ -85,25 +93,22 @@ class ClientAppPaster {
       }
     }
 
-    // Fetch target project manifest for isolated routing decisions
+    // Fetch luno.json manifest metadata for routing decisions
     var lunoMeta = {};
     try {
       if (typeof LunoApiClient !== 'undefined' && LunoApiClient.fetchFsRead) {
         var metaRes = await LunoApiClient.fetchFsRead('luno.json', targetProj);
-        if (metaRes && metaRes.content) {
-          lunoMeta = JSON.parse(metaRes.content);
-        } else {
-          var filesMetaRes = await LunoApiClient.fetchFsRead('files.json', targetProj);
-          if (filesMetaRes && filesMetaRes.content) lunoMeta = JSON.parse(filesMetaRes.content);
-        }
+        if (metaRes && metaRes.content) lunoMeta = JSON.parse(metaRes.content);
       }
     } catch (e) {}
 
+    // Process payload through Manifest Decision Engine (AST merge for server files, journal for client JS files)
     var finalPayload = rawPayload;
     if (typeof LunoManifestDecisionEngine !== 'undefined' && LunoManifestDecisionEngine.processPayload) {
       finalPayload = await LunoManifestDecisionEngine.processPayload(rawPayload, lunoMeta, targetProj);
     }
 
+    // Ensure target project is injected into payload object
     if (finalPayload && typeof finalPayload === 'object' && targetProj) {
       finalPayload.project = targetProj;
     }
@@ -153,6 +158,7 @@ class ClientAppPaster {
       if (data && data.success) {
         if (input) input.value = "";
 
+        // HOT-PATCH MEMORY IMMEDIATELY: Playback pending patches into browser memory for the target project
         if (typeof LunoLoader !== 'undefined' && LunoLoader.applyPatchLog) {
           await LunoLoader.applyPatchLog(targetProj);
         }
@@ -160,7 +166,7 @@ class ClientAppPaster {
         if (targetApp && targetApp.showToast) {
           var modCount = data.modifiedCount !== undefined ? data.modifiedCount : (data.count || 0);
           if (modCount > 0) {
-            targetApp.showToast('Saved & Applied ' + modCount + ' change(s) to [' + (targetProj || 'Default') + ']!', 'success', '💾');
+            targetApp.showToast('Saved & Applied ' + modCount + ' patch(es) to [' + (targetProj || 'Default') + ']!', 'success', '💾');
           } else {
             targetApp.showToast('Evaluated: Target(s) up-to-date.', 'info', 'ℹ️');
           }

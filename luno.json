@@ -51,22 +51,34 @@
     "test/LunoTestRunner.js"
   ],
   "patchJournal": "LunoPatchLog.html",
-  "processedCountSinceCheckpoint": 22,
+  "processedCountSinceCheckpoint": 28,
   "changedMethods": {
-    "app/LunoPromptInstructions.js": "2026-08-23T04:42:50.708Z",
-    "app/OutboxOptionsModal.js": "2026-08-23T04:42:50.708Z",
-    "app/OutboxQueue.js": "2026-08-23T04:42:50.708Z",
+    "app/LunoPromptInstructions.js": "2026-08-23T05:25:55.352Z",
+    "app/OutboxOptionsModal.js": "2026-08-23T05:26:50.493Z",
+    "app/OutboxQueue.js": "2026-08-23T05:26:50.493Z",
     "luno.json": "2026-08-23T04:42:50.708Z",
     "app/LunoSpaHeaderNav.js": "2026-08-23T05:05:18.532Z",
     "app/ClientAppUI.js": "2026-08-23T05:05:18.532Z",
     "app/LunoSpaHeaderNav.js.bak": "2026-08-23T05:05:18.532Z",
     "app/ClientAppUI.js.bak": "2026-08-23T05:05:18.532Z",
-    "LunoPatchLog.html": "2026-08-23T05:23:06.911Z",
+    "LunoPatchLog.html": "2026-08-23T05:28:25.358Z",
     "app/ClientApp.js": "2026-08-23T05:23:06.911Z",
     "app/LunoProjectTemplates.js": "2026-08-23T05:23:06.911Z",
     "browser/DiskBrowser.js": "2026-08-23T05:23:06.911Z",
     "app/ClientApp.js.bak": "2026-08-23T05:23:06.911Z",
     "app/LunoProjectTemplates.js.bak": "2026-08-23T05:23:06.911Z",
-    "browser/DiskBrowser.js.bak": "2026-08-23T05:23:06.911Z"
-  }
+    "browser/DiskBrowser.js.bak": "2026-08-23T05:23:06.911Z",
+    "docs/LunoDocs.js": "2026-08-23T05:25:55.352Z",
+    "app/LunoPromptInstructions.js.bak": "2026-08-23T05:25:55.352Z",
+    "docs/LunoDocs.js.bak": "2026-08-23T05:25:55.352Z",
+    "app/OutboxOptionsModal.js.bak": "2026-08-23T05:26:50.493Z",
+    "app/OutboxQueue.js.bak": "2026-08-23T05:26:50.493Z",
+    "core/LunoServer.js": "2026-08-23T05:26:28.788Z",
+    "app/LunoManifestDecisionEngine.js": "2026-08-23T05:28:25.358Z",
+    "app/ClientAppPaster.js": "2026-08-23T05:28:25.358Z",
+    "app/LunoManifestDecisionEngine.js.bak": "2026-08-23T05:28:25.358Z",
+    "app/ClientAppPaster.js.bak": "2026-08-23T05:28:25.358Z"
+  },
+  "lastCheckpointTime": "2026-08-23T05:23:12.131Z",
+  "pendingCheckpointDescription": "Clean working tree"
 }

@@ -287,7 +287,7 @@ class OutboxQueue {
 
   static async executeSmartBundle(bundleOptions) {
     try {
-      var opts = (typeof bundleOptions === 'object' && bundleOptions !== null) ? bundleOptions : { includeInstructions: true, includeLibrary: false };
+      var opts = (typeof bundleOptions === 'object' && bundleOptions !== null) ? bundleOptions : { includeInstructions: true };
       var targetProj = (typeof ClientApp !== 'undefined' && ClientApp.getTargetProject) ? ClientApp.getTargetProject() : '';
       var lunoMeta = {};
       try {
@@ -298,12 +298,8 @@ class OutboxQueue {
 
       var projName = lunoMeta.name || targetProj || (typeof ClientApp !== 'undefined' && ClientApp.activeRootDir ? ClientApp.activeRootDir.split('/').filter(Boolean).pop() : 'Project');
 
-      var pParams = [];
-      if (targetProj) pParams.push('project=' + encodeURIComponent(targetProj));
-      if (opts.includeLibrary) pParams.push('includeLibrary=true');
-      var queryString = pParams.length > 0 ? ('?' + pParams.join('&')) : '';
-
-      var resCode = await fetch('/api/all-code' + queryString);
+      var pParam = targetProj ? ('?project=' + encodeURIComponent(targetProj)) : '';
+      var resCode = await fetch('/api/all-code' + pParam);
       var dataCode = await resCode.json();
       if (!resCode.ok) throw new Error('Failed to fetch codebase from server');
 

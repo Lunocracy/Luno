@@ -1,6 +1,11 @@
 class OutboxOptionsModal {
   constructor() {}
 
+  /**
+   * ⚙️ METHOD: promptBundleOptionsModal()
+   * Interactive modal allowing explicit target confirmation, scope selection,
+   * and protocol instruction toggling before bundling.
+   */
   static promptBundleOptionsModal() {
     var existing = document.getElementById('luno-bundle-options-modal');
     if (existing) existing.remove();
@@ -17,9 +22,7 @@ class OutboxOptionsModal {
     };
 
     var currentTarget = (typeof ClientApp !== 'undefined' && ClientApp.getTargetProject) ? ClientApp.getTargetProject() : 'Luno';
-    var isNotLibrary = (currentTarget.toLowerCase() !== 'library');
     var includeInstructions = true;
-    var includeLibrary = false;
 
     var chkInstructions = m('input', {
       type: 'checkbox',
@@ -28,16 +31,6 @@ class OutboxOptionsModal {
       style: { width: '16px', height: '16px', cursor: 'pointer', accentColor: '#00f2fe' },
       onchange: function(e) {
         includeInstructions = e.target.checked;
-      }
-    });
-
-    var chkLibrary = m('input', {
-      type: 'checkbox',
-      checked: false,
-      id: 'chk-bundle-library',
-      style: { width: '16px', height: '16px', cursor: 'pointer', accentColor: '#8257e5' },
-      onchange: function(e) {
-        includeLibrary = e.target.checked;
       }
     });
 
@@ -57,29 +50,9 @@ class OutboxOptionsModal {
       chkInstructions,
       m('div', { style: { display: 'flex', flexDirection: 'column' } },
         m('strong', { style: { color: '#00f2fe', fontSize: '0.8rem' } }, 'Prepend Modular Protocol Instructions'),
-        m('span', { style: { color: '#8b949e', fontSize: '0.7rem' } }, 'Teaches LLMs the English sandwich rule, single code fence, and AST container syntax.')
+        m('span', { style: { color: '#8b949e', fontSize: '0.7rem' } }, 'Teaches the LLM the English sandwich rule, single code fence, and AST container syntax.')
       )
     );
-
-    var libraryToggleRow = isNotLibrary ? m('label', {
-      style: {
-        display: 'flex',
-        alignItems: 'center',
-        gap: '0.5rem',
-        background: '#0d1117',
-        border: '1px solid #8257e566',
-        borderRadius: '6px',
-        padding: '0.55rem 0.75rem',
-        cursor: 'pointer',
-        userSelect: 'none'
-      }
-    },
-      chkLibrary,
-      m('div', { style: { display: 'flex', flexDirection: 'column' } },
-        m('strong', { style: { color: '#d2a8ff', fontSize: '0.8rem' } }, 'Include Shared Library Utilities (Library/*)'),
-        m('span', { style: { color: '#8b949e', fontSize: '0.7rem' } }, 'Bundles reusable shared modules alongside this project.')
-      )
-    ) : null;
 
     var modal = m('div', {
       id: 'luno-bundle-options-modal',
@@ -109,7 +82,6 @@ class OutboxOptionsModal {
         ),
 
         instructionsToggleRow,
-        libraryToggleRow,
 
         // Option 1: Execute Full Project Bundle
         m('button', {
@@ -132,13 +104,10 @@ class OutboxOptionsModal {
           onclick: async function() {
             modal.remove();
             if (typeof ClientApp !== 'undefined' && ClientApp.showToast) {
-              ClientApp.showToast('Bundling [' + currentTarget + ']...', 'info', '⚡');
+              ClientApp.showToast('Bundling [' + currentTarget + '] with' + (includeInstructions ? '' : 'out') + ' instructions...', 'info', '⚡');
             }
             if (typeof OutboxQueue !== 'undefined' && OutboxQueue.executeSmartBundle) {
-              await OutboxQueue.executeSmartBundle({
-                includeInstructions: includeInstructions,
-                includeLibrary: includeLibrary
-              });
+              await OutboxQueue.executeSmartBundle({ includeInstructions: includeInstructions });
             }
           }
         }, '📦 Bundle Project [' + currentTarget + '] ➔'),
