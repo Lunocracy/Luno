@@ -1,6 +1,20 @@
 class LunoPromptInstructions {
   constructor() {}
 
+  static activeModelTarget = (typeof localStorage !== 'undefined' && localStorage.getItem('luno_llm_target_flavor')) || 'universal';
+
+  /**
+   * ⚙️ METHOD: setModelTarget(flavor)
+   */
+  static setModelTarget(flavor) {
+    LunoPromptInstructions.activeModelTarget = flavor || 'universal';
+    try {
+      if (typeof localStorage !== 'undefined') {
+        localStorage.setItem('luno_llm_target_flavor', LunoPromptInstructions.activeModelTarget);
+      }
+    } catch (e) {}
+  }
+
   /**
    * ⚙️ METHOD: getSystemPreamble()
    */
@@ -89,17 +103,58 @@ class LunoPromptInstructions {
    */
   static getAiStudioSpecificRules() {
     return [
-      'GOOGLE AI STUDIO & GEMINI STREAMING OPTIMIZATIONS:',
-      '• Keep method replacements surgical and modular so they can be reviewed easily.',
-      '• When modifying a single method, use data-action="patch" rather than dumping entire files.',
-      '• Always ensure class methods are declared with standard ES6 syntax inside the class body.'
+      'GOOGLE AI STUDIO & GEMINI STREAMING RULES:',
+      '• Keep method replacements surgical and modular so they stream cleanly.',
+      '• Always maintain exact HTML container attribute names (data-file, data-method, data-action).',
+      '• Avoid conversational text inside the code block; keep all conversation in the English wrapper.'
     ].join('\n');
   }
 
   /**
-   * ⚙️ METHOD: assembleFullInstructions()
+   * ⚙️ METHOD: getClaudeSpecificRules()
    */
-  static assembleFullInstructions() {
+  static getClaudeSpecificRules() {
+    return [
+      'ANTHROPIC CLAUDE SPECIFIC RULES:',
+      '• Do not output artifacts or multi-block commentary inside code blocks.',
+      '• Ensure all file updates are encapsulated in a single ```html code fence.',
+      '• Maintain complete method bodies inside surgical patch containers without ellipses (// ...).'
+    ].join('\n');
+  }
+
+  /**
+   * ⚙️ METHOD: getChatGptSpecificRules()
+   */
+  static getChatGptSpecificRules() {
+    return [
+      'OPENAI CHATGPT SPECIFIC RULES:',
+      '• Never split multiple file updates into separate language blocks (```javascript, ```html).',
+      '• Place all script, style, template, and svg containers in a single ```html container.',
+      '• Include complete, executable code without truncated helper placeholders.'
+    ].join('\n');
+  }
+
+  /**
+   * ⚙️ METHOD: assembleFullInstructions(flavorOverride)
+   */
+  static assembleFullInstructions(flavorOverride) {
+    var flavor = flavorOverride || LunoPromptInstructions.activeModelTarget || 'universal';
+
+    var specificRules = '';
+    if (flavor === 'aistudio') {
+      specificRules = LunoPromptInstructions.getAiStudioSpecificRules();
+    } else if (flavor === 'claude') {
+      specificRules = LunoPromptInstructions.getClaudeSpecificRules();
+    } else if (flavor === 'chatgpt') {
+      specificRules = LunoPromptInstructions.getChatGptSpecificRules();
+    } else {
+      specificRules = [
+        LunoPromptInstructions.getAiStudioSpecificRules(),
+        '',
+        LunoPromptInstructions.getClaudeSpecificRules()
+      ].join('\n');
+    }
+
     return [
       LunoPromptInstructions.getSystemPreamble(),
       '',
@@ -111,14 +166,13 @@ class LunoPromptInstructions {
       '',
       LunoPromptInstructions.getSyntaxSafetyRules(),
       '',
-      LunoPromptInstructions.getAiStudioSpecificRules(),
+      specificRules,
       '================================================================================\n'
     ].join('\n');
   }
 
   /**
    * ⚙️ METHOD: mountUI(container)
-   * Dedicated interactive UI for viewing, customizing, and pushing modular instruction rules.
    */
   static mountUI(container) {
     if (!container) return;
@@ -136,13 +190,39 @@ class LunoPromptInstructions {
           return el;
         };
 
+    var currentFlavor = LunoPromptInstructions.activeModelTarget || 'universal';
+
+    var flavorSelect = m('select', {
+      id: 'luno-instruction-flavor-select',
+      style: {
+        background: '#0d1117',
+        color: '#00f2fe',
+        border: '1px solid #00f2fe',
+        padding: '0.35rem 0.65rem',
+        borderRadius: '6px',
+        fontFamily: 'monospace',
+        fontSize: '0.8rem',
+        fontWeight: 'bold',
+        cursor: 'pointer'
+      },
+      onchange: function(e) {
+        LunoPromptInstructions.setModelTarget(e.target.value);
+        LunoPromptInstructions.mountUI(container);
+      }
+    },
+      m('option', { value: 'universal', selected: currentFlavor === 'universal' }, '🌐 Universal AI Preset'),
+      m('option', { value: 'aistudio', selected: currentFlavor === 'aistudio' }, '🤖 Google AI Studio & Gemini'),
+      m('option', { value: 'claude', selected: currentFlavor === 'claude' }, '🧠 Anthropic Claude'),
+      m('option', { value: 'chatgpt', selected: currentFlavor === 'chatgpt' }, '⚡ OpenAI ChatGPT')
+    );
+
     var sections = [
       { id: 'preamble', title: '1. System Role Preamble', method: 'getSystemPreamble', text: LunoPromptInstructions.getSystemPreamble() },
       { id: 'sandwich', title: '2. English Sandwich Rule', method: 'getEnglishSandwichRule', text: LunoPromptInstructions.getEnglishSandwichRule() },
       { id: 'codeblock', title: '3. Single Code Block Rule', method: 'getSingleCodeBlockRule', text: LunoPromptInstructions.getSingleCodeBlockRule() },
       { id: 'containers', title: '4. HTML Container Directives Spec', method: 'getContainerDirectivesSpec', text: LunoPromptInstructions.getContainerDirectivesSpec() },
       { id: 'syntax', title: '5. Syntax & Parser Safety Rules', method: 'getSyntaxSafetyRules', text: LunoPromptInstructions.getSyntaxSafetyRules() },
-      { id: 'aistudio', title: '6. AI Studio & Gemini Quirks', method: 'getAiStudioSpecificRules', text: LunoPromptInstructions.getAiStudioSpecificRules() }
+      { id: 'flavor', title: '6. Active Target Model Rules (' + currentFlavor.toUpperCase() + ')', method: 'getModelSpecificRules', text: LunoPromptInstructions.assembleFullInstructions(currentFlavor).split(LunoPromptInstructions.getSyntaxSafetyRules())[1].replace(/={20,}\s*$/, '').trim() }
     ];
 
     var sectionCards = sections.map(function(sec) {
@@ -157,7 +237,7 @@ class LunoPromptInstructions {
           style: { background: '#070a13', border: '1px solid #1e293b', borderRadius: '6px', padding: '0.55rem', color: '#7ee787', fontSize: '0.74rem', fontFamily: 'monospace', whiteSpace: 'pre-wrap', margin: 0, maxHeight: '160px', overflowY: 'auto' },
           textContent: sec.text
         }),
-        m('div', { style: { display: 'flex', justifyContent: 'flex-end', gap: '0.35rem' } },
+        m('div', { style: { display: 'flex', justifyContent: 'space-end', gap: '0.35rem', justifyContent: 'flex-end' } },
           m('button', {
             style: { padding: '0.25rem 0.55rem', background: '#161b22', color: '#58a6ff', border: '1px solid #0088cc', borderRadius: '4px', fontSize: '0.7rem', cursor: 'pointer', fontFamily: 'monospace' },
             onclick: function() {
@@ -193,24 +273,27 @@ class LunoPromptInstructions {
       }
     },
       m('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.4rem' } },
-        m('h3', { style: { color: '#d2a8ff', fontSize: '1.05rem', margin: 0, display: 'flex', alignItems: 'center', gap: '0.4rem' } }, '📋 Modular LLM Protocol Instruction Hub'),
+        m('div', { style: { display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' } },
+          m('h3', { style: { color: '#d2a8ff', fontSize: '1.05rem', margin: 0 } }, '📋 Modular LLM Protocol Instruction Hub'),
+          flavorSelect
+        ),
         m('div', { style: { display: 'flex', gap: '0.4rem' } },
           m('button', {
             style: { padding: '0.4rem 0.75rem', background: '#238636', color: '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold', fontSize: '0.75rem', fontFamily: 'monospace' },
             onclick: function() {
-              var full = LunoPromptInstructions.assembleFullInstructions();
+              var full = LunoPromptInstructions.assembleFullInstructions(currentFlavor);
               if (navigator.clipboard && navigator.clipboard.writeText) {
                 navigator.clipboard.writeText(full);
-                if (typeof ClientApp !== 'undefined' && ClientApp.showToast) ClientApp.showToast('Copied Master Instructions!', 'success', '📋');
+                if (typeof ClientApp !== 'undefined' && ClientApp.showToast) ClientApp.showToast('Copied Master Instructions (' + currentFlavor + ')!', 'success', '📋');
               }
             }
           }, '📋 Copy Master Prompt'),
           m('button', {
             style: { padding: '0.4rem 0.75rem', background: '#8257e5', color: '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold', fontSize: '0.75rem', fontFamily: 'monospace' },
             onclick: function() {
-              var full = LunoPromptInstructions.assembleFullInstructions();
+              var full = LunoPromptInstructions.assembleFullInstructions(currentFlavor);
               if (typeof OutboxQueue !== 'undefined' && OutboxQueue.addBundle) {
-                OutboxQueue.addBundle('Luno Protocol Master Instructions', full, { priority: 'high' });
+                OutboxQueue.addBundle('Luno Protocol Instructions (' + currentFlavor + ')', full, { priority: 'high' });
                 if (typeof ClientApp !== 'undefined' && ClientApp.showToast) ClientApp.showToast('Queued Master Instructions to Outbox!', 'success', '📤');
               }
             }
@@ -219,7 +302,7 @@ class LunoPromptInstructions {
       ),
       m('p', { style: { fontSize: '0.78rem', color: '#8b949e', margin: 0, lineHeight: '1.4' } },
         'These modular instruction blocks teach any LLM how to format files and surgical patches using the HTML Container Protocol. ' +
-        'Because each rule is an isolated method on LunoPromptInstructions, you can edit individual paragraphs without replacing the whole document.'
+        'Select your active AI model above to preview and bundle custom guidelines for AI Studio, Claude, or ChatGPT.'
       ),
       m('div', { style: { display: 'flex', flexDirection: 'column', gap: '0.5rem', marginTop: '0.4rem' } }, ...sectionCards)
     );

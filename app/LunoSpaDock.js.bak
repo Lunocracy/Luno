@@ -2,7 +2,9 @@ class LunoSpaDock {
   /**
    * ⚙️ CONSTRUCTOR: LunoSpaDock()
    */
-  constructor() {}
+  constructor() {
+
+  }
 
   static activeDockView = (typeof localStorage !== 'undefined' && localStorage.getItem('luno_active_dock_view')) || 'workspace';
   static _iframeCache = {};
@@ -13,47 +15,34 @@ class LunoSpaDock {
    * - Modifier: sync
    */
   static toggleDock(viewKey) {
+
     var vk = viewKey || 'browser';
     LunoSpaDock.activeDockView = vk;
     LunoSpaDock.mountView(vk);
-  }
 
+  }
   /**
    * ⚙️ METHOD: renderHeaderNav(viewKey)
    * - Type: Static Method
    * - Modifier: sync
    */
   static renderHeaderNav(viewKey) {
+
     if (typeof LunoSpaHeaderNav !== 'undefined') {
       return LunoSpaHeaderNav.render(viewKey);
     }
     var el = document.createElement('header');
     el.textContent = 'Luno Home';
     return el;
+
   }
-
-  /**
-   * ⚙️ METHOD: reloadActivePreviewIframe(projectName)
-   * Reloads the iframe preview for a specific project.
-   */
-  static reloadActivePreviewIframe(projectName) {
-    var pName = projectName || (typeof ClientApp !== 'undefined' && ClientApp.getTargetProject ? ClientApp.getTargetProject() : '');
-    if (!pName) return;
-
-    if (LunoSpaDock._iframeCache && LunoSpaDock._iframeCache[pName]) {
-      var holder = LunoSpaDock._iframeCache[pName];
-      var iframe = holder ? holder.querySelector('iframe') : null;
-      if (iframe) {
-        iframe.src = '/app-preview?project=' + encodeURIComponent(pName) + '&v=' + Date.now();
-      }
-    }
-  }
-
   /**
    * ⚙️ METHOD: mountView(viewKey)
-   * Dynamically mounts active dock views and persistent project preview iframes.
+   * - Type: Static Method
+   * - Modifier: sync
    */
   static mountView(viewKey) {
+
     LunoSpaDock.activeDockView = viewKey;
     if (typeof localStorage !== 'undefined') {
       try { localStorage.setItem('luno_active_dock_view', viewKey); } catch (e) {}
@@ -98,17 +87,22 @@ class LunoSpaDock {
     if (isAppView) {
       if (viewKey.startsWith('app_')) {
         targetProj = viewKey.replace(/^app_/, '');
-      } else {
-        targetProj = (typeof ClientApp !== 'undefined' && ClientApp.getTargetProject) ? ClientApp.getTargetProject() : 'Basic3D';
+      } else if (typeof localStorage !== 'undefined') {
+        targetProj = localStorage.getItem('luno_active_app_proj') || '';
       }
 
-      var invalidNames = (typeof LunoSettings !== 'undefined' && LunoSettings.INVALID_PROJECT_NAMES) ? LunoSettings.INVALID_PROJECT_NAMES : ['web', 'storage', 'emulated', 'LunoWeb', '0'];
+      var invalidNames = (typeof LunoSettings !== 'undefined' && LunoSettings.INVALID_PROJECT_NAMES) ? LunoSettings.INVALID_PROJECT_NAMES : ['web', 'Luno', 'storage', 'emulated', 'LunoWeb', '0'];
       if (!targetProj || invalidNames.includes(targetProj)) {
-        targetProj = 'Basic3D';
+        targetProj = (typeof localStorage !== 'undefined' && localStorage.getItem('luno_active_app_proj')) || 'Basic3D';
+        if (invalidNames.includes(targetProj)) targetProj = 'Basic3D';
       }
 
-      if (typeof ClientApp !== 'undefined' && ClientApp.setTargetProject) {
-        ClientApp.setTargetProject(targetProj, { openTab: true });
+      if (typeof localStorage !== 'undefined') {
+        localStorage.setItem('luno_active_app_proj', targetProj);
+      }
+
+      if (typeof LunoSpaHeaderNav !== 'undefined' && targetProj) {
+        LunoSpaHeaderNav.openProjectTab(targetProj);
       }
     }
 
@@ -151,6 +145,10 @@ class LunoSpaDock {
           entry[1].style.display = 'none';
         }
       });
+
+      if (typeof DiskBrowser !== 'undefined') {
+        DiskBrowser.currentPath = '/storage/emulated/0/Luno/web/' + targetProj;
+      }
     } else if (viewKey === 'projects' && typeof LunoProjectTemplates !== 'undefined' && typeof LunoProjectTemplates.mountFullPageView === 'function') {
       LunoProjectTemplates.mountFullPageView(contentArea);
     } else if (viewKey === 'checkpoint') {
@@ -167,6 +165,7 @@ class LunoSpaDock {
     } else if (viewKey === 'test' && typeof LunoTestRunner !== 'undefined') {
       LunoTestRunner.mountUI(contentArea);
     }
+
   }
 }
 
