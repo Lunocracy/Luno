@@ -1,10 +1,7 @@
 class BookmarkletEncoder {
-  constructor() {
-
-  }
+  constructor() {}
 
   static cleanSource(sourceCode) {
-
     if (!sourceCode || typeof sourceCode !== "string") return "";
     var code = sourceCode.trim();
 
@@ -44,18 +41,16 @@ class BookmarkletEncoder {
     }).filter(Boolean);
 
     return cleanedLines.join(" ");
-
   }
-  static encode(sourceCode) {
 
+  static encode(sourceCode) {
     if (!sourceCode || typeof sourceCode !== "string") return "javascript:";
     var singleLine = BookmarkletEncoder.cleanSource(sourceCode);
     var urlSafe = singleLine.replace(/[\0-\x20\x23\x25]/g, encodeURIComponent);
     return "javascript:" + urlSafe;
-
   }
-  static copyToClipboard(text, targetButton) {
 
+  static copyToClipboard(text, targetButton) {
     var button = targetButton || null;
     var success = false;
 
@@ -89,7 +84,6 @@ class BookmarkletEncoder {
       setTimeout(function() { button.textContent = orig; }, 1500);
     }
     return success;
-
   }
 }
 
