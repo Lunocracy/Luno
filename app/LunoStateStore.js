@@ -1,24 +1,13 @@
 class LunoStateStore {
-  /**
-   * ⚙️ CONSTRUCTOR: LunoStateStore()
-   */
-  constructor() {
-
-  }
+  constructor() {}
 
   static DB_NAME = 'luno_workspace_db';
   static STORE_NAME = 'session_store';
   static db = null;
 
-  /**
-   * ⚙️ METHOD: init()
-   * - Type: Static Method
-   * - Modifier: async
-   */
   static async init() {
-
     return new Promise((resolve) => {
-      if (!window.indexedDB) {
+      if (typeof window === 'undefined' || !window.indexedDB) {
         resolve(false);
         return;
       }
@@ -35,15 +24,9 @@ class LunoStateStore {
       };
       req.onerror = () => resolve(false);
     });
-
   }
-  /**
-   * ⚙️ METHOD: setItem(key, value)
-   * - Type: Static Method
-   * - Modifier: async
-   */
-  static async setItem(key, value) {
 
+  static async setItem(key, value) {
     if (!LunoStateStore.db) {
       try { localStorage.setItem('luno_store_' + key, JSON.stringify(value)); } catch (e) {}
       return;
@@ -52,15 +35,9 @@ class LunoStateStore {
       const tx = LunoStateStore.db.transaction(LunoStateStore.STORE_NAME, 'readwrite');
       tx.objectStore(LunoStateStore.STORE_NAME).put(value, key);
     } catch (e) {}
-
   }
-  /**
-   * ⚙️ METHOD: getItem(key)
-   * - Type: Static Method
-   * - Modifier: async
-   */
-  static async getItem(key) {
 
+  static async getItem(key) {
     if (!LunoStateStore.db) {
       try {
         const raw = localStorage.getItem('luno_store_' + key);
@@ -75,25 +52,13 @@ class LunoStateStore {
         req.onerror = () => resolve(null);
       } catch (e) { resolve(null); }
     });
-
   }
-  /**
-   * ⚙️ METHOD: clearDraft()
-   * - Type: Static Method
-   * - Modifier: async
-   */
+
   static async clearDraft() {
-
     await LunoStateStore.setItem('editor_draft', '');
-
   }
-  /**
-   * ⚙️ METHOD: setupAutoSave(textareaElement)
-   * - Type: Static Method
-   * - Modifier: sync
-   */
-  static setupAutoSave(textareaElement) {
 
+  static setupAutoSave(textareaElement) {
     if (!textareaElement) return;
     let timer = null;
     textareaElement.addEventListener('input', () => {
@@ -107,26 +72,19 @@ class LunoStateStore {
         }
       }, 500);
     });
-
   }
-  /**
-   * ⚙️ METHOD: restoreSession()
-   * - Type: Static Method
-   * - Modifier: async
-   */
-  static async restoreSession() {
 
+  static async restoreSession() {
     const draft = await LunoStateStore.getItem('editor_draft');
     if (draft && draft.trim()) {
       const input = document.getElementById('code-input');
       if (input && !input.value.trim()) {
         input.value = draft;
         if (typeof ClientApp !== 'undefined' && ClientApp.showToast) {
-          ClientApp.showToast('✨ Recovered unsaved draft from previous session!', 'info', '↩️');
+          ClientApp.showToast('Recovered unsaved draft from previous session!', 'info', '↩️');
         }
       }
     }
-
   }
 }
 

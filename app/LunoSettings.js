@@ -1,10 +1,7 @@
 class LunoSettings {
-  /**
-   * ⚙️ CONSTRUCTOR: LunoSettings()
-   */
-  constructor() {
+  constructor() {}
 
-  }
+  static INVALID_PROJECT_NAMES = ['web', 'storage', 'emulated', 'LunoWeb', '0', 'Library'];
 
   static DEFAULTS = {
     executionPace: 'methodical',
@@ -23,6 +20,7 @@ class LunoSettings {
     acornSource: 'auto',
     hotPatchMemoryMode: true
   };
+
   static KEYS = {
     executionPace: 'luno_execution_pace',
     autoApprove: 'luno_auto_approve',
@@ -41,13 +39,7 @@ class LunoSettings {
     hotPatchMemoryMode: 'luno_hotpatch_memory_mode'
   };
 
-  /**
-   * ⚙️ METHOD: getItem(key, fallback = null)
-   * - Type: Static Method
-   * - Modifier: sync
-   */
   static getItem(key, fallback = null) {
-
     try {
       if (typeof localStorage !== 'undefined') {
         const val = localStorage.getItem(key);
@@ -55,42 +47,23 @@ class LunoSettings {
       }
     } catch (e) {}
     return fallback;
-
   }
-  /**
-   * ⚙️ METHOD: setItem(key, val)
-   * - Type: Static Method
-   * - Modifier: sync
-   */
-  static setItem(key, val) {
 
+  static setItem(key, val) {
     try {
       if (typeof localStorage !== 'undefined') {
         localStorage.setItem(key, String(val));
       }
     } catch (e) {}
-
   }
-  /**
-   * ⚙️ METHOD: hotPatchMemoryMode()
-   * - Type: Static Method
-   * - Modifier: sync
-   */
-  static hotPatchMemoryMode() {
 
+  static hotPatchMemoryMode() {
     const raw = LunoSettings.getItem(LunoSettings.KEYS.hotPatchMemoryMode);
     return raw !== null ? raw === 'true' : LunoSettings.DEFAULTS.hotPatchMemoryMode;
-
   }
-  /**
-   * ⚙️ METHOD: setHotPatchMemoryMode(val)
-   * - Type: Static Method
-   * - Modifier: sync
-   */
+
   static setHotPatchMemoryMode(val) {
-
     LunoSettings.setItem(LunoSettings.KEYS.hotPatchMemoryMode, Boolean(val));
-
   }
 }
 

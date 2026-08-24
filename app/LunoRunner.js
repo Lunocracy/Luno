@@ -1,15 +1,13 @@
 class LunoRunner {
-  constructor() {
-
-  }
+  constructor() {}
 
   static activeScripts = new Map();
 
   static async runScript(scriptPath) {
-
     try {
-      const fileData = await LunoFileSystem.read(scriptPath);
-      const code = fileData.content || '';
+      const res = await fetch('/api/fs/read?path=' + encodeURIComponent(scriptPath));
+      const fileData = await res.json();
+      const code = (fileData && fileData.content) || '';
 
       if (!code.trim()) {
         console.warn('[LunoRunner] File empty or not found:', scriptPath);
@@ -21,7 +19,9 @@ class LunoRunner {
         if (oldInfo.scriptEl && oldInfo.scriptEl.parentNode) {
           oldInfo.scriptEl.parentNode.removeChild(oldInfo.scriptEl);
         }
-        URL.revokeObjectURL(oldInfo.blobUrl);
+        if (oldInfo.blobUrl) {
+          URL.revokeObjectURL(oldInfo.blobUrl);
+        }
       }
 
       const blob = new Blob([code], { type: 'application/javascript' });
@@ -38,14 +38,12 @@ class LunoRunner {
       console.error('[LunoRunner Error] Failed to execute script:', scriptPath, err);
       return { success: false, error: err.message };
     }
-
   }
-  static async preloadScriptList(scriptList = []) {
 
+  static async preloadScriptList(scriptList = []) {
     for (const item of scriptList) {
       await LunoRunner.runScript(item);
     }
-
   }
 }
 
