@@ -1,13 +1,10 @@
 class AiStudioRelayDocs {
-  constructor() {
-
-  }
+  constructor() {}
 
   static getOverviewSection() {
-
     return [
-      '=== 🌙 Google AI Studio Relay & Collapsible Suite Overview ===',
-      'The Luno <-> Google AI Studio Communication & Collapser Suite connects Luno Workspace (localhost:8888)',
+      '=== 🤖 Google AI Studio Relay & Collapsible Suite Overview ===',
+      'The Luno <-> Google AI Studio Communication & Collapser Suite connects Luno Workspace (localhost:8080)',
       'with Google AI Studio (aistudio.google.com) over a cross-domain postMessage bridge.',
       '',
       'Key Capabilities:',
@@ -17,22 +14,20 @@ class AiStudioRelayDocs {
       '- User Prompt Collapsing: Shrinks massive codebase prompt transfers into compact orange preview bars.',
       '- Response Turn Grouping: Groups all code blocks in an Assistant turn with a 1-tap bulk inbox dispatch.'
     ].join('\n');
-
   }
-  static getMobileAndroidArchSection() {
 
+  static getMobileAndroidArchSection() {
     return [
       '=== 📱 Mobile & Performance Architecture (Preview Shims) ===',
-      'To prevent layout lag and memory bloat on mobile browsers (Kiwi, Chrome on Termux/Android):',
-      '- Collapsed elements are hidden using "display: none !important" rather than DOM max-height wrappers.',
+      'To prevent layout lag and memory bloat on mobile browsers (Kiwi, Chrome on Android):',
+      '- Collapsed elements are hidden using "display: none !important" rather than expensive height animations.',
       '- A lightweight plain-text shim (.luno-shim-base) renders a 5-line snippet preview.',
-      '- Heavy processing (Acorn AST parsing, syntax validation, file patching) remains on Luno Server.',
+      '- Heavy processing (Acorn AST parsing, syntax validation, file patching) remains inside Luno client memory.',
       '- Target-side bookmarklet performs fast regex classification and postMessage dispatching.'
     ].join('\n');
-
   }
-  static getPromptCollapsingSection() {
 
+  static getPromptCollapsingSection() {
     return [
       '=== ✍️ User Prompt Collapsing (PromptCollapserWidget) ===',
       'Large codebase prompts in AI Studio consume massive vertical screen real estate:',
@@ -41,10 +36,9 @@ class AiStudioRelayDocs {
       '- Collapses prompts by default while preserving instant 1-tap expansion.',
       '- State choices are persisted in localStorage under luno_prompt_states_v1.'
     ].join('\n');
-
   }
-  static getResponseGroupingSection() {
 
+  static getResponseGroupingSection() {
     return [
       '=== 🤖 Assistant Response Turn Grouping (ResponseGroupWidget) ===',
       'When Gemini outputs multiple code blocks across a single response turn:',
@@ -53,22 +47,19 @@ class AiStudioRelayDocs {
       '- Injects a top-level group bar showing block count and total line metrics.',
       '- Adds a 1-tap "[📥 Send All Turn Code to Inbox]" button to transmit all blocks in a single payload.'
     ].join('\n');
-
   }
-  static getVirtualizationSection() {
 
+  static getVirtualizationSection() {
     return [
       '=== 🔄 Scroll Virtualization & State Persistence ===',
       'Google AI Studio uses virtualized scrolling (Lit/Angular unmounts off-screen DOM nodes):',
       '- Fingerprinting Engine calculates a hash: fp_lines_length_head_tail.',
       '- Registered in window.__LUNO_BLOCK_REGISTRY__ to prevent duplicate queue items on scroll.',
-      '- Collapse states (isCollapsed) persist across scroll cycles and page reloads via localStorage',
-      '  (luno_block_states_v1 and luno_prompt_states_v1).'
+      '- Collapse states (isCollapsed) persist across scroll cycles and page reloads via localStorage.'
     ].join('\n');
-
   }
-  static getBlockLifecycleSyncSection() {
 
+  static getBlockLifecycleSyncSection() {
     return [
       '=== ⚡ Bi-Directional Block Lifecycle Sync (LUNO_BLOCK_APPLIED) ===',
       'Tracks when code snippets have been saved to disk:',
@@ -77,10 +68,9 @@ class AiStudioRelayDocs {
       '- Widget UI updates its status to [✓ Applied to Disk].',
       '- Luno Relay Inspector displays a green [✓ APPLIED] badge next to consumed items.'
     ].join('\n');
-
   }
-  static getProtocolSection() {
 
+  static getProtocolSection() {
     return [
       '=== 📡 Protocol Message Schema ===',
       'All cross-window communication uses structured LunoRelayProtocol envelopes:',
@@ -93,21 +83,9 @@ class AiStudioRelayDocs {
       '- LUNO_OUTBOX_NOTIFY: Host notifies Target that Outbox package is ready.',
       '- LUNO_BLOCK_APPLIED: Host notifies Target that a block fingerprint was saved to disk.'
     ].join('\n');
-
   }
-  static getWidgetStylingSection() {
 
-    return [
-      '=== 🎨 Widget Styling Rules ===',
-      '- Code Blocks: Thick cyan border (3px solid #00f2fe), sharp square edges (border-radius: 0px).',
-      '- User Prompts: Orange border (2px solid #d35400), dark background (#1a1012).',
-      '- Response Groups: Muted purple outline (1px solid #8257e5), background (rgba(39, 16, 82, 0.15)).',
-      '- Display State: Collapsed targets use "display: none !important" with 5-line text preview shims.'
-    ].join('\n');
-
-  }
   static renderDocCard() {
-
     const m = (tag, attrs, ...children) => {
       if (typeof LunoUIComponents !== 'undefined' && LunoUIComponents.makeElement) {
         return LunoUIComponents.makeElement(tag, attrs, ...children);
@@ -125,8 +103,7 @@ class AiStudioRelayDocs {
       AiStudioRelayDocs.getResponseGroupingSection(),
       AiStudioRelayDocs.getVirtualizationSection(),
       AiStudioRelayDocs.getBlockLifecycleSyncSection(),
-      AiStudioRelayDocs.getProtocolSection(),
-      AiStudioRelayDocs.getWidgetStylingSection()
+      AiStudioRelayDocs.getProtocolSection()
     ];
 
     const card = m('div', {
@@ -135,7 +112,7 @@ class AiStudioRelayDocs {
         border: '2px solid #00f2fe',
         borderRadius: '8px',
         padding: '1rem',
-        marginTop: '1.5rem',
+        marginTop: '0.5rem',
         marginBottom: '1.25rem',
         boxShadow: '0 4px 16px rgba(0,242,254,0.15)'
       }
@@ -162,7 +139,6 @@ class AiStudioRelayDocs {
     );
 
     return card;
-
   }
 }
 

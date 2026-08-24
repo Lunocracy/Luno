@@ -22,21 +22,23 @@
 <body>
   <div id="workshop-root"></div>
 
-  <script src="LunoRelayProtocol.js"></script>
-  <script src="JsLanguageDetector.js"></script>
-  <script src="CodeCollapserWidget.js"></script>
-  <script src="AiStudioQueue.js"></script>
-  <script src="OutboxNotifier.js"></script>
-  <script src="BookmarkletPresets.js"></script>
-  <script src="BookmarkletEncoder.js"></script>
-  <script src="BookmarkletUI.js"></script>
-  <script src="BookmarkletApp.js"></script>
+  <script src="LunoRelayProtocol.js"><\/script>
+  <script src="JsLanguageDetector.js"><\/script>
+  <script src="CodeCollapserWidget.js"><\/script>
+  <script src="PromptCollapserWidget.js"><\/script>
+  <script src="ResponseGroupWidget.js"><\/script>
+  <script src="AiStudioQueue.js"><\/script>
+  <script src="OutboxNotifier.js"><\/script>
+  <script src="BookmarkletPresets.js"><\/script>
+  <script src="BookmarkletEncoder.js"><\/script>
+  <script src="BookmarkletUI.js"><\/script>
+  <script src="BookmarkletApp.js"><\/script>
   <script>
     window.addEventListener('DOMContentLoaded', () => {
       const root = document.getElementById('workshop-root');
       const app = new BookmarkletApp();
       app.init(root);
     });
-  </script>
+  <\/script>
 </body>
 </html>

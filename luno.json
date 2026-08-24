@@ -55,8 +55,8 @@
     "Luno/docs/BookmarkletStudioRoadmap.md"
   ],
   "patchJournal": "LunoPatchLog.html",
-  "processedCountSinceCheckpoint": 15,
-  "lastCheckpointTime": "2026-08-24T01:08:40.997Z",
+  "processedCountSinceCheckpoint": 6,
+  "lastCheckpointTime": "2026-08-24T01:11:02.672Z",
   "pendingCheckpointDescription": "Clean working tree",
   "changedMethods": {
     "Luno/app/ClientApp.js": "2026-08-24T00:59:44.265Z",
@@ -66,7 +66,7 @@
     "Luno/app/ClientApp.js.bak": "2026-08-24T00:59:44.265Z",
     "Luno/app/LunoSpaHeaderNav.js.bak": "2026-08-24T00:59:44.265Z",
     "Luno/app/DiffApprovalModal.js.bak": "2026-08-24T00:59:44.265Z",
-    "LunoPatchLog.html": "2026-08-24T01:09:58.135Z",
+    "LunoPatchLog.html": "2026-08-24T01:13:02.369Z",
     "Luno/app/InboxActionTimer.js": "2026-08-24T01:01:06.259Z",
     "Luno/app/LunoGuideEngine.js": "2026-08-24T01:01:06.259Z",
     "Luno/app/LunoHelperHooks.js": "2026-08-24T01:01:06.259Z",
@@ -118,6 +118,10 @@
     "Luno/bookmarklet/AiStudioQueue.js": "2026-08-24T01:10:47.529Z",
     "Luno/bookmarklet/PromptCollapserWidget.js": "2026-08-24T01:10:47.529Z",
     "Luno/bookmarklet/LunoRelayProtocol.js": "2026-08-24T01:10:47.529Z",
-    "Luno/bookmarklet/BookmarkletUI.js": "2026-08-24T01:10:47.529Z"
+    "Luno/bookmarklet/BookmarkletUI.js": "2026-08-24T01:10:47.529Z",
+    "Luno/docs/AiStudioRelayDocs.js": "2026-08-24T01:13:02.369Z",
+    "Luno/bookmarklet/index.html": "2026-08-24T01:12:55.490Z",
+    "Luno/docs/BookmarkletStudioRoadmap.md": "2026-08-24T01:12:55.490Z",
+    "Luno/docs/AiStudioRelayDocs.js.bak": "2026-08-24T01:13:02.369Z"
   }
 }
