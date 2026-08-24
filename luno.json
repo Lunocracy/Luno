@@ -55,9 +55,9 @@
     "Luno/docs/BookmarkletStudioRoadmap.md"
   ],
   "patchJournal": "LunoPatchLog.html",
-  "processedCountSinceCheckpoint": 11,
-  "lastCheckpointTime": "2026-08-24T00:35:00.000Z",
-  "pendingCheckpointDescription": "Clean working tree (v3.6.4 Modular Multi-Project Engine Active)",
+  "processedCountSinceCheckpoint": 13,
+  "lastCheckpointTime": "2026-08-24T00:59:51.550Z",
+  "pendingCheckpointDescription": "Clean working tree",
   "changedMethods": {
     "Luno/app/ClientApp.js": "2026-08-24T00:59:44.265Z",
     "Luno/app/LunoSpaHeaderNav.js": "2026-08-24T00:59:44.265Z",
@@ -66,6 +66,14 @@
     "Luno/app/ClientApp.js.bak": "2026-08-24T00:59:44.265Z",
     "Luno/app/LunoSpaHeaderNav.js.bak": "2026-08-24T00:59:44.265Z",
     "Luno/app/DiffApprovalModal.js.bak": "2026-08-24T00:59:44.265Z",
-    "LunoPatchLog.html": "2026-08-24T00:59:44.265Z"
+    "LunoPatchLog.html": "2026-08-24T01:01:06.259Z",
+    "Luno/app/InboxActionTimer.js": "2026-08-24T01:01:06.259Z",
+    "Luno/app/LunoGuideEngine.js": "2026-08-24T01:01:06.259Z",
+    "Luno/app/LunoHelperHooks.js": "2026-08-24T01:01:06.259Z",
+    "Luno/docs/LunoDocs.js": "2026-08-24T01:01:06.259Z",
+    "Luno/app/InboxActionTimer.js.bak": "2026-08-24T01:01:06.259Z",
+    "Luno/app/LunoGuideEngine.js.bak": "2026-08-24T01:01:06.259Z",
+    "Luno/app/LunoHelperHooks.js.bak": "2026-08-24T01:01:06.259Z",
+    "Luno/docs/LunoDocs.js.bak": "2026-08-24T01:01:06.259Z"
   }
 }

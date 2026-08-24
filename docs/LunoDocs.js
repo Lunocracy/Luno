@@ -7,7 +7,7 @@ class LunoDocs {
     return m('header', { style: { borderBottom: '1px solid #30363d', paddingBottom: '0.65rem', marginBottom: '0.75rem' } },
       m('h1', { style: { color: '#00f2fe', fontSize: '1.25rem', margin: 0, display: 'flex', alignItems: 'center', gap: '0.4rem' } }, '📖 Luno Protocol & Architecture Hub'),
       m('div', { style: { fontSize: '0.75rem', color: '#8b949e', marginTop: '0.2rem' } },
-        'Comprehensive reference for HTML container directives, modular instruction rules, SVG vector studio, demand-paged context, and REST APIs'
+        'Comprehensive reference for HTML container directives, modular prompt guidelines, SVG vector studio, demand-paged context, and REST APIs'
       )
     );
   }
@@ -22,7 +22,7 @@ class LunoDocs {
       { key: 'context', label: '🧠 Demand-Paged Context' },
       { key: 'metrics', label: '📊 Codebase Metrics' },
       { key: 'relay', label: '🤖 AI Studio Relay' },
-      { key: 'test', label: '🔬 Diagnostic Suite' }
+      { key: 'test', label: '🧪 Test Suite' }
     ];
 
     const tabBtns = tabs.map(t => {
@@ -35,6 +35,7 @@ class LunoDocs {
           borderRadius: '6px',
           cursor: 'pointer',
           whiteSpace: 'nowrap',
+          fontFamily: 'monospace',
           background: isActive ? '#238636' : '#21262d',
           color: isActive ? '#ffffff' : '#c9d1d9',
           border: '1px solid ' + (isActive ? '#3fb950' : '#30363d')
@@ -85,7 +86,7 @@ class LunoDocs {
       contentBox.innerHTML = '<div style="padding:1rem; background:#161b22; border-radius:8px; color:#c9d1d9; font-size:0.8rem; line-height:1.45;">' +
         '<strong style="color:#00f2fe;">HTML Container Protocol Overview:</strong><br>' +
         'Luno Workspace communicates with language models using clean HTML container tags (<script data-file="...">, <style>, <template>, <svg>). ' +
-        'All client-side parsing executes directly in browser memory.</div>';
+        'All client-side parsing and surgical method consolidation execute directly in browser memory.</div>';
     } else if (tab === 'svgstudio') {
       if (typeof LunoSvgStudio !== 'undefined' && LunoSvgStudio.mountUI) {
         LunoSvgStudio.mountUI(contentBox);
@@ -105,6 +106,10 @@ class LunoDocs {
     } else if (tab === 'metrics') {
       if (typeof LunoMetricsAnalyzer !== 'undefined' && LunoMetricsAnalyzer.mountUI) {
         LunoMetricsAnalyzer.mountUI(contentBox);
+      }
+    } else if (tab === 'relay') {
+      if (typeof AiStudioRelayDocs !== 'undefined' && AiStudioRelayDocs.renderDocCard) {
+        contentBox.appendChild(AiStudioRelayDocs.renderDocCard());
       }
     } else if (tab === 'test') {
       if (typeof LunoTestRunner !== 'undefined') {

@@ -1,13 +1,10 @@
 class InboxActionTimer {
-  constructor() {
-
-  }
+  constructor() {}
 
   static activeTimer = null;
   static defaultDuration = parseInt(localStorage.getItem('luno_timer_duration') || '3500', 10);
 
   static startTimer(payloadText, onExecute) {
-
     if (InboxActionTimer.activeTimer) {
       InboxActionTimer.activeTimer.stop();
       InboxActionTimer.activeTimer = null;
@@ -38,7 +35,9 @@ class InboxActionTimer {
             },
             onCancel: () => {
               container.style.display = 'none';
-              ClientApp.showToast('Execution paused & cancelled.', 'info');
+              if (typeof ClientApp !== 'undefined' && ClientApp.showToast) {
+                ClientApp.showToast('Execution paused & cancelled.', 'info', '⏸️');
+              }
             }
           });
         }
@@ -48,30 +47,32 @@ class InboxActionTimer {
     InboxActionTimer.activeTimer = clock;
 
     const banner = document.createElement('div');
-    banner.style.cssText = 'display:flex; align-items:center; justify-content:space-between; width:100%; background:#0d2818; border:1px solid #238636; padding:0.5rem 0.75rem; border-radius:8px; cursor:pointer; font-size:0.78rem; color:#3fb950; margin-top:0.5rem;';
+    banner.style.cssText = 'display:flex; align-items:center; justify-content:space-between; width:100%; background:#0d2818; border:1px solid #238636; padding:0.5rem 0.75rem; border-radius:8px; cursor:pointer; font-size:0.78rem; color:#3fb950; margin-top:0.5rem; box-sizing:border-box; flex-wrap:wrap; gap:0.4rem;';
 
     const info = document.createElement('div');
     info.style.cssText = 'display:flex; align-items:center; gap:0.55rem;';
     info.appendChild(clock.element);
 
     const textSpan = document.createElement('span');
-    textSpan.innerHTML = `<strong>Applying patch...</strong> (Tap to Pause & Inspect Diffs)`;
+    textSpan.innerHTML = `<strong>Applying payload...</strong> (Tap to Pause & Inspect Diffs)`;
     info.appendChild(textSpan);
 
     const controls = document.createElement('div');
     controls.style.cssText = 'display:flex; gap:0.4rem; align-items:center;';
 
     const btnSpeed = document.createElement('button');
-    btnSpeed.style.cssText = 'background:#161b22; color:#58a6ff; border:1px solid #30363d; border-radius:4px; padding:0.2rem 0.45rem; font-size:0.7rem; cursor:pointer;';
+    btnSpeed.style.cssText = 'background:#161b22; color:#58a6ff; border:1px solid #30363d; border-radius:4px; padding:0.2rem 0.45rem; font-size:0.7rem; cursor:pointer; font-family:monospace; font-weight:bold;';
     btnSpeed.textContent = `⏱️ ${(duration / 1000).toFixed(1)}s`;
-    btnSpeed.title = 'Change countdown safety buffer time';
+    btnSpeed.title = 'Change safety countdown buffer duration';
     btnSpeed.onclick = (e) => {
       e.stopPropagation();
       clock.pause();
       const next = duration === 3500 ? 1500 : (duration === 1500 ? 800 : 3500);
       InboxActionTimer.defaultDuration = next;
       localStorage.setItem('luno_timer_duration', String(next));
-      ClientApp.showToast(`Countdown buffer set to ${(next / 1000).toFixed(1)}s`, 'info');
+      if (typeof ClientApp !== 'undefined' && ClientApp.showToast) {
+        ClientApp.showToast(`Countdown buffer set to ${(next / 1000).toFixed(1)}s`, 'info', '⏱️');
+      }
       InboxActionTimer.startTimer(payloadText, onExecute);
     };
 
@@ -83,10 +84,9 @@ class InboxActionTimer {
 
     container.appendChild(banner);
     clock.start();
-
   }
-  static createContainer() {
 
+  static createContainer() {
     const parent = document.getElementById('inbox-card-content') || document.body;
     let container = document.getElementById('inbox-timer-container');
     if (!container) {
@@ -95,10 +95,9 @@ class InboxActionTimer {
       parent.appendChild(container);
     }
     return container;
-
   }
-  static showUndoBanner(payloadText, modifiedCount) {
 
+  static showUndoBanner(payloadText, modifiedCount) {
     const parent = document.getElementById('inbox-card-content') || document.body;
     let container = document.getElementById('inbox-timer-container');
     if (!container) {
@@ -114,7 +113,7 @@ class InboxActionTimer {
 
     const info = document.createElement('div');
     info.style.cssText = 'display:flex; align-items:center; gap:0.55rem;';
-    info.innerHTML = `<span>✅ <strong>Applied ${modifiedCount} file change(s)!</strong></span>`;
+    info.innerHTML = `<span>✅ <strong>Applied ${modifiedCount || 1} file change(s)!</strong></span>`;
 
     const btnGroup = document.createElement('div');
     btnGroup.style.cssText = 'display:flex; gap:0.35rem;';
@@ -127,25 +126,17 @@ class InboxActionTimer {
       if (typeof DiffApprovalModal !== 'undefined') {
         DiffApprovalModal.open({
           payloadText: payloadText,
-          onConfirm: () => { ClientApp.showToast('Diffs inspected.', 'info'); },
-          onCancel: () => { ClientApp.showToast('Diff inspection closed.', 'info'); }
+          onConfirm: () => {
+            if (typeof ClientApp !== 'undefined' && ClientApp.showToast) ClientApp.showToast('Diffs inspected.', 'info');
+          },
+          onCancel: () => {
+            if (typeof ClientApp !== 'undefined' && ClientApp.showToast) ClientApp.showToast('Diff inspection closed.', 'info');
+          }
         });
       }
     };
 
-    const btnUndo = document.createElement('button');
-    btnUndo.style.cssText = 'background:#161b22; color:#ff7b72; border:1px solid #da3633; border-radius:6px; padding:0.3rem 0.55rem; font-size:0.72rem; cursor:pointer; font-family:monospace; font-weight:bold;';
-    btnUndo.textContent = '↩️ Undo Save';
-    btnUndo.onclick = (e) => {
-      e.stopPropagation();
-      banner.remove();
-      if (typeof ClientApp !== 'undefined' && ClientApp.undoLastSave) {
-        ClientApp.undoLastSave();
-      }
-    };
-
     btnGroup.appendChild(btnDiff);
-    btnGroup.appendChild(btnUndo);
     banner.appendChild(info);
     banner.appendChild(btnGroup);
     container.appendChild(banner);
@@ -156,8 +147,7 @@ class InboxActionTimer {
         banner.style.opacity = '0';
         setTimeout(() => banner.remove(), 500);
       }
-    }, 10000);
-
+    }, 8000);
   }
 }
 
