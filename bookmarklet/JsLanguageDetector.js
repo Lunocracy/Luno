@@ -1,14 +1,9 @@
 class JsLanguageDetector {
-  constructor() {
-
-  }
+  constructor() {}
 
   static isBlockElement(el) {
-
     if (!el || el.nodeType !== 1) return false;
-
     const tagName = el.tagName.toLowerCase();
-
     if (tagName === "ms-code-block") return true;
 
     const parentTag = el.parentElement ? el.parentElement.tagName.toLowerCase() : "";
@@ -25,10 +20,9 @@ class JsLanguageDetector {
     } catch (e) {}
 
     return true;
-
   }
-  static classifyBlock(codeText, element) {
 
+  static classifyBlock(codeText, element) {
     if (!codeText || typeof codeText !== "string") {
       return { type: "REJECT", isProtocol: false };
     }
@@ -38,7 +32,7 @@ class JsLanguageDetector {
       return { type: "REJECT", isProtocol: false };
     }
 
-    // 1. Check for Strict Luno Protocol HTML Container Tags (Legacy Comment Headers Are Dead!)
+    // 1. Strict HTML Container Directive Tags
     const tagMatch = text.match(/<(script|style|template|svg)\b([^>]*)>/i);
     if (tagMatch) {
       const attrString = tagMatch[2];
@@ -59,12 +53,7 @@ class JsLanguageDetector {
       return { type: "REJECT", isProtocol: false };
     }
 
-    // 3. Reject HTML Documents without JavaScript
-    if (/^\s*<!DOCTYPE\s+html>/i.test(text) && !text.includes("<script")) {
-      return { type: "REJECT", isProtocol: false };
-    }
-
-    // 4. Structural JavaScript / TypeScript Keyword Heuristics
+    // 3. Structural JavaScript / TypeScript Tokens
     const jsTokens = [
       /\bconst\s+[a-zA-Z_$]/,
       /\blet\s+[a-zA-Z_$]/,
@@ -92,13 +81,11 @@ class JsLanguageDetector {
     }
 
     return { type: "REJECT", isProtocol: false };
-
   }
-  static isJavaScript(codeText, element) {
 
+  static isJavaScript(codeText, element) {
     const classification = JsLanguageDetector.classifyBlock(codeText, element);
     return classification.type !== "REJECT";
-
   }
 }
 

@@ -3,9 +3,6 @@ class LunoPromptInstructions {
 
   static activeModelTarget = (typeof localStorage !== 'undefined' && localStorage.getItem('luno_llm_target_flavor')) || 'universal';
 
-  /**
-   * ⚙️ METHOD: setModelTarget(flavor)
-   */
   static setModelTarget(flavor) {
     LunoPromptInstructions.activeModelTarget = flavor || 'universal';
     try {
@@ -15,9 +12,6 @@ class LunoPromptInstructions {
     } catch (e) {}
   }
 
-  /**
-   * ⚙️ METHOD: getSystemPreamble()
-   */
   static getSystemPreamble() {
     return [
       '================================================================================',
@@ -28,9 +22,6 @@ class LunoPromptInstructions {
     ].join('\n');
   }
 
-  /**
-   * ⚙️ METHOD: getEnglishSandwichRule()
-   */
   static getEnglishSandwichRule() {
     return [
       'CRITICAL FORMATTING MANDATE (ENGLISH SANDWICH RULE):',
@@ -41,9 +32,6 @@ class LunoPromptInstructions {
     ].join('\n');
   }
 
-  /**
-   * ⚙️ METHOD: getSingleCodeBlockRule()
-   */
   static getSingleCodeBlockRule() {
     return [
       'SINGLE CODE BLOCK REQUIREMENT:',
@@ -53,9 +41,6 @@ class LunoPromptInstructions {
     ].join('\n');
   }
 
-  /**
-   * ⚙️ METHOD: getContainerDirectivesSpec()
-   */
   static getContainerDirectivesSpec() {
     var scr = 'scr' + 'ipt';
     return [
@@ -82,9 +67,6 @@ class LunoPromptInstructions {
     ].join('\n');
   }
 
-  /**
-   * ⚙️ METHOD: getSyntaxSafetyRules()
-   */
   static getSyntaxSafetyRules() {
     return [
       'SYNTAX & PARSER SAFETY RULES:',
@@ -98,9 +80,6 @@ class LunoPromptInstructions {
     ].join('\n');
   }
 
-  /**
-   * ⚙️ METHOD: getAiStudioSpecificRules()
-   */
   static getAiStudioSpecificRules() {
     return [
       'GOOGLE AI STUDIO & GEMINI STREAMING RULES:',
@@ -110,9 +89,6 @@ class LunoPromptInstructions {
     ].join('\n');
   }
 
-  /**
-   * ⚙️ METHOD: getClaudeSpecificRules()
-   */
   static getClaudeSpecificRules() {
     return [
       'ANTHROPIC CLAUDE SPECIFIC RULES:',
@@ -122,9 +98,6 @@ class LunoPromptInstructions {
     ].join('\n');
   }
 
-  /**
-   * ⚙️ METHOD: getChatGptSpecificRules()
-   */
   static getChatGptSpecificRules() {
     return [
       'OPENAI CHATGPT SPECIFIC RULES:',
@@ -134,9 +107,6 @@ class LunoPromptInstructions {
     ].join('\n');
   }
 
-  /**
-   * ⚙️ METHOD: assembleFullInstructions(flavorOverride)
-   */
   static assembleFullInstructions(flavorOverride) {
     var flavor = flavorOverride || LunoPromptInstructions.activeModelTarget || 'universal';
 
@@ -171,9 +141,6 @@ class LunoPromptInstructions {
     ].join('\n');
   }
 
-  /**
-   * ⚙️ METHOD: mountUI(container)
-   */
   static mountUI(container) {
     if (!container) return;
     container.innerHTML = '';
@@ -217,12 +184,11 @@ class LunoPromptInstructions {
     );
 
     var sections = [
-      { id: 'preamble', title: '1. System Role Preamble', method: 'getSystemPreamble', text: LunoPromptInstructions.getSystemPreamble() },
-      { id: 'sandwich', title: '2. English Sandwich Rule', method: 'getEnglishSandwichRule', text: LunoPromptInstructions.getEnglishSandwichRule() },
-      { id: 'codeblock', title: '3. Single Code Block Rule', method: 'getSingleCodeBlockRule', text: LunoPromptInstructions.getSingleCodeBlockRule() },
-      { id: 'containers', title: '4. HTML Container Directives Spec', method: 'getContainerDirectivesSpec', text: LunoPromptInstructions.getContainerDirectivesSpec() },
-      { id: 'syntax', title: '5. Syntax & Parser Safety Rules', method: 'getSyntaxSafetyRules', text: LunoPromptInstructions.getSyntaxSafetyRules() },
-      { id: 'flavor', title: '6. Active Target Model Rules (' + currentFlavor.toUpperCase() + ')', method: 'getModelSpecificRules', text: LunoPromptInstructions.assembleFullInstructions(currentFlavor).split(LunoPromptInstructions.getSyntaxSafetyRules())[1].replace(/={20,}\s*$/, '').trim() }
+      { id: 'preamble', title: '1. System Role Preamble', text: LunoPromptInstructions.getSystemPreamble() },
+      { id: 'sandwich', title: '2. English Sandwich Rule', text: LunoPromptInstructions.getEnglishSandwichRule() },
+      { id: 'codeblock', title: '3. Single Code Block Rule', text: LunoPromptInstructions.getSingleCodeBlockRule() },
+      { id: 'containers', title: '4. HTML Container Directives Spec', text: LunoPromptInstructions.getContainerDirectivesSpec() },
+      { id: 'syntax', title: '5. Syntax & Parser Safety Rules', text: LunoPromptInstructions.getSyntaxSafetyRules() }
     ];
 
     var sectionCards = sections.map(function(sec) {
@@ -230,14 +196,13 @@ class LunoPromptInstructions {
         style: { background: '#0d1117', border: '1px solid #30363d', borderRadius: '8px', padding: '0.75rem', display: 'flex', flexDirection: 'column', gap: '0.45rem' }
       },
         m('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center' } },
-          m('strong', { style: { color: '#00f2fe', fontSize: '0.85rem' } }, sec.title),
-          m('span', { style: { fontSize: '0.68rem', color: '#8b949e', fontFamily: 'monospace' } }, 'Method: ' + sec.method + '()')
+          m('strong', { style: { color: '#00f2fe', fontSize: '0.85rem' } }, sec.title)
         ),
         m('pre', {
           style: { background: '#070a13', border: '1px solid #1e293b', borderRadius: '6px', padding: '0.55rem', color: '#7ee787', fontSize: '0.74rem', fontFamily: 'monospace', whiteSpace: 'pre-wrap', margin: 0, maxHeight: '160px', overflowY: 'auto' },
           textContent: sec.text
         }),
-        m('div', { style: { display: 'flex', justifyContent: 'space-end', gap: '0.35rem', justifyContent: 'flex-end' } },
+        m('div', { style: { display: 'flex', gap: '0.35rem', justifyContent: 'flex-end' } },
           m('button', {
             style: { padding: '0.25rem 0.55rem', background: '#161b22', color: '#58a6ff', border: '1px solid #0088cc', borderRadius: '4px', fontSize: '0.7rem', cursor: 'pointer', fontFamily: 'monospace' },
             onclick: function() {
@@ -297,12 +262,11 @@ class LunoPromptInstructions {
                 if (typeof ClientApp !== 'undefined' && ClientApp.showToast) ClientApp.showToast('Queued Master Instructions to Outbox!', 'success', '📤');
               }
             }
-          }, '📤 Send Master Prompt to Outbox')
+          }, '📤 Send to Outbox')
         )
       ),
       m('p', { style: { fontSize: '0.78rem', color: '#8b949e', margin: 0, lineHeight: '1.4' } },
-        'These modular instruction blocks teach any LLM how to format files and surgical patches using the HTML Container Protocol. ' +
-        'Select your active AI model above to preview and bundle custom guidelines for AI Studio, Claude, or ChatGPT.'
+        'These modular instruction blocks teach any LLM how to format files and surgical patches using the HTML Container Protocol.'
       ),
       m('div', { style: { display: 'flex', flexDirection: 'column', gap: '0.5rem', marginTop: '0.4rem' } }, ...sectionCards)
     );

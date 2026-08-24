@@ -1,33 +1,28 @@
 class CodeCollapserWidget {
-  constructor() {
-
-  }
+  constructor() {}
 
   static STYLES_ID = "luno-widget-styles";
   static STATE_STORAGE_KEY = "luno_block_states_v1";
 
   static getSavedStates() {
-
     try {
       const raw = localStorage.getItem(CodeCollapserWidget.STATE_STORAGE_KEY);
       return raw ? JSON.parse(raw) : {};
     } catch (e) {
       return {};
     }
-
   }
-  static saveState(fingerprint, isCollapsed) {
 
+  static saveState(fingerprint, isCollapsed) {
     if (!fingerprint) return;
     try {
       const states = CodeCollapserWidget.getSavedStates();
       states[fingerprint] = Boolean(isCollapsed);
       localStorage.setItem(CodeCollapserWidget.STATE_STORAGE_KEY, JSON.stringify(states));
     } catch (e) {}
-
   }
-  static injectStyles() {
 
+  static injectStyles() {
     if (typeof document === "undefined" || document.getElementById(CodeCollapserWidget.STYLES_ID)) return;
     const style = document.createElement("style");
     style.id = CodeCollapserWidget.STYLES_ID;
@@ -79,10 +74,9 @@ class CodeCollapserWidget {
       "}"
     ].join("\n");
     (document.head || document.documentElement).appendChild(style);
-
   }
-  static findWrapTarget(element) {
 
+  static findWrapTarget(element) {
     if (!element || element.nodeType !== 1) return null;
     let curr = element;
     while (curr && curr.parentElement && curr.tagName.toLowerCase() !== "body") {
@@ -90,16 +84,12 @@ class CodeCollapserWidget {
       if (tag === "ms-code-block" || curr.classList.contains("code-block-container")) {
         return curr;
       }
-      if (curr.parentElement.tagName.toLowerCase() === "ms-code-block") {
-        return curr.parentElement;
-      }
       curr = curr.parentElement;
     }
     return element;
-
   }
-  static wrapElement(targetElement, options = {}) {
 
+  static wrapElement(targetElement, options = {}) {
     if (!targetElement) return null;
     const wrapTarget = CodeCollapserWidget.findWrapTarget(targetElement);
     if (!wrapTarget) return null;
@@ -122,7 +112,6 @@ class CodeCollapserWidget {
     const previewSnippet = lines.slice(0, 5).join("\n");
     const classification = options.classification || { badgeLabel: "📄 JS Block", badgeColor: "#00f2fe" };
 
-    // Create Shim Element
     const shim = document.createElement("div");
     shim.className = "luno-shim-base";
 
@@ -148,7 +137,6 @@ class CodeCollapserWidget {
     shim.appendChild(shimHeader);
     shim.appendChild(shimPreview);
 
-    // Create Expanded Header Bar (inserted above target when expanded)
     const expandedBar = document.createElement("div");
     expandedBar.className = "luno-widget-expanded-bar";
 
@@ -188,7 +176,6 @@ class CodeCollapserWidget {
     expandedBar.appendChild(expandedLabel);
     expandedBar.appendChild(expandedControls);
 
-    // Insert controls into DOM
     if (wrapTarget.parentNode) {
       wrapTarget.parentNode.insertBefore(shim, wrapTarget);
       wrapTarget.parentNode.insertBefore(expandedBar, wrapTarget);
@@ -230,12 +217,9 @@ class CodeCollapserWidget {
       controller.toggle();
     };
 
-    // Set initial state
     controller.setCollapsed(startCollapsed);
-
     wrapTarget.__lunoWidgetController__ = controller;
     return controller;
-
   }
 }
 

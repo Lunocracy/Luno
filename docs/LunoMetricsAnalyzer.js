@@ -1,17 +1,13 @@
 class LunoMetricsAnalyzer {
-  constructor() {
-
-  }
+  constructor() {}
 
   static currentSortBy = 'lines';
 
   static makeElement(...args) {
-
     return LunoUIComponents.makeElement(...args);
-
   }
-  static analyzeFile(relPath, content) {
 
+  static analyzeFile(relPath, content) {
     const lines = content ? content.split('\n').length : 0;
     const chars = content ? content.length : 0;
     let classCount = 0;
@@ -64,26 +60,9 @@ class LunoMetricsAnalyzer {
       functionCount,
       estTokens: Math.ceil(chars / 4)
     };
-
   }
-  static parseBundledText(bundledText) {
 
-    if (!bundledText || typeof bundledText !== 'string') return [];
-
-    const parsed = typeof LunoPayloadParser !== 'undefined' && LunoPayloadParser.parse
-      ? LunoPayloadParser.parse(bundledText)
-      : { files: [] };
-
-    const fileMetrics = [];
-    for (const f of parsed.files) {
-      fileMetrics.push(LunoMetricsAnalyzer.analyzeFile(f.filePath, f.content));
-    }
-
-    return fileMetrics;
-
-  }
   static sortMetrics(metricsList, sortBy) {
-
     sortBy = sortBy || 'lines';
     return [...metricsList].sort((a, b) => {
       if (sortBy === 'functions') return b.functionCount - a.functionCount;
@@ -91,10 +70,9 @@ class LunoMetricsAnalyzer {
       if (sortBy === 'size') return b.chars - a.chars;
       return b.lines - a.lines;
     });
-
   }
-  static calculateTotals(metricsList) {
 
+  static calculateTotals(metricsList) {
     return metricsList.reduce((acc, f) => {
       acc.totalFiles += 1;
       acc.totalLines += f.lines;
@@ -104,13 +82,14 @@ class LunoMetricsAnalyzer {
       acc.totalTokens += f.estTokens;
       return acc;
     }, { totalFiles: 0, totalLines: 0, totalClasses: 0, totalFunctions: 0, totalChars: 0, totalTokens: 0 });
-
   }
-  static mountUI(container) {
 
+  static mountUI(container) {
     if (!container || typeof document === 'undefined') return;
     container.innerHTML = '';
     const m = LunoMetricsAnalyzer.makeElement;
+
+    const currentTarget = (typeof ClientApp !== 'undefined' && ClientApp.getTargetProject) ? ClientApp.getTargetProject() : 'Luno';
 
     const card = m('div', {
       style: {
@@ -124,58 +103,88 @@ class LunoMetricsAnalyzer {
       }
     });
 
-    const header = m('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem', borderBottom: '1px solid #30363d', paddingBottom: '0.5rem' } },
-      m('h3', { style: { color: '#00f2fe', fontSize: '1.1rem', margin: 0, display: 'flex', alignItems: 'center', gap: '0.4rem' } }, '📊 Workspace Codebase Metrics & Function Counter'),
+    const projectSelect = m('select', {
+      style: { background: '#0d1117', color: '#00f2fe', border: '1px solid #00f2fe', padding: '0.25rem 0.55rem', borderRadius: '6px', fontSize: '0.75rem', fontFamily: 'monospace', fontWeight: 'bold', cursor: 'pointer' },
+      onchange: (e) => {
+        if (typeof ClientApp !== 'undefined' && ClientApp.setTargetProject) {
+          ClientApp.setTargetProject(e.target.value);
+        }
+        LunoMetricsAnalyzer.runAnalysis(card, e.target.value);
+      }
+    }, m('option', { value: currentTarget }, '📁 ' + currentTarget));
+
+    setTimeout(async () => {
+      try {
+        if (typeof LunoApiClient !== 'undefined' && LunoApiClient.fetchProjectsList) {
+          const pData = await LunoApiClient.fetchProjectsList();
+          if (pData && Array.isArray(pData.projects)) {
+            projectSelect.innerHTML = '';
+            pData.projects.forEach(p => {
+              if (p.isLibrary || p.name === 'Library') return;
+              const opt = document.createElement('option');
+              opt.value = p.name;
+              opt.textContent = '📁 ' + p.name + (p.name === 'Luno' ? ' (Core)' : '');
+              if (p.name === currentTarget) opt.selected = true;
+              projectSelect.appendChild(opt);
+            });
+          }
+        }
+      } catch (e) {}
+    }, 40);
+
+    const header = m('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem', borderBottom: '1px solid #30363d', paddingBottom: '0.5rem', flexWrap: 'wrap', gap: '0.4rem' } },
+      m('div', { style: { display: 'flex', alignItems: 'center', gap: '0.4rem' } },
+        m('h3', { style: { color: '#00f2fe', fontSize: '1.1rem', margin: 0 } }, '📊 Codebase Metrics & Function Counter'),
+        projectSelect
+      ),
       m('button', {
-        style: { padding: '0.35rem 0.75rem', background: '#238636', color: '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold', fontSize: '0.75rem' },
-        onclick: () => LunoMetricsAnalyzer.runAnalysis(card)
+        style: { padding: '0.35rem 0.75rem', background: '#238636', color: '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold', fontSize: '0.75rem', fontFamily: 'monospace' },
+        onclick: () => LunoMetricsAnalyzer.runAnalysis(card, projectSelect.value)
       }, '▶ Run Analysis')
     );
 
     const contentArea = m('div', { id: 'metrics-content-area' },
-      m('p', { style: { fontSize: '0.78rem', color: '#8b949e', margin: 0 } }, 'Click "Run Analysis" to scan all codebase files, count Lines of Code (LOC), functions, and class definitions.')
+      m('p', { style: { fontSize: '0.78rem', color: '#8b949e', margin: 0 } }, 'Scanning codebase files, lines of code (LOC), functions, and classes...')
     );
 
     card.appendChild(header);
     card.appendChild(contentArea);
     container.appendChild(card);
 
-    LunoMetricsAnalyzer.runAnalysis(card);
-
+    LunoMetricsAnalyzer.runAnalysis(card, currentTarget);
   }
-  static async runAnalysis(cardElement) {
 
+  static async runAnalysis(cardElement, projectOverride) {
     const contentArea = cardElement.querySelector('#metrics-content-area');
     if (!contentArea) return;
 
+    const targetProj = projectOverride || (typeof ClientApp !== 'undefined' && ClientApp.getTargetProject ? ClientApp.getTargetProject() : 'Luno');
+
     const m = LunoMetricsAnalyzer.makeElement;
     contentArea.innerHTML = '';
-    contentArea.appendChild(m('div', { style: { padding: '1rem', color: '#00f2fe', textAlign: 'center' } }, '⚡ Scanning codebase files and parsing AST nodes...'));
+    contentArea.appendChild(m('div', { style: { padding: '1rem', color: '#00f2fe', textAlign: 'center' } }, '⚡ Scanning codebase files for [' + targetProj + ']...'));
 
     try {
-      const res = await fetch('/api/all-code');
+      const pParam = targetProj ? ('?project=' + encodeURIComponent(targetProj)) : '';
+      const res = await fetch('/api/all-code' + pParam);
       const data = await res.json();
       if (!res.ok) throw new Error('Failed to fetch codebase from server');
 
       let metricsList = [];
       if (data.filesMap) {
         metricsList = Object.keys(data.filesMap).map(filePath => LunoMetricsAnalyzer.analyzeFile(filePath, data.filesMap[filePath]));
-      } else {
-        metricsList = LunoMetricsAnalyzer.parseBundledText(data.bundledText);
       }
 
       const totals = LunoMetricsAnalyzer.calculateTotals(metricsList);
-      LunoMetricsAnalyzer.renderAnalysisResults(contentArea, metricsList, totals);
+      LunoMetricsAnalyzer.renderAnalysisResults(contentArea, metricsList, totals, targetProj);
     } catch (err) {
-      contentArea.innerHTML = `<div style="padding:0.75rem; color:#f85149; background:#3c1418; border-radius:6px;">❌ Metrics Analysis Error: ${err.message}</div>`;
+      contentArea.innerHTML = `<div style="padding:0.75rem; color:#ff7b72; background:#3c1418; border-radius:6px;">❌ Metrics Analysis Error: ${err.message}</div>`;
     }
-
   }
-  static renderAnalysisResults(container, metricsList, totals) {
 
+  static renderAnalysisResults(container, metricsList, totals, projectName) {
     container.innerHTML = '';
     const m = LunoMetricsAnalyzer.makeElement;
-
     const sorted = LunoMetricsAnalyzer.sortMetrics(metricsList, LunoMetricsAnalyzer.currentSortBy);
 
     const sortBtns = [
@@ -192,13 +201,14 @@ class LunoMetricsAnalyzer {
           fontWeight: 'bold',
           borderRadius: '4px',
           cursor: 'pointer',
+          fontFamily: 'monospace',
           background: isActive ? '#00f2fe22' : '#0d1117',
           color: isActive ? '#00f2fe' : '#8b949e',
           border: '1px solid ' + (isActive ? '#00f2fe' : '#30363d')
         },
         onclick: () => {
           LunoMetricsAnalyzer.currentSortBy = b.key;
-          LunoMetricsAnalyzer.renderAnalysisResults(container, metricsList, totals);
+          LunoMetricsAnalyzer.renderAnalysisResults(container, metricsList, totals, projectName);
         }
       }, b.label);
     });
@@ -206,7 +216,7 @@ class LunoMetricsAnalyzer {
     const sortRow = m('div', {
       style: { display: 'flex', gap: '0.35rem', alignItems: 'center', marginBottom: '0.65rem', flexWrap: 'wrap', fontSize: '0.72rem', color: '#8b949e' }
     },
-      m('span', {}, 'Order By:'),
+      m('span', { style: { fontWeight: 'bold' } }, 'Order By:'),
       ...sortBtns
     );
 
@@ -253,7 +263,7 @@ class LunoMetricsAnalyzer {
       }
     },
       m('div', { style: { fontSize: '0.9rem', fontWeight: 'bold', color: '#d2a8ff', display: 'flex', justifyContent: 'space-between', alignItems: 'center' } },
-        m('span', {}, '🏆 Workspace Grand Totals Summary'),
+        m('span', {}, '🏆 Grand Totals Summary [' + (projectName || 'Active') + ']'),
         m('span', { style: { fontSize: '0.72rem', color: '#8b949e' } }, `${totals.totalFiles} File(s) Analyzed`)
       ),
       m('div', {
@@ -280,21 +290,19 @@ class LunoMetricsAnalyzer {
         m('button', {
           style: { flex: 1, padding: '0.55rem', background: '#271052', color: '#d2a8ff', border: '1px solid #8257e5', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer', fontSize: '0.78rem', fontFamily: 'monospace' },
           onclick: () => {
-            const report = LunoMetricsAnalyzer.generateTextReport(sorted, totals);
+            const report = LunoMetricsAnalyzer.generateTextReport(sorted, totals, projectName);
             if (typeof navigator !== 'undefined' && navigator.clipboard && navigator.clipboard.writeText) {
               navigator.clipboard.writeText(report);
               if (typeof ClientApp !== 'undefined') ClientApp.showToast('Copied Codebase Metrics Report!', 'success', '📋');
-            } else {
-              prompt('Copy Metrics Report:', report);
             }
           }
         }, '📋 Copy Metrics Report'),
         m('button', {
           style: { flex: 1, padding: '0.55rem', background: '#161b22', color: '#00f2fe', border: '1px solid #00f2fe', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer', fontSize: '0.78rem', fontFamily: 'monospace' },
           onclick: () => {
-            const report = LunoMetricsAnalyzer.generateTextReport(sorted, totals);
+            const report = LunoMetricsAnalyzer.generateTextReport(sorted, totals, projectName);
             if (typeof OutboxQueue !== 'undefined') {
-              OutboxQueue.addBundle('Codebase Metrics Report', report);
+              OutboxQueue.addBundle('Codebase Metrics Report: ' + (projectName || 'Active'), report);
               if (typeof ClientApp !== 'undefined') ClientApp.showToast('Sent Metrics Report to Outbox!', 'success', '📤');
             }
           }
@@ -307,16 +315,16 @@ class LunoMetricsAnalyzer {
     fileRows.forEach(r => listWrapper.appendChild(r));
     container.appendChild(listWrapper);
     container.appendChild(totalsDashboard);
-
   }
-  static generateTextReport(fileMetrics, totals) {
 
+  static generateTextReport(fileMetrics, totals, projectName) {
     const closeScript = '</' + 'script>';
     let report = '<script type="text/plain" data-file="codebase_metrics_report.txt">\n';
+    report += `Project: ${projectName || 'Active Target'}\n`;
     report += `Date: ${new Date().toLocaleString()}\n`;
     report += `Total Files: ${totals.totalFiles}\n`;
     report += `Total Lines of Code (LOC): ${totals.totalLines}\n`;
-    report += `Total Functions / Methods: ${totals.totalFunctions}\n`;
+    report += `Total Functions: ${totals.totalFunctions}\n`;
     report += `Total Classes: ${totals.totalClasses}\n`;
     report += `Total Size: ${(totals.totalChars / 1024).toFixed(1)} KB (~${totals.totalTokens} tokens)\n\n`;
     report += '--- FILE BREAKDOWN ---\n';
@@ -325,7 +333,6 @@ class LunoMetricsAnalyzer {
     });
     report += closeScript;
     return report;
-
   }
 }
 

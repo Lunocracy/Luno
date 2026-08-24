@@ -1,12 +1,9 @@
 class OutboxNotifier {
-  constructor() {
-
-  }
+  constructor() {}
 
   static BANNER_ID = "luno-outbox-notify-banner";
 
   static showNotification(payloadData) {
-
     if (typeof document === "undefined") return;
 
     var existing = document.getElementById(OutboxNotifier.BANNER_ID);
@@ -25,7 +22,7 @@ class OutboxNotifier {
       "background: #271052 !important;",
       "color: #d2a8ff !important;",
       "border: 2px solid #8257e5 !important;",
-      "border-radius: 0px !important;",
+      "border-radius: 8px !important;",
       "padding: 8px 12px !important;",
       "font-family: monospace !important;",
       "font-size: 11px !important;",
@@ -42,7 +39,7 @@ class OutboxNotifier {
 
     var btnPaste = document.createElement("button");
     btnPaste.appendChild(document.createTextNode("📋 Fill Prompt Field"));
-    btnPaste.style.cssText = "background:#8257e5; color:#fff; border:none; border-radius:0px; padding:3px 8px; font-size:10px; font-family:monospace; cursor:pointer; font-weight:bold;";
+    btnPaste.style.cssText = "background:#8257e5; color:#fff; border:none; border-radius:4px; padding:3px 8px; font-size:10px; font-family:monospace; cursor:pointer; font-weight:bold;";
     btnPaste.onclick = function(e) {
       e.stopPropagation();
       OutboxNotifier.insertTextIntoAiStudioPrompt(text);
@@ -50,8 +47,8 @@ class OutboxNotifier {
     };
 
     var btnClose = document.createElement("button");
-    btnClose.appendChild(document.createTextNode("[X]"));
-    btnClose.style.cssText = "background:#161b22; color:#ff7b72; border:1px solid #da3633; border-radius:0px; padding:2px 4px; font-size:10px; font-family:monospace; cursor:pointer;";
+    btnClose.appendChild(document.createTextNode("✖"));
+    btnClose.style.cssText = "background:#161b22; color:#ff7b72; border:1px solid #da3633; border-radius:4px; padding:2px 5px; font-size:10px; font-family:monospace; cursor:pointer;";
     btnClose.onclick = function(e) {
       e.stopPropagation();
       banner.remove();
@@ -66,13 +63,11 @@ class OutboxNotifier {
     setTimeout(function() {
       if (banner.parentNode) banner.remove();
     }, 12000);
-
   }
-  static insertTextIntoAiStudioPrompt(textToInsert) {
 
+  static insertTextIntoAiStudioPrompt(textToInsert) {
     if (!textToInsert) return;
 
-    // Enhanced AI Studio prompt input selector list
     var selectors = [
       "ms-prompt-input textarea",
       "textarea.prompt-input",
@@ -108,11 +103,9 @@ class OutboxNotifier {
         targetInput.dispatchEvent(new Event("input", { bubbles: true, cancelable: true }));
       }
 
-      // Scroll prompt into view
       try {
         targetInput.scrollIntoView({ behavior: "smooth", block: "center" });
       } catch (e) {}
-
     } else {
       if (navigator.clipboard && navigator.clipboard.writeText) {
         navigator.clipboard.writeText(textToInsert);
@@ -121,10 +114,9 @@ class OutboxNotifier {
         prompt("Copy Outbox text:", textToInsert);
       }
     }
-
   }
-  static setupOutboxListener() {
 
+  static setupOutboxListener() {
     if (typeof window === "undefined" || window.__LUNO_OUTBOX_LISTENER_ACTIVE__) return;
     window.__LUNO_OUTBOX_LISTENER_ACTIVE__ = true;
 
@@ -135,7 +127,6 @@ class OutboxNotifier {
         OutboxNotifier.showNotification(e.data.payload || { title: "Package", text: e.data.text });
       }
     });
-
   }
 }
 

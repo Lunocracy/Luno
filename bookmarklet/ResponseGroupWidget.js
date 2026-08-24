@@ -1,12 +1,9 @@
 class ResponseGroupWidget {
-  constructor() {
-
-  }
+  constructor() {}
 
   static STYLES_ID = "luno-response-group-styles";
 
   static injectStyles() {
-
     if (typeof document === "undefined" || document.getElementById(ResponseGroupWidget.STYLES_ID)) return;
     const style = document.createElement("style");
     style.id = ResponseGroupWidget.STYLES_ID;
@@ -35,21 +32,17 @@ class ResponseGroupWidget {
       "}"
     ].join("\n");
     (document.head || document.documentElement).appendChild(style);
-
   }
-  static wrapTurnGroup(turnElement) {
 
+  static wrapTurnGroup(turnElement) {
     if (!turnElement || turnElement.__lunoGroupController__) return null;
 
-    // Find code blocks inside turn
     const codeElements = turnElement.querySelectorAll("ms-code-block, pre");
     if (!codeElements || codeElements.length === 0) return null;
 
     ResponseGroupWidget.injectStyles();
-
     turnElement.classList.add("luno-response-group");
 
-    // Gather block stats
     let totalLines = 0;
     const blocksData = [];
 
@@ -64,7 +57,6 @@ class ResponseGroupWidget {
 
     if (blocksData.length === 0) return null;
 
-    // Create Group Bar
     const groupBar = document.createElement("div");
     groupBar.className = "luno-group-action-bar";
 
@@ -120,7 +112,6 @@ class ResponseGroupWidget {
 
     turnElement.__lunoGroupController__ = controller;
     return controller;
-
   }
 }
 

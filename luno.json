@@ -55,8 +55,8 @@
     "Luno/docs/BookmarkletStudioRoadmap.md"
   ],
   "patchJournal": "LunoPatchLog.html",
-  "processedCountSinceCheckpoint": 10,
-  "lastCheckpointTime": "2026-08-24T01:01:11.645Z",
+  "processedCountSinceCheckpoint": 17,
+  "lastCheckpointTime": "2026-08-24T01:02:15.659Z",
   "pendingCheckpointDescription": "Clean working tree",
   "changedMethods": {
     "Luno/app/ClientApp.js": "2026-08-24T00:59:44.265Z",
@@ -66,7 +66,7 @@
     "Luno/app/ClientApp.js.bak": "2026-08-24T00:59:44.265Z",
     "Luno/app/LunoSpaHeaderNav.js.bak": "2026-08-24T00:59:44.265Z",
     "Luno/app/DiffApprovalModal.js.bak": "2026-08-24T00:59:44.265Z",
-    "LunoPatchLog.html": "2026-08-24T01:02:12.542Z",
+    "LunoPatchLog.html": "2026-08-24T01:05:54.561Z",
     "Luno/app/InboxActionTimer.js": "2026-08-24T01:01:06.259Z",
     "Luno/app/LunoGuideEngine.js": "2026-08-24T01:01:06.259Z",
     "Luno/app/LunoHelperHooks.js": "2026-08-24T01:01:06.259Z",
@@ -80,6 +80,18 @@
     "Luno/app/LunoRunner.js": "2026-08-24T01:02:12.542Z",
     "Luno/app/LunoSettings.js.bak": "2026-08-24T01:02:12.542Z",
     "Luno/app/LunoStateStore.js.bak": "2026-08-24T01:02:12.542Z",
-    "Luno/app/LunoRunner.js.bak": "2026-08-24T01:02:12.542Z"
+    "Luno/app/LunoRunner.js.bak": "2026-08-24T01:02:12.542Z",
+    "Luno/app/LunoPromptInstructions.js": "2026-08-24T01:05:54.561Z",
+    "Luno/bookmarklet/JsLanguageDetector.js": "2026-08-24T01:04:02.585Z",
+    "Luno/bookmarklet/CodeCollapserWidget.js": "2026-08-24T01:04:02.585Z",
+    "Luno/bookmarklet/ResponseGroupWidget.js": "2026-08-24T01:04:02.585Z",
+    "Luno/docs/LunoMetricsAnalyzer.js": "2026-08-24T01:05:54.561Z",
+    "Luno/docs/LunoDocsWidgets.js": "2026-08-24T01:05:54.561Z",
+    "Luno/bookmarklet/OutboxNotifier.js": "2026-08-24T01:05:48.124Z",
+    "Luno/test/LunoTestRunner.js": "2026-08-24T01:05:54.561Z",
+    "Luno/app/LunoPromptInstructions.js.bak": "2026-08-24T01:05:54.561Z",
+    "Luno/docs/LunoMetricsAnalyzer.js.bak": "2026-08-24T01:05:54.561Z",
+    "Luno/docs/LunoDocsWidgets.js.bak": "2026-08-24T01:05:54.561Z",
+    "Luno/test/LunoTestRunner.js.bak": "2026-08-24T01:05:54.561Z"
   }
 }
