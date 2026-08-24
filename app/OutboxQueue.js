@@ -247,44 +247,55 @@ class OutboxQueue {
     return packageText.trim() + '\n\n';
   }
 
-  static copyPackageToClipboard(itemId) {
-    if (!OutboxQueue.queue || OutboxQueue.queue.length === 0) {
-      if (typeof ClientApp !== 'undefined') ClientApp.showToast('Outbox is empty!', 'info');
-      return;
-    }
-
-    var packageText = '';
-    var toastMsg = 'Copied Outbox Package to clipboard!';
-
-    if (itemId) {
-      var item = OutboxQueue.queue.find(function(i) { return i && i.id === itemId; });
-      if (item) {
-        packageText = item.payload.trim();
-        toastMsg = 'Copied ' + item.title + ' to clipboard!';
+    static copyPackageToClipboard() {
+    == 0) {
+        if (typeof ClientApp !== 'undefined') ClientApp.showToast('Outbox is empty!', 'info');
+        return;
       }
-    }
-
-    if (!packageText) {
-      packageText = OutboxQueue.getCombinedPackageText();
-      toastMsg = 'Copied Outbox Package (' + OutboxQueue.queue.length + ' items) to clipboard!';
-    }
-
-    try {
-      if (navigator.clipboard && navigator.clipboard.writeText) {
-        navigator.clipboard.writeText(packageText);
+  
+      var packageText = '';
+      var toastMsg = 'Copied Outbox Package to clipboard!';
+  
+      if (itemId) {
+        var item = OutboxQueue.queue.find(function(i) { return i && i.id === itemId; });
+        if (item) {
+          packageText = item.payload.trim();
+          toastMsg = 'Copied ' + item.title + ' to clipboard!';
+        }
       }
-    } catch (e) {}
-
-    if (typeof OutboxQueue.notifyTargetPage === 'function') {
-      OutboxQueue.notifyTargetPage(itemId ? 'Single Item' : 'Outbox Package', packageText);
-    }
-
-    if (typeof ClientApp !== 'undefined' && ClientApp.showToast) {
-      ClientApp.showToast(toastMsg, 'success');
-    }
-
-    if (typeof OutboxQueue.showClearCountdownBanner === 'function') {
-      OutboxQueue.showClearCountdownBanner(10000, itemId);
+  
+      if (!packageText) {
+        packageText = OutboxQueue.getCombinedPackageText();
+        toastMsg = 'Copied Outbox Package (' + OutboxQueue.queue.length + ' items) to clipboard!';
+      }
+  
+      try {
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(packageText);
+        }
+      } catch (e) {}
+  
+      var outboxCard = document.querySelector('.outbox-card');
+      if (outboxCard && typeof LunoAnimationEngine !== 'undefined') {
+        var rect = outboxCard.getBoundingClientRect();
+        LunoAnimationEngine.burstSparks(rect.left + (rect.width / 2), rect.top + 30, '#3fb950', 20);
+        LunoAnimationEngine.pulseTarget(outboxCard, { color: '#3fb950', glowColor: 'rgba(63, 185, 80, 0.85)' });
+        if (typeof LunoAnimationEngine.wavePulse === 'function') {
+          LunoAnimationEngine.wavePulse(outboxCard, '#3fb950');
+        }
+      }
+  
+      if (typeof OutboxQueue.notifyTargetPage === 'function') {
+        OutboxQueue.notifyTargetPage(itemId ? 'Single Item' : 'Outbox Package', packageText);
+      }
+  
+      if (typeof ClientApp !== 'undefined' && ClientApp.showToast) {
+        ClientApp.showToast(toastMsg, 'success', '📋');
+      }
+  
+      if (typeof OutboxQueue.showClearCountdownBanner === 'function') {
+        OutboxQueue.showClearCountdownBanner(10000, itemId);
+      }
     }
   }
 
@@ -324,6 +335,12 @@ class OutboxQueue {
       }
     }
   }
+
+    static renderWidget(containerId, retryCount) {
+      if (typeof OutboxWidgetRenderer !== 'undefined' && OutboxWidgetRenderer.renderWidget) {
+        return OutboxWidgetRenderer.renderWidget(containerId, retryCount);
+      }
+    }
 }
 
 if (typeof OutboxPromptBox !== 'undefined') {
@@ -339,6 +356,58 @@ if (typeof OutboxOptionsModal !== 'undefined') {
 if (typeof OutboxWidgetRenderer !== 'undefined') {
   OutboxQueue.renderWidget = OutboxWidgetRenderer.renderWidget;
   OutboxQueue.renderQueueItemRow = OutboxWidgetRenderer.renderQueueItemRow;
+
+  static copyPackageToClipboard() {
+    == 0) {
+        if (typeof ClientApp !== 'undefined') ClientApp.showToast('Outbox is empty!', 'info');
+        return;
+      }
+  
+      var packageText = '';
+      var toastMsg = 'Copied Outbox Package to clipboard!';
+  
+      if (itemId) {
+        var item = OutboxQueue.queue.find(function(i) { return i && i.id === itemId; });
+        if (item) {
+          packageText = item.payload.trim();
+          toastMsg = 'Copied ' + item.title + ' to clipboard!';
+        }
+      }
+  
+      if (!packageText) {
+        packageText = OutboxQueue.getCombinedPackageText();
+        toastMsg = 'Copied Outbox Package (' + OutboxQueue.queue.length + ' items) to clipboard!';
+      }
+  
+      try {
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(packageText);
+        }
+      } catch (e) {}
+  
+      var outboxCard = document.querySelector('.outbox-card');
+      if (outboxCard && typeof LunoAnimationEngine !== 'undefined') {
+        var rect = outboxCard.getBoundingClientRect();
+        LunoAnimationEngine.burstSparks(rect.left + (rect.width / 2), rect.top + 30, '#3fb950', 20);
+        LunoAnimationEngine.pulseTarget(outboxCard, { color: '#3fb950', glowColor: 'rgba(63, 185, 80, 0.85)' });
+        if (typeof LunoAnimationEngine.wavePulse === 'function') {
+          LunoAnimationEngine.wavePulse(outboxCard, '#3fb950');
+        }
+      }
+  
+      if (typeof OutboxQueue.notifyTargetPage === 'function') {
+        OutboxQueue.notifyTargetPage(itemId ? 'Single Item' : 'Outbox Package', packageText);
+      }
+  
+      if (typeof ClientApp !== 'undefined' && ClientApp.showToast) {
+        ClientApp.showToast(toastMsg, 'success', '📋');
+      }
+  
+      if (typeof OutboxQueue.showClearCountdownBanner === 'function') {
+        OutboxQueue.showClearCountdownBanner(10000, itemId);
+      }
+    }
+  }
 }
 
 globalThis.OutboxQueue = OutboxQueue;

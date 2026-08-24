@@ -114,7 +114,7 @@ class OutboxWidgetRenderer {
     return itemWrapper;
   }
 
-        static renderWidget(containerId, retryCount) {
+      static renderWidget(containerId, retryCount) {
       var retries = retryCount || 0;
       var targetId = containerId || 'outbox-queue-container';
       var container = document.getElementById(targetId);
@@ -151,13 +151,13 @@ class OutboxWidgetRenderer {
   
         var writePromptBtn = document.createElement('button');
         writePromptBtn.id = 'btn-write-prompt';
-        writePromptBtn.style.cssText = 'flex:1; min-width:105px; padding:0.65rem; background:#271052; color:#d2a8ff; border:1px solid #8257e5; border-radius:8px; font-size:0.85rem; font-weight:bold; cursor:pointer; font-family:monospace; box-shadow:0 4px 12px rgba(130,87,229,0.25);';
+        writePromptBtn.style.cssText = 'flex:1; min-width:105px; padding:0.65rem; background:#271052; color:#d2a8ff; border:1px solid #8257e5; border-radius:8px; font-size:0.85rem; font-weight:bold; cursor:pointer; font-family:monospace;';
         writePromptBtn.textContent = '✍️ Write Prompt';
-        writePromptBtn.onclick = function(e) {
+        writePromptBtn.onclick = function() {
           if (typeof OutboxPromptBox !== 'undefined') {
-            OutboxPromptBox.promptWriteNoteModal('', '', e.currentTarget || writePromptBtn);
+            OutboxPromptBox.promptWriteNoteModal('', '', writePromptBtn);
           } else if (targetQueue && targetQueue.promptWriteNoteModal) {
-            targetQueue.promptWriteNoteModal('', '', e.currentTarget || writePromptBtn);
+            targetQueue.promptWriteNoteModal();
           }
         };
   
@@ -166,10 +166,10 @@ class OutboxWidgetRenderer {
         testFlightBtn.style.cssText = 'padding:0.65rem 0.75rem; background:#003847; color:#00f2fe; border:1px solid #00f2fe; border-radius:8px; font-size:0.82rem; font-weight:bold; cursor:pointer; font-family:monospace; box-shadow:0 0 12px rgba(0,242,254,0.3);';
         testFlightBtn.textContent = '✨ Test Flight';
         testFlightBtn.title = 'Test trajectory flight animation into Outbox';
-        testFlightBtn.onclick = function(e) {
+        testFlightBtn.onclick = function() {
           var outboxCard = document.querySelector('.outbox-card');
           if (typeof LunoAnimationEngine !== 'undefined') {
-            LunoAnimationEngine.flyElement(e.currentTarget || testFlightBtn, outboxCard, {
+            LunoAnimationEngine.flyElement(testFlightBtn, outboxCard, {
               label: '✨ Test Animation',
               color: '#00f2fe',
               glowColor: 'rgba(0, 242, 254, 0.9)',
@@ -186,16 +186,13 @@ class OutboxWidgetRenderer {
         mainCopyBtn.id = 'btn-main-copy-outbox';
         mainCopyBtn.style.cssText = 'width:100%; padding:0.75rem; font-weight:bold; border-radius:8px; font-size:0.9rem; cursor:pointer; font-family:monospace; margin-bottom:0.5rem; background:' + (itemCount > 0 ? '#8257e5' : '#21262d') + '; color:' + (itemCount > 0 ? '#fff' : '#8b949e') + '; border:1px solid ' + (itemCount > 0 ? '#8257e5' : '#30363d') + '; box-shadow:' + (itemCount > 0 ? '0 4px 12px rgba(130,87,229,0.35)' : 'none') + ';';
         mainCopyBtn.textContent = itemCount > 0 ? ('📋 Copy Outbox Package (' + itemCount + ' item' + (itemCount === 1 ? '' : 's') + ')') : '📋 Copy Outbox (Empty)';
-        mainCopyBtn.onclick = function(e) {
+        mainCopyBtn.onclick = function() {
           if (typeof LunoAnimationEngine !== 'undefined') {
             var outboxCard = document.querySelector('.outbox-card');
-            var btnRect = (e.currentTarget || mainCopyBtn).getBoundingClientRect();
+            var btnRect = mainCopyBtn.getBoundingClientRect();
             LunoAnimationEngine.burstSparks(btnRect.left + (btnRect.width / 2), btnRect.top + (btnRect.height / 2), '#3fb950', 16);
             if (outboxCard) {
               LunoAnimationEngine.pulseTarget(outboxCard, { color: '#3fb950', glowColor: 'rgba(63, 185, 80, 0.7)' });
-              if (typeof LunoAnimationEngine.wavePulse === 'function') {
-                LunoAnimationEngine.wavePulse(outboxCard, '#3fb950');
-              }
             }
           }
           if (targetQueue && targetQueue.copyPackageToClipboard) {

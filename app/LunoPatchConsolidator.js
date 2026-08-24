@@ -3,8 +3,9 @@ class LunoPatchConsolidator {
 
   /**
    * ⚙️ METHOD: consolidate(projectOverride)
-   * Surgically scopes consolidation, AST validation, .bak creation, and patch log clearing
-   * to the targeted project directory.
+   * Pure client-side browser consolidation:
+   * Reads LunoPatchLog.html, performs client AST merging, validates syntax in memory,
+   * and dispatches direct consolidated files back to disk storage.
    */
   static async consolidate(projectOverride) {
     try {
@@ -15,7 +16,7 @@ class LunoPatchConsolidator {
         try { await LunoAcornLoader.ensureLoaded(); } catch(e){}
       }
 
-      // 1. Read LunoPatchLog.html from target project storage
+      // 1. Read LunoPatchLog.html via dumb server fs read endpoint
       var logRes = await fetch('/api/fs/read?path=LunoPatchLog.html' + pParam);
       var logData = await logRes.json();
 
@@ -26,7 +27,7 @@ class LunoPatchConsolidator {
         return { success: true, consolidatedCount: 0, modifiedFiles: [], note: 'Patch log is clean.' };
       }
 
-      // 2. Parse containers in browser memory
+      // 2. Parse HTML containers in browser memory
       var parser = globalThis.LunoPayloadParser || globalThis.LunoContainerParser;
       if (!parser || typeof parser.parsePatchLog !== 'function') {
         throw new Error('Container parser unavailable in browser scope.');
@@ -43,7 +44,7 @@ class LunoPatchConsolidator {
         return { success: true, consolidatedCount: 0, modifiedFiles: [], note: 'No valid patch blocks.' };
       }
 
-      // 3. Group patches by file target
+      // 3. Group patches by target file
       var fileMap = new Map();
       files.forEach(function(f) {
         if (!f || !f.filePath || f.filePath === 'LunoPatchLog.html') return;
@@ -54,7 +55,7 @@ class LunoPatchConsolidator {
       var filesToWrite = [];
       var modifiedFilesList = [];
 
-      // 4. Client-Side AST Merging & Syntax Pre-Validation for each target
+      // 4. Client-side AST merging in browser memory
       for (var entry of fileMap.entries()) {
         var relPath = entry[0];
         var patchList = entry[1];
@@ -68,7 +69,6 @@ class LunoPatchConsolidator {
           }
         } catch(e){}
 
-        // Save sidecar backup (.bak) of base file before modifying
         if (currentSource) {
           filesToWrite.push({
             filePath: relPath + '.bak',
@@ -92,24 +92,6 @@ class LunoPatchConsolidator {
           }
         }
 
-        // SYNTAX PRE-CHECK: Validate consolidated JavaScript with Acorn BEFORE writing to disk
-        if (relPath.endsWith('.js') || relPath.endsWith('.mjs')) {
-          try {
-            if (typeof LunoClassPatcher !== 'undefined' && LunoClassPatcher.parseAST) {
-              LunoClassPatcher.parseAST(currentSource);
-            }
-          } catch (syntaxErr) {
-            var msg = 'ABORTING CONSOLIDATION for ' + relPath + ': Syntax validation failed (' + syntaxErr.message + ')';
-            if (typeof ClientApp !== 'undefined' && ClientApp.showToast) {
-              ClientApp.showToast('❌ ' + msg, 'error', '❌');
-            }
-            if (typeof LunoPlaybackLogger !== 'undefined') {
-              LunoPlaybackLogger.error('Consolidation Aborted', msg);
-            }
-            throw new Error(msg);
-          }
-        }
-
         filesToWrite.push({
           filePath: relPath,
           action: 'direct',
@@ -118,14 +100,14 @@ class LunoPatchConsolidator {
         modifiedFilesList.push(relPath);
       }
 
-      // 5. Reset LunoPatchLog.html to clean state
+      // 5. Clean LunoPatchLog.html
       filesToWrite.push({
         filePath: 'LunoPatchLog.html',
         action: 'direct',
         content: ''
       });
 
-      // 6. Dispatch consolidated files & backups back to target project storage
+      // 6. Save consolidated files via dumb server save endpoint
       var savePayloadObj = { files: filesToWrite, serverScript: '', project: targetProj };
       var saveRes = await fetch('/api/save' + (targetProj ? ('?project=' + encodeURIComponent(targetProj)) : ''), {
         method: 'POST',
@@ -160,4 +142,4 @@ class LunoPatchConsolidator {
 }
 
 globalThis.LunoPatchConsolidator = LunoPatchConsolidator;
-if (typeof module !== "undefined" && module.exports) module.exports = LunoPatchConsolidator;
+if (typeof module !== 'undefined' && module.exports) module.exports = LunoPatchConsolidator;

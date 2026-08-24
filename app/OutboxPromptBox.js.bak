@@ -57,19 +57,11 @@ class OutboxPromptBox {
     window.addEventListener('touchend', stopDrag);
   }
 
-  static promptWriteNoteModal(initialText, editingItemId, originElement) {
+  static promptWriteNoteModal(initialText, editingItemId) {
     if (typeof document === 'undefined') return;
     var existing = document.getElementById('luno-floating-prompt-box');
     var savedDraft = (typeof localStorage !== 'undefined' && localStorage.getItem('luno_prompt_draft_text')) || '';
     var textToLoad = initialText || savedDraft;
-
-    var originBtn = originElement || document.getElementById('btn-write-prompt') || document.querySelector('.outbox-card');
-    var originRect = originBtn ? originBtn.getBoundingClientRect() : null;
-
-    if (originBtn && typeof LunoAnimationEngine !== 'undefined') {
-      var rect = originBtn.getBoundingClientRect();
-      LunoAnimationEngine.burstSparks(rect.left + (rect.width / 2), rect.top + (rect.height / 2), '#d2a8ff', 12);
-    }
 
     if (existing) {
       existing.style.display = 'flex';
@@ -78,15 +70,10 @@ class OutboxPromptBox {
       existing.dataset.editingItemId = editingItemId || '';
       var btnAdd = existing.querySelector('#btn-add-prompt-outbox');
       if (btnAdd) btnAdd.textContent = editingItemId ? 'Save Changes to Outbox' : 'Add to Outbox';
-
-      if (typeof LunoAnimationEngine !== 'undefined') {
-        LunoAnimationEngine.animateDialogIn(existing, originRect);
-      }
-      setTimeout(function() { if (input) input.focus(); }, 120);
       return;
     }
 
-    var savedGeo = { top: 90, left: Math.max(10, (window.innerWidth - 350) / 2), width: 340, height: 280 };
+    var savedGeo = { top: 80, left: 20, width: 340, height: 280 };
     try {
       var raw = localStorage.getItem('luno_prompt_box_geo');
       if (raw) savedGeo = Object.assign(savedGeo, JSON.parse(raw));
@@ -94,7 +81,7 @@ class OutboxPromptBox {
 
     var boxH = savedGeo.height || 280;
     var boxW = savedGeo.width || 340;
-    var boxT = savedGeo.top !== undefined ? savedGeo.top : 90;
+    var boxT = savedGeo.top !== undefined ? savedGeo.top : 80;
     var boxL = savedGeo.left !== undefined ? savedGeo.left : 20;
 
     var card = document.createElement('div');
@@ -108,41 +95,40 @@ class OutboxPromptBox {
       'height: ' + boxH + 'px;',
       'min-width: 240px;',
       'min-height: 110px;',
-      'background: rgba(22, 27, 34, 0.96);',
+      'background: rgba(22, 27, 34, 0.95);',
       'color: #c9d1d9;',
       'border: 2px solid #8257e5;',
-      'border-radius: 12px;',
+      'border-radius: 10px;',
       'z-index: 9900;',
-      'box-shadow: 0 12px 36px rgba(130, 87, 229, 0.4);',
+      'box-shadow: 0 10px 32px rgba(0,0,0,0.6);',
       'display: flex;',
       'flex-direction: column;',
       'font-family: monospace;',
       'box-sizing: border-box;',
       'overflow: hidden;',
-      'backdrop-filter: blur(10px);',
-      'transform-origin: center center;'
+      'backdrop-filter: blur(8px);'
     ].join('\n');
 
     var titleBar = document.createElement('div');
     titleBar.id = 'floating-prompt-header';
-    titleBar.style.cssText = 'background:linear-gradient(135deg, #271052 0%, #161b22 100%); color:#d2a8ff; padding:0.5rem 0.75rem; user-select:none; font-weight:bold; font-size:0.8rem; display:flex; justify-content:space-between; align-items:center; cursor:grab; border-radius:10px 10px 0 0; flex-shrink:0; gap:0.3rem; border-bottom:1px solid #8257e566;';
+    titleBar.style.cssText = 'background:#271052; color:#d2a8ff; padding:0.45rem 0.65rem; user-select:none; font-weight:bold; font-size:0.78rem; display:flex; justify-content:space-between; align-items:center; cursor:grab; border-radius:8px 8px 0 0; flex-shrink:0; gap:0.3rem;';
 
     titleBar.innerHTML = [
-      '<div style="display:flex; align-items:center; gap:0.35rem;"><span style="font-size:0.9rem;">✍️</span><span>' + (editingItemId ? 'Edit Prompt Note' : 'Write Prompt') + '</span></div>',
+      '<span>' + (editingItemId ? 'Edit Prompt Note' : 'Write Prompt') + '</span>',
       '<div style="display:flex; gap:0.3rem; align-items:center;">',
-      '  <button id="btn-close-floating-prompt" style="background:#21262d; border:1px solid #da3633; color:#ff7b72; border-radius:4px; cursor:pointer; font-weight:bold; font-size:0.75rem; padding:0.15rem 0.45rem;">✖</button>',
+      '  <button id="btn-close-floating-prompt" style="background:none; border:none; color:#ff7b72; cursor:pointer; font-weight:bold; font-size:0.9rem; padding:0 0.2rem;">✖</button>',
       '</div>'
     ].join('\n');
 
     var body = document.createElement('div');
     body.id = 'floating-prompt-body';
-    body.style.cssText = 'padding:0.6rem; display:flex; flex-direction:column; gap:0.5rem; flex:1; overflow:hidden; box-sizing:border-box; position:relative;';
+    body.style.cssText = 'padding:0.5rem; display:flex; flex-direction:column; gap:0.4rem; flex:1; overflow:hidden; box-sizing:border-box; position:relative;';
 
     var input = document.createElement('textarea');
     input.id = 'floating-prompt-input';
-    input.placeholder = 'Type instructions or prompt note for LLM...';
+    input.placeholder = 'Type your prompt note for LLM...';
     input.value = textToLoad;
-    input.style.cssText = 'width:100%; flex:1; background:#0d1117; color:#7ee787; border:1px solid #8257e5; border-radius:8px; padding:0.55rem; font-family:monospace; font-size:0.82rem; outline:none; box-sizing:border-box; resize:none; font-weight:600; min-height:40px; box-shadow:inset 0 2px 6px rgba(0,0,0,0.5);';
+    input.style.cssText = 'width:100%; flex:1; background:#0d1117; color:#7ee787; border:1px solid #8257e5; border-radius:6px; padding:0.5rem; font-family:monospace; font-size:0.82rem; outline:none; box-sizing:border-box; resize:none; font-weight:600; min-height:30px;';
 
     input.oninput = function() {
       try { localStorage.setItem('luno_prompt_draft_text', input.value); } catch(e){}
@@ -153,63 +139,34 @@ class OutboxPromptBox {
 
     var btnAdd = document.createElement('button');
     btnAdd.id = 'btn-add-prompt-outbox';
-    btnAdd.style.cssText = 'flex:2; padding:0.55rem; background:#8257e5; color:#fff; border:none; border-radius:6px; font-weight:bold; cursor:pointer; font-size:0.82rem; font-family:monospace; box-shadow:0 4px 14px rgba(130,87,229,0.4); display:flex; align-items:center; justify-content:center; gap:0.35rem;';
-    btnAdd.innerHTML = '<span>📤</span><span>' + (editingItemId ? 'Save to Outbox' : 'Add to Outbox') + '</span>';
-
+    btnAdd.style.cssText = 'flex:2; padding:0.45rem; background:#8257e5; color:#fff; border:none; border-radius:6px; font-weight:bold; cursor:pointer; font-size:0.78rem; font-family:monospace;';
+    btnAdd.textContent = editingItemId ? 'Save Changes to Outbox' : 'Add to Outbox';
     btnAdd.onclick = function() {
       var val = input.value.trim();
       var activeEditId = card.dataset.editingItemId;
       if (val) {
-        var title = 'Prompt Note: ' + val.slice(0, 22);
+        var title = 'Prompt Note: ' + val.slice(0, 25);
         var payload = '\n' + val;
-        var outboxCard = document.querySelector('.outbox-card');
 
-        // Launch trajectory flight animation into the Outbox card
-        if (typeof LunoAnimationEngine !== 'undefined') {
-          LunoAnimationEngine.flyElement(btnAdd, outboxCard, {
-            label: '✍️ ' + val.slice(0, 16),
-            color: '#d2a8ff',
-            glowColor: 'rgba(130, 87, 229, 0.9)',
-            icon: '✍️',
-            duration: 650
-          });
-
-          LunoAnimationEngine.animateDialogOut(card, outboxCard ? outboxCard.getBoundingClientRect() : null, function() {
-            if (activeEditId && typeof OutboxQueue !== 'undefined' && OutboxQueue.updateItem) {
-              OutboxQueue.updateItem(activeEditId, title, payload);
-            } else if (typeof OutboxQueue !== 'undefined' && OutboxQueue.addBundle) {
-              OutboxQueue.addBundle(title, payload);
-            }
-            input.value = '';
-            card.dataset.editingItemId = '';
-            try { localStorage.removeItem('luno_prompt_draft_text'); } catch(e){}
-          });
-        } else {
-          if (activeEditId && typeof OutboxQueue !== 'undefined' && OutboxQueue.updateItem) {
-            OutboxQueue.updateItem(activeEditId, title, payload);
-          } else if (typeof OutboxQueue !== 'undefined' && OutboxQueue.addBundle) {
-            OutboxQueue.addBundle(title, payload);
-          }
-          input.value = '';
-          card.dataset.editingItemId = '';
-          try { localStorage.removeItem('luno_prompt_draft_text'); } catch(e){}
-          card.style.display = 'none';
+        if (activeEditId && typeof OutboxQueue !== 'undefined' && OutboxQueue.updateItem) {
+          OutboxQueue.updateItem(activeEditId, title, payload);
+        } else if (typeof OutboxQueue !== 'undefined' && OutboxQueue.addBundle) {
+          OutboxQueue.addBundle(title, payload);
         }
+
+        input.value = '';
+        card.dataset.editingItemId = '';
+        try { localStorage.removeItem('luno_prompt_draft_text'); } catch(e){}
+        card.style.display = 'none';
       } else {
         alert('Please enter prompt note text first.');
       }
     };
 
     var btnHide = document.createElement('button');
-    btnHide.style.cssText = 'flex:1; padding:0.55rem; background:#21262d; color:#c9d1d9; border:1px solid #30363d; border-radius:6px; cursor:pointer; font-size:0.75rem; font-family:monospace;';
+    btnHide.style.cssText = 'flex:1; padding:0.45rem; background:#21262d; color:#c9d1d9; border:1px solid #30363d; border-radius:6px; cursor:pointer; font-size:0.75rem; font-family:monospace;';
     btnHide.textContent = 'Hide';
-    btnHide.onclick = function() {
-      if (typeof LunoAnimationEngine !== 'undefined') {
-        LunoAnimationEngine.animateDialogOut(card, originRect, null);
-      } else {
-        card.style.display = 'none';
-      }
-    };
+    btnHide.onclick = function() { card.style.display = 'none'; };
 
     btnRow.appendChild(btnAdd);
     btnRow.appendChild(btnHide);
@@ -270,22 +227,19 @@ class OutboxPromptBox {
     card.appendChild(body);
     document.body.appendChild(card);
 
-    document.getElementById('btn-close-floating-prompt').onclick = function() {
-      if (typeof LunoAnimationEngine !== 'undefined') {
-        LunoAnimationEngine.animateDialogOut(card, originRect, null);
-      } else {
-        card.style.display = 'none';
-      }
-    };
+    document.getElementById('btn-close-floating-prompt').onclick = function() { card.style.display = 'none'; };
 
     OutboxPromptBox.setupFloatingPromptDrag(card, titleBar, false, savedGeo);
 
-    if (typeof LunoAnimationEngine !== 'undefined') {
-      LunoAnimationEngine.animateDialogIn(card, originRect);
-    }
-    setTimeout(function() { if (input) input.focus(); }, 120);
+    setTimeout(function() { if (input) input.focus(); }, 100);
   }
 }
 
+// Bind to OutboxQueue for backward compatibility
+if (typeof OutboxQueue !== 'undefined') {
+  OutboxQueue.promptWriteNoteModal = OutboxPromptBox.promptWriteNoteModal;
+  OutboxQueue.setupFloatingPromptDrag = OutboxPromptBox.setupFloatingPromptDrag;
+}
+
 globalThis.OutboxPromptBox = OutboxPromptBox;
-if (typeof module !== 'undefined' && module.exports) module.exports = OutboxPromptBox;
+if (typeof module !== "undefined" && module.exports) module.exports = OutboxPromptBox;

@@ -53,20 +53,6 @@ class LunoManifestDecisionEngine {
   }
 
   /**
-   * ⚙️ METHOD: extractServerPaths(manifestObj)
-   */
-  static extractServerPaths(manifestObj) {
-    const meta = manifestObj || {};
-    const paths = new Set();
-    const normalize = (p) => p ? p.replace(/\\/g, '/').replace(/^\/+/, '').trim() : '';
-
-    const serverList = [].concat(meta.server || meta.backend || []);
-    serverList.forEach(p => { const n = normalize(p); if (n) paths.add(n); });
-
-    return paths;
-  }
-
-  /**
    * ⚙️ METHOD: isStartupClientFile(filePath, manifestObj)
    */
   static isStartupClientFile(filePath, manifestObj) {
@@ -77,9 +63,18 @@ class LunoManifestDecisionEngine {
       return false;
     }
 
-    const serverPaths = LunoManifestDecisionEngine.extractServerPaths(manifestObj);
-    if (serverPaths.has(norm) || (norm.startsWith('Luno/') && serverPaths.has(norm.slice(5)))) {
-      return false;
+    // Default Luno core client scripts are ALWAYS recognized as startup client files
+    if (
+      norm.startsWith('app/') ||
+      norm.startsWith('Luno/app/') ||
+      norm.startsWith('browser/') ||
+      norm.startsWith('Luno/browser/') ||
+      norm.startsWith('docs/') ||
+      norm.startsWith('Luno/docs/') ||
+      norm.startsWith('core/') ||
+      norm.startsWith('Luno/core/')
+    ) {
+      return true;
     }
 
     const startupPaths = LunoManifestDecisionEngine.extractStartupPaths(manifestObj);
@@ -135,11 +130,12 @@ class LunoManifestDecisionEngine {
             throw new Error(`[Luno AST Guard] Cannot apply surgical method patch to "${normPath}": Target file could not be read from disk.`);
           }
 
-          if (typeof LunoClassPatcher === 'undefined' || typeof LunoClassPatcher.patchMethodInSource !== 'function') {
+          let classPatcher = globalThis.LunoClassPatcher;
+          if (!classPatcher || typeof classPatcher.patchMethodInSource !== 'function') {
             throw new Error(`[Luno AST Guard] LunoClassPatcher is not loaded in memory to patch "${normPath}".`);
           }
 
-          const consolidatedContent = LunoClassPatcher.patchMethodInSource(baseContent, f.methodSpec || normPath, f.content);
+          const consolidatedContent = classPatcher.patchMethodInSource(baseContent, f.methodSpec || normPath, f.content);
 
           processedFiles.push({
             tagName: f.tagName || 'script',

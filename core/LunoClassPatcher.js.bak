@@ -8,7 +8,7 @@ class LunoClassPatcher {
   static parseAST(sourceText) {
     const acornObj = (typeof window !== 'undefined' && window.acorn) || (typeof globalThis !== 'undefined' && globalThis.acorn);
     if (!acornObj || typeof acornObj.parse !== 'function') {
-      return null;
+      throw new Error('Acorn parser is not loaded on window/globalThis.');
     }
 
     try {
@@ -21,18 +21,14 @@ class LunoClassPatcher {
         ranges: true
       });
     } catch (e) {
-      try {
-        return acornObj.parse(sourceText, {
-          ecmaVersion: 'latest',
-          sourceType: 'script',
-          allowReturnOutsideFunction: true,
-          allowImportExportEverywhere: true,
-          allowHashBang: true,
-          ranges: true
-        });
-      } catch (e2) {
-        return null;
-      }
+      return acornObj.parse(sourceText, {
+        ecmaVersion: 'latest',
+        sourceType: 'script',
+        allowReturnOutsideFunction: true,
+        allowImportExportEverywhere: true,
+        allowHashBang: true,
+        ranges: true
+      });
     }
   }
 
@@ -77,6 +73,7 @@ class LunoClassPatcher {
 
     if (clean.endsWith(';')) clean = clean.slice(0, -1).trim();
 
+    // If method is wrapped as assignment Target.prototype.method = function(...) { ... }
     if (clean.includes('=')) {
       const equalsIdx = clean.indexOf('=');
       const leftPart = clean.slice(0, equalsIdx).trim();
@@ -85,6 +82,7 @@ class LunoClassPatcher {
       }
     }
 
+    // Convert function expression `function(...) { ... }` or `async function(...) { ... }`
     if (/^(?:async\s+)?function\s*\b/.test(clean)) {
       const isAsync = clean.startsWith('async ');
       const paramStart = clean.indexOf('(');
@@ -92,6 +90,7 @@ class LunoClassPatcher {
       return clean;
     }
 
+    // Handle standard ES6 method syntax `methodName(...) { ... }` or `async methodName(...) { ... }`
     if (/^(?:static\s+)?(?:async\s+)?([A-Za-z0-9_$]+)\s*\(/.test(clean)) {
       const hasStatic = clean.startsWith('static ');
       const isAsync = hasStatic ? clean.startsWith('static async ') : clean.startsWith('async ');
@@ -109,7 +108,7 @@ class LunoClassPatcher {
 
   /**
    * ⚙️ METHOD: patchMethodInSource(existingSource, targetSpec, methodCode)
-   * Pure client-side ES6 class body AST method patcher with fallback support.
+   * Client-side AST method replacement. Throws if class or method is not found.
    */
   static patchMethodInSource(existingSource, targetSpec, methodCode) {
     const source = existingSource || '';
@@ -121,69 +120,61 @@ class LunoClassPatcher {
 
     const ast = LunoClassPatcher.parseAST(source);
 
-    if (ast) {
-      // AST-guided precise replacement
-      let targetClassNode = null;
-      const walk = (node) => {
-        if (!node || typeof node !== 'object' || targetClassNode) return;
-        if (node.type === 'ClassDeclaration' || node.type === 'ClassExpression') {
-          if (!className || (node.id && node.id.name === className)) {
-            targetClassNode = node;
-            return;
-          }
+    // Locate target ClassDeclaration or ClassExpression
+    let targetClassNode = null;
+    const walk = (node) => {
+      if (!node || typeof node !== 'object' || targetClassNode) return;
+      if (node.type === 'ClassDeclaration' || node.type === 'ClassExpression') {
+        if (!className || (node.id && node.id.name === className)) {
+          targetClassNode = node;
+          return;
         }
-        for (const k in node) {
-          if (k === 'parent') continue;
-          const child = node[k];
-          if (Array.isArray(child)) {
-            for (const c of child) if (c && typeof c.type === 'string') walk(c);
-          } else if (child && typeof child.type === 'string') {
-            walk(child);
-          }
+      }
+      for (const k in node) {
+        if (k === 'parent') continue;
+        const child = node[k];
+        if (Array.isArray(child)) {
+          for (const c of child) if (c && typeof c.type === 'string') walk(c);
+        } else if (child && typeof child.type === 'string') {
+          walk(child);
         }
-      };
-      walk(ast);
+      }
+    };
+    walk(ast);
 
-      if (targetClassNode && targetClassNode.body && Array.isArray(targetClassNode.body.body)) {
-        const classBody = targetClassNode.body;
-        let existingMethodNode = null;
+    if (!targetClassNode || !targetClassNode.body || !Array.isArray(targetClassNode.body.body)) {
+      throw new Error(`Target class "${className || 'anonymous'}" not found in source file.`);
+    }
 
-        for (const member of classBody.body) {
-          if (member.type === 'MethodDefinition' || member.type === 'PropertyDefinition') {
-            let keyName = member.key ? (member.key.name || member.key.value) : null;
-            if (keyName === memberName) {
-              existingMethodNode = member;
-              break;
-            }
-          }
+    const classBody = targetClassNode.body;
+    let existingMethodNode = null;
+
+    for (const member of classBody.body) {
+      if (member.type === 'MethodDefinition' || member.type === 'PropertyDefinition') {
+        let keyName = null;
+        if (member.key) {
+          if (member.key.type === 'Identifier') keyName = member.key.name;
+          else if (member.key.type === 'Literal') keyName = String(member.key.value);
         }
-
-        if (existingMethodNode && existingMethodNode.range) {
-          const startIdx = existingMethodNode.range[0];
-          const endIdx = existingMethodNode.range[1];
-          const indentedMethod = '  ' + cleanMethod.split('\n').join('\n  ');
-          return source.slice(0, startIdx) + indentedMethod + source.slice(endIdx);
+        if (keyName === memberName) {
+          existingMethodNode = member;
+          break;
         }
-
-        const closeBraceIdx = classBody.range[1] - 1;
-        const indentedMethod = '\n  ' + cleanMethod.split('\n').join('\n  ') + '\n';
-        return source.slice(0, closeBraceIdx) + indentedMethod + source.slice(closeBraceIdx);
       }
     }
 
-    // Deterministic string-scanning fallback if AST node not matched
-    const classDeclStr = 'class ' + className;
-    const classIdx = source.indexOf(classDeclStr);
-    if (classIdx !== -1) {
-      const openBraceIdx = source.indexOf('{', classIdx);
-      const closeBraceIdx = source.lastIndexOf('}');
-      if (openBraceIdx !== -1 && closeBraceIdx !== -1 && closeBraceIdx > openBraceIdx) {
-        const indentedMethod = '\n  ' + cleanMethod.split('\n').join('\n  ') + '\n';
-        return source.slice(0, closeBraceIdx) + indentedMethod + source.slice(closeBraceIdx);
-      }
+    if (existingMethodNode && existingMethodNode.range) {
+      // Replace exact AST range of existing method in class body
+      const startIdx = existingMethodNode.range[0];
+      const endIdx = existingMethodNode.range[1];
+      const indentedMethod = '  ' + cleanMethod.split('\n').join('\n  ');
+      return source.slice(0, startIdx) + indentedMethod + source.slice(endIdx);
     }
 
-    return source.trimEnd() + '\n\n' + cleanMethod + '\n';
+    // Insert new method before closing brace of ClassBody
+    const closeBraceIdx = classBody.range[1] - 1;
+    const indentedMethod = '\n  ' + cleanMethod.split('\n').join('\n  ') + '\n';
+    return source.slice(0, closeBraceIdx) + indentedMethod + source.slice(closeBraceIdx);
   }
 
   /**
@@ -194,7 +185,6 @@ class LunoClassPatcher {
     const { className, memberName } = LunoClassPatcher.parseSpec(targetSpec);
 
     const ast = LunoClassPatcher.parseAST(sourceText);
-    if (!ast) return null;
 
     let methodRange = null;
     const walk = (node) => {
