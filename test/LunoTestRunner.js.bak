@@ -87,17 +87,21 @@ class LunoTestRunner {
       LunoTestRunner.assert('LunoPayloadParser: HTML Extraction', false, e.message);
     }
 
-    // Test 5: Shared Library Scoped Discovery
+    // Test 5: Demand-Paged Context Fulfillment
     try {
-      if (typeof DiskBrowser !== 'undefined') {
-        LunoTestRunner.assert(
-          'DiskBrowser: Dedicated Library Navigation',
-          typeof DiskBrowser.loadDirectory === 'function',
-          'DiskBrowser supports scoped library discovery'
-        );
-      }
+      const res = await fetch('/api/context/request', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ requests: [{ filePath: 'Luno/luno.json', kind: 'FILE' }] })
+      });
+      const data = await res.json();
+      LunoTestRunner.assert(
+        'LunoContextExtractor: /api/context/request Fulfillment',
+        res.ok && data && data.success,
+        'Successfully fulfilled context request for luno.json'
+      );
     } catch (e) {
-      LunoTestRunner.assert('DiskBrowser: Dedicated Library Navigation', false, e.message);
+      LunoTestRunner.assert('LunoContextExtractor: /api/context/request Fulfillment', false, e.message);
     }
 
     return {

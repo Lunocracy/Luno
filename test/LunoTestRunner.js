@@ -13,13 +13,13 @@ class LunoTestRunner {
 
   static async runTestSuite() {
     LunoTestRunner.results = [];
-    console.log('🧪 Starting Luno Test Suite...');
+    console.log('🧪 Starting Luno Full Architecture Test Suite...');
 
     if (typeof LunoAcornLoader !== 'undefined' && LunoAcornLoader.ensureLoaded) {
       try { await LunoAcornLoader.ensureLoaded(); } catch (e) {}
     }
 
-    // Test 1: ES6 Class Body AST Method Replacement
+    // Test 1: Client-Side ES6 Class Body AST Method Replacement
     try {
       if (typeof LunoClassPatcher !== 'undefined' && typeof LunoClassPatcher.patchMethodInSource === 'function') {
         const sampleSource = 'class DemoApp {\n  constructor() {}\n  greet() {\n    return "hello";\n  }\n}';
@@ -34,7 +34,7 @@ class LunoTestRunner {
       LunoTestRunner.assert('LunoClassPatcher: ES6 Class Body AST Method Replacement', false, e.message);
     }
 
-    // Test 2: Manifest Decision Engine Path Resolution
+    // Test 2: Manifest Decision Engine Web-Root Path Resolution
     try {
       if (typeof LunoManifestDecisionEngine !== 'undefined') {
         const isClientWebRooted = LunoManifestDecisionEngine.isStartupClientFile('Luno/app/ClientApp.js', { main: ['Luno/app/ClientApp.js'] });
@@ -104,6 +104,35 @@ class LunoTestRunner {
       LunoTestRunner.assert('LunoContextExtractor: /api/context/request Fulfillment', false, e.message);
     }
 
+    // Test 6: Dedicated Shared Library Discovery
+    try {
+      if (typeof DiskBrowser !== 'undefined') {
+        LunoTestRunner.assert(
+          'DiskBrowser: Dedicated Library Navigation',
+          typeof DiskBrowser.loadDirectory === 'function',
+          'DiskBrowser supports scoped library discovery'
+        );
+      }
+    } catch (e) {
+      LunoTestRunner.assert('DiskBrowser: Dedicated Library Navigation', false, e.message);
+    }
+
+    // Test 7: AI Studio Relay Protocol Envelopes
+    try {
+      if (typeof LunoRelayProtocol !== 'undefined') {
+        const env = LunoRelayProtocol.createEnvelope(LunoRelayProtocol.MSG_TYPES.PING, { status: 'ok' });
+        LunoTestRunner.assert(
+          'LunoRelayProtocol: Structured Message Envelopes',
+          Boolean(env && env.type === 'LUNO_PING' && env.payload && env.timestamp),
+          'Created structured LUNO_PING envelope'
+        );
+      } else {
+        LunoTestRunner.assert('LunoRelayProtocol: Envelopes', false, 'Protocol unavailable');
+      }
+    } catch (e) {
+      LunoTestRunner.assert('LunoRelayProtocol: Envelopes', false, e.message);
+    }
+
     return {
       total: LunoTestRunner.results.length,
       passed: LunoTestRunner.results.filter(r => r.success).length,
@@ -132,7 +161,7 @@ class LunoTestRunner {
           await LunoTestRunner.runTestSuite();
           LunoTestRunner.mountUI(container);
         }
-      }, '▶ Run Test Suite'),
+      }, '▶ Run Diagnostic Suite'),
       m('div', { id: 'test-results-list', style: { display: 'flex', flexDirection: 'column', gap: '0.5rem' } },
         ...LunoTestRunner.results.map(r => m('div', {
           style: { background: '#0d1117', border: '1px solid ' + (r.success ? '#238636' : '#da3633'), borderRadius: '6px', padding: '0.6rem', fontSize: '0.8rem', color: r.success ? '#7ee787' : '#ff7b72' }
