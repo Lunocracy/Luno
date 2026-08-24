@@ -62,8 +62,8 @@
     "Luno/docs/BookmarkletStudioRoadmap.md"
   ],
   "patchJournal": "LunoPatchLog.html",
-  "processedCountSinceCheckpoint": 9,
-  "lastCheckpointTime": "2026-08-24T01:16:05.955Z",
+  "processedCountSinceCheckpoint": 20,
+  "lastCheckpointTime": "2026-08-24T09:16:39.511Z",
   "pendingCheckpointDescription": "Clean working tree",
   "changedMethods": {
     "Luno/app/ClientApp.js": "2026-08-24T00:59:44.265Z",
@@ -95,7 +95,7 @@
     "Luno/docs/LunoMetricsAnalyzer.js": "2026-08-24T01:05:54.561Z",
     "Luno/docs/LunoDocsWidgets.js": "2026-08-24T01:05:54.561Z",
     "Luno/bookmarklet/OutboxNotifier.js": "2026-08-24T01:05:48.124Z",
-    "Luno/test/LunoTestRunner.js": "2026-08-24T01:15:59.029Z",
+    "Luno/test/LunoTestRunner.js": "2026-08-24T09:27:09.495Z",
     "Luno/app/LunoPromptInstructions.js.bak": "2026-08-24T01:05:54.561Z",
     "Luno/docs/LunoMetricsAnalyzer.js.bak": "2026-08-24T01:05:54.561Z",
     "Luno/docs/LunoDocsWidgets.js.bak": "2026-08-24T01:05:54.561Z",
@@ -136,6 +136,25 @@
     "Luno/docs/SPS2.md": "2026-08-24T09:12:32.699Z",
     "Library/DomBasics.js": "2026-08-24T09:14:53.039Z",
     "Library/luno.json": "2026-08-24T09:16:12.096Z",
-    "Library/LunoDialog.js": "2026-08-24T09:16:12.096Z"
+    "Library/LunoDialog.js": "2026-08-24T09:16:12.096Z",
+    "SimpleTest/index.html": "2026-08-24T09:17:54.659Z",
+    "SimpleTest/css/style.css": "2026-08-24T09:17:54.659Z",
+    "SimpleTest/src/SimpleApp.js": "2026-08-24T09:17:54.659Z",
+    "BasicsWithDialogBox/index.html": "2026-08-24T09:17:54.659Z",
+    "BasicsWithDialogBox/css/style.css": "2026-08-24T09:17:54.659Z",
+    "BasicsWithDialogBox/js/BasicsWithDialogBox.js": "2026-08-24T09:17:54.659Z",
+    "Basic3D/index.html": "2026-08-24T09:17:54.659Z",
+    "Basic3D/css/style.css": "2026-08-24T09:17:54.659Z",
+    "Basic3D/Basic3D/Basic3d.js": "2026-08-24T09:17:54.659Z",
+    "VideoPrepper/index.html": "2026-08-24T09:23:20.883Z",
+    "VideoPrepper/css/style.css": "2026-08-24T09:23:20.883Z",
+    "VideoPrepper/app/App.js": "2026-08-24T09:23:20.883Z",
+    "guessTheNoteGame/index.html": "2026-08-24T09:23:20.883Z",
+    "VideoEditor/index.html": "2026-08-24T09:24:58.886Z",
+    "MySituation/index.html": "2026-08-24T09:25:27.206Z",
+    "Luno/app/LunoLoader.js": "2026-08-24T09:26:27.236Z",
+    "MySituation/.nojekyll": "2026-08-24T09:26:27.236Z",
+    "Luno/.nojekyll": "2026-08-24T09:26:27.236Z",
+    "Luno/docs/MIGRATION_COMPLETE.md": "2026-08-24T09:27:09.495Z"
   }
 }
