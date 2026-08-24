@@ -25,7 +25,6 @@ class OutboxQueue {
   static saveQueue() {
     try {
       if (typeof localStorage !== 'undefined') {
-        // Quota Guard: Save lightweight entries to localStorage (strip massive payloads if exceeding limit)
         var sanitizedQueue = (OutboxQueue.queue || []).slice(-10).map(function(item) {
           var payloadStr = String(item.payload || '');
           return {
@@ -35,7 +34,6 @@ class OutboxQueue {
             priority: item.priority,
             lines: item.lines,
             estTokens: item.estTokens,
-            // Only persist smaller notes in localStorage (< 60KB); large bundles remain in memory
             payload: payloadStr.length > 60000 ? payloadStr.slice(0, 500) + '... [Full in Memory]' : payloadStr,
             isMemoryOnly: payloadStr.length > 60000
           };
@@ -43,9 +41,7 @@ class OutboxQueue {
         localStorage.setItem(OutboxQueue.STORAGE_KEY, JSON.stringify(sanitizedQueue));
       }
     } catch (e) {
-      console.warn('[OutboxQueue] Storage quota guard active, retaining in memory:', e.message);
       try {
-        // Fallback: save minimal header stubs only
         var minimalQueue = (OutboxQueue.queue || []).slice(-5).map(function(i) {
           return { id: i.id, title: i.title, timestamp: i.timestamp, priority: i.priority, lines: i.lines, estTokens: i.estTokens };
         });
@@ -175,7 +171,6 @@ class OutboxQueue {
     }
 
     var baseHeader = instructionPreamble;
-
     var parts = [];
     var currentPartText = baseHeader;
     var currentPartFiles = 0;
@@ -251,12 +246,9 @@ class OutboxQueue {
     }
 
     var packageText = '';
-
     OutboxQueue.queue.forEach(function(item) {
       if (item && item.payload) {
-        if (packageText) {
-          packageText += '\n';
-        }
+        if (packageText) packageText += '\n';
         packageText += item.payload.trim() + '\n\n';
       }
     });
@@ -318,7 +310,7 @@ class OutboxQueue {
   static async executeSmartBundle(bundleOptions) {
     try {
       var opts = (typeof bundleOptions === 'object' && bundleOptions !== null) ? bundleOptions : { includeInstructions: true, includeLibrary: false };
-      var targetProj = (typeof ClientApp !== 'undefined' && ClientApp.getTargetProject) ? ClientApp.getTargetProject() : '';
+      var targetProj = (typeof ClientApp !== 'undefined' && ClientApp.getTargetProject) ? ClientApp.getTargetProject() : 'Luno';
       var lunoMeta = {};
       try {
         var resMeta = await fetch('/api/fs/read?path=luno.json' + (targetProj ? '&project=' + encodeURIComponent(targetProj) : ''));
@@ -326,8 +318,7 @@ class OutboxQueue {
         if (dataMeta && dataMeta.content) lunoMeta = JSON.parse(dataMeta.content);
       } catch (e) {}
 
-      var projName = lunoMeta.name || targetProj || (typeof ClientApp !== 'undefined' && ClientApp.activeRootDir ? ClientApp.activeRootDir.split('/').filter(Boolean).pop() : 'Project');
-
+      var projName = lunoMeta.name || targetProj || 'Project';
       var pParams = [];
       if (targetProj) pParams.push('project=' + encodeURIComponent(targetProj));
       if (opts.includeLibrary) pParams.push('includeLibrary=true');
@@ -357,71 +348,7 @@ class OutboxQueue {
       }
     }
   }
-
-  static async diagnoseBundle() {
-    var logs = [];
-    logs.push("=== 🔬 LUNO OUTBOX BUNDLE DIAGNOSTIC TRACE ===");
-    logs.push("• Timestamp: " + new Date().toLocaleTimeString());
-
-    var targetProj = (typeof ClientApp !== 'undefined' && ClientApp.getTargetProject) ? ClientApp.getTargetProject() : '';
-    logs.push("• Target Project: '" + targetProj + "'");
-
-    var pParams = [];
-    if (targetProj) pParams.push('project=' + encodeURIComponent(targetProj));
-    var queryString = pParams.length > 0 ? ('?' + pParams.join('&')) : '';
-
-    var allCodeUrl = '/api/all-code' + queryString;
-    logs.push("• Fetching: " + allCodeUrl);
-
-    var dataCode = null;
-    try {
-      var res = await fetch(allCodeUrl);
-      logs.push("  -> HTTP Status: " + res.status + " " + res.statusText);
-      dataCode = await res.json();
-      if (dataCode) {
-        var fileCount = dataCode.manifest ? dataCode.manifest.length : 0;
-        var mapKeys = dataCode.filesMap ? Object.keys(dataCode.filesMap).length : 0;
-        logs.push("  -> Manifest File Count: " + fileCount);
-        logs.push("  -> FilesMap Key Count: " + mapKeys);
-      }
-    } catch (e) {
-      logs.push("  ❌ /api/all-code Error: " + e.message);
-    }
-
-    if (dataCode && dataCode.filesMap && Object.keys(dataCode.filesMap).length > 0) {
-      logs.push("\n• Running OutboxQueue.bundleAndQueueCodebase...");
-      try {
-        var queueBefore = OutboxQueue.queue.length;
-        logs.push("  -> Queue Length Before: " + queueBefore);
-        var result = OutboxQueue.bundleAndQueueCodebase(dataCode.filesMap, {}, targetProj || 'Luno', { includeInstructions: true });
-        logs.push("  -> Bundled Files: " + result.fileCount);
-        logs.push("  -> Queue Length After: " + OutboxQueue.queue.length);
-      } catch (bundleErr) {
-        logs.push("  ❌ bundleAndQueueCodebase Error: " + bundleErr.message);
-      }
-    }
-
-    var container = document.getElementById('outbox-queue-container');
-    logs.push("\n• Checking DOM #outbox-queue-container: " + (container ? "EXISTS" : "MISSING"));
-
-    if (typeof OutboxWidgetRenderer !== 'undefined' && OutboxWidgetRenderer.renderWidget) {
-      try {
-        OutboxWidgetRenderer.renderWidget('outbox-queue-container');
-        logs.push("• Render completed: " + (container ? container.childElementCount : 0) + " child element(s)");
-      } catch (renderErr) {
-        logs.push("  ❌ renderWidget Error: " + renderErr.message);
-      }
-    }
-
-    var fullReport = logs.join('\n');
-    alert(fullReport);
-    if (typeof ClientApp !== 'undefined' && ClientApp.showFeedback) {
-      ClientApp.showFeedback(fullReport, "info");
-    }
-    return fullReport;
-  }
 }
 
-// Global binding
 globalThis.OutboxQueue = OutboxQueue;
 if (typeof module !== 'undefined' && module.exports) module.exports = OutboxQueue;

@@ -107,62 +107,67 @@ class LunoLoader {
     });
   }
 
-  static async applyPatchLog(projectOverride) {
-    try {
-      var urlParams = LunoLoader.getPatchUrlParams();
-      if (urlParams.skip) {
-        return { appliedCount: 0, skipped: true };
-      }
-
-      var currentProj = projectOverride || LunoLoader.getActiveProjectParam() || '';
-      var readUrl = '/api/fs/read?path=LunoPatchLog.html' + (currentProj ? '&project=' + encodeURIComponent(currentProj) : '');
-      var res = await fetch(readUrl);
-      var data = await res.json();
-
-      if (!res.ok || !data || !data.content || !data.content.trim()) {
-        return { appliedCount: 0 };
-      }
-
-      var parser = globalThis.LunoPayloadParser || globalThis.LunoContainerParser;
-      if (!parser || typeof parser.parsePatchLog !== 'function') {
-        return { appliedCount: 0 };
-      }
-
-      var payloadObj = parser.parsePatchLog(data.content);
-      var files = payloadObj.files || [];
-      var appliedCount = 0;
-
-      for (var i = 0; i < files.length; i++) {
-        var f = files[i];
-        if (!f || !f.filePath) continue;
-
-        var normPath = f.filePath.replace(/\\/g, '/').replace(/["']/g, '').replace(/^\/+/, '').trim();
-        if (!normPath.endsWith('.js') && !normPath.endsWith('.mjs')) continue;
-
-        if (currentProj && currentProj !== 'Luno') {
-          var isForThisProj = normPath.startsWith(currentProj + '/') || normPath.startsWith('Library/') || !normPath.includes('/');
-          if (!isForThisProj) continue;
+    static async applyPatchLog(projectOverride) {
+      try {
+        var urlParams = LunoLoader.getPatchUrlParams();
+        if (urlParams.skip) {
+          return { appliedCount: 0, skipped: true };
         }
-
-        try {
-          if (f.methodSpec) {
-            if (typeof LunoLinePatcher !== 'undefined' && LunoLinePatcher.appendPatch) {
-              var resPatch = LunoLinePatcher.appendPatch('', f.methodSpec, f.content, { hotPatch: true });
-              if (resPatch.appliedToRuntime) appliedCount++;
-            }
-          } else if (f.content) {
-            var evalFn = new Function('globalThis', f.content);
-            evalFn(globalThis);
-            appliedCount++;
+  
+        var currentProj = projectOverride || LunoLoader.getActiveProjectParam() || (typeof ClientApp !== 'undefined' && ClientApp.getTargetProject ? ClientApp.getTargetProject() : 'Luno');
+        var readUrl = '/api/fs/read?path=LunoPatchLog.html';
+        var res = await fetch(readUrl);
+        var data = await res.json();
+  
+        if (!res.ok || !data || !data.content || !data.content.trim()) {
+          return { appliedCount: 0 };
+        }
+  
+        var parser = globalThis.LunoPayloadParser || globalThis.LunoContainerParser;
+        if (!parser || typeof parser.parsePatchLog !== 'function') {
+          return { appliedCount: 0 };
+        }
+  
+        var payloadObj = parser.parsePatchLog(data.content);
+        var files = payloadObj.files || [];
+        var appliedCount = 0;
+  
+        for (var i = 0; i < files.length; i++) {
+          var f = files[i];
+          if (!f || !f.filePath) continue;
+  
+          var normPath = f.filePath.replace(/\\/g, '/').replace(/["']/g, '').replace(/^\/+/, '').trim();
+          if (!normPath.endsWith('.js') && !normPath.endsWith('.mjs')) continue;
+  
+          // Strict Scoping: Must match target project prefix or Library/
+          var isForThisProj = false;
+          if (currentProj === 'Luno') {
+            isForThisProj = normPath.startsWith('Luno/');
+          } else {
+            isForThisProj = normPath.startsWith(currentProj + '/') || normPath.startsWith('Library/');
           }
-        } catch (evalErr) {}
+  
+          if (!isForThisProj) continue;
+  
+          try {
+            if (f.methodSpec) {
+              if (typeof LunoLinePatcher !== 'undefined' && LunoLinePatcher.appendPatch) {
+                var resPatch = LunoLinePatcher.appendPatch('', f.methodSpec, f.content, { hotPatch: true });
+                if (resPatch.appliedToRuntime) appliedCount++;
+              }
+            } else if (f.content) {
+              var evalFn = new Function('globalThis', f.content);
+              evalFn(globalThis);
+              appliedCount++;
+            }
+          } catch (evalErr) {}
+        }
+  
+        return { appliedCount: appliedCount, totalAvailable: files.length };
+      } catch (err) {
+        return { appliedCount: 0, error: err.message };
       }
-
-      return { appliedCount: appliedCount, totalAvailable: files.length };
-    } catch (err) {
-      return { appliedCount: 0, error: err.message };
     }
-  }
 
   static async loadApp(containerId) {
     var targetContainer = typeof containerId === 'string'

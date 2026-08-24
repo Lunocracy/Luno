@@ -238,6 +238,116 @@ class LunoAnimationEngine {
       if (onComplete) onComplete();
     }, 260);
   }
+
+  static morphElement(sourceElOrRect, targetElOrRect, options) {
+      if (typeof document === 'undefined') return;
+      var opts = options || {};
+      var duration = opts.duration || 450;
+      var color = opts.color || '#8257e5';
+      var glowColor = opts.glowColor || 'rgba(130, 87, 229, 0.7)';
+      var onComplete = typeof opts.onComplete === 'function' ? opts.onComplete : null;
+  
+      var sRect = (sourceElOrRect instanceof Element)
+        ? sourceElOrRect.getBoundingClientRect()
+        : (sourceElOrRect || { top: 100, left: 100, width: 120, height: 40 });
+  
+      var targetEl = (targetElOrRect instanceof Element) ? targetElOrRect : null;
+      var tRect = targetEl
+        ? targetEl.getBoundingClientRect()
+        : (targetElOrRect || { top: 250, left: 100, width: 300, height: 50 });
+  
+      var startTop = sRect.top;
+      var startLeft = sRect.left;
+      var startWidth = sRect.width || 120;
+      var startHeight = sRect.height || 40;
+  
+      var endTop = tRect.top > 0 ? tRect.top : (startTop + 140);
+      var endLeft = tRect.left > 0 ? tRect.left : startLeft;
+      var endWidth = tRect.width > 50 ? tRect.width : startWidth;
+      var endHeight = tRect.height > 20 ? tRect.height : 52;
+  
+      var startRadius = opts.startBorderRadius !== undefined ? opts.startBorderRadius : 8;
+      var endRadius = opts.endBorderRadius !== undefined ? opts.endBorderRadius : 6;
+      var startBg = opts.startBg || 'rgba(39, 16, 82, 0.95)';
+  
+      var ghost = document.createElement('div');
+      ghost.className = 'luno-morph-ghost';
+      ghost.style.cssText = [
+        'position: fixed;',
+        'z-index: 100005;',
+        'pointer-events: none;',
+        'box-sizing: border-box;',
+        'top: ' + startTop + 'px;',
+        'left: ' + startLeft + 'px;',
+        'width: ' + startWidth + 'px;',
+        'height: ' + startHeight + 'px;',
+        'border-radius: ' + startRadius + 'px;',
+        'border: 2px solid ' + color + ';',
+        'background: ' + startBg + ';',
+        'box-shadow: 0 0 24px ' + glowColor + ', 0 8px 24px rgba(0,0,0,0.8);',
+        'display: flex;',
+        'align-items: center;',
+        'justify-content: center;',
+        'color: ' + color + ';',
+        'font-family: monospace;',
+        'font-size: 0.75rem;',
+        'font-weight: bold;',
+        'overflow: hidden;',
+        'opacity: 1;',
+        'transition: none;'
+      ].join('\n');
+  
+      if (opts.label) {
+        ghost.innerHTML = '<span>' + (opts.icon || '📦') + ' ' + opts.label + '</span>';
+      }
+  
+      document.body.appendChild(ghost);
+      LunoAnimationEngine.burstSparks(startLeft + (startWidth / 2), startTop + (startHeight / 2), color, 8);
+  
+      var startTime = performance.now();
+      var deltaX = endLeft - startLeft;
+      var deltaY = endTop - startTop;
+      var deltaW = endWidth - startWidth;
+      var deltaH = endHeight - startHeight;
+      var deltaR = endRadius - startRadius;
+      var archHeight = Math.min(60, Math.max(15, Math.abs(deltaX) * 0.15));
+  
+      function step(now) {
+        var elapsed = now - startTime;
+        var p = Math.min(1, elapsed / duration);
+        var ease = 1 - Math.pow(1 - p, 2.2);
+  
+        var currX = startLeft + (deltaX * ease);
+        var arch = Math.sin(p * Math.PI) * archHeight;
+        var currY = startTop + (deltaY * ease) - arch;
+        var currW = startWidth + (deltaW * ease);
+        var currH = startHeight + (deltaH * ease);
+        var currR = startRadius + (deltaR * ease);
+  
+        ghost.style.top = currY + 'px';
+        ghost.style.left = currX + 'px';
+        ghost.style.width = currW + 'px';
+        ghost.style.height = currH + 'px';
+        ghost.style.borderRadius = currR + 'px';
+  
+        if (ghost.firstChild) {
+          ghost.firstChild.style.opacity = String(Math.max(0, 1 - (p * 1.5)));
+        }
+  
+        if (p < 1) {
+          requestAnimationFrame(step);
+        } else {
+          if (ghost.parentNode) ghost.remove();
+          LunoAnimationEngine.burstSparks(endLeft + (endWidth / 2), endTop + (endHeight / 2), color, 12);
+          if (targetEl) {
+            LunoAnimationEngine.pulseTarget(targetEl, { color: color, glowColor: glowColor });
+          }
+          if (onComplete) onComplete();
+        }
+      }
+  
+      requestAnimationFrame(step);
+    }
 }
 
 globalThis.LunoAnimationEngine = LunoAnimationEngine;

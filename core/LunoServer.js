@@ -145,40 +145,45 @@ class LunoServer {
     return fileList;
   }
 
-  static sanitizeAndResolvePath(relPath, baseDir) {
-    const webRoot = LunoServer.getWebRootDir();
-    const currentRoot = baseDir || LunoServer.getRootDir();
-    if (!relPath || typeof relPath !== 'string' || !relPath.trim()) return currentRoot;
-    let normalized = relPath.replace(/\\/g, '/').trim();
-
-    if (normalized === 'LunoPatchLog.html' || normalized === '/LunoPatchLog.html') {
-      return path.join(webRoot, 'LunoPatchLog.html');
+      static sanitizeAndResolvePath(relPath, baseDir) {
+      const webRoot = LunoServer.getWebRootDir();
+      if (!relPath || typeof relPath !== 'string' || !relPath.trim()) {
+        return baseDir || LunoServer.getRootDir();
+      }
+  
+      let normalized = relPath.replace(/\\/g, '/').replace(/^\/+/, '').trim();
+  
+      // 1. Special root-level files anchored directly to webRoot
+      if (normalized === 'LunoPatchLog.html') {
+        return path.join(webRoot, 'LunoPatchLog.html');
+      }
+  
+      // 2. Explicit Library paths anchored directly to web/Library/
+      if (normalized.startsWith('Library/')) {
+        return path.join(webRoot, normalized);
+      }
+  
+      // 3. Absolute path boundary check
+      if (path.isAbsolute(normalized)) {
+        const resolvedAbs = path.resolve(normalized);
+        if (resolvedAbs.startsWith(webRoot)) {
+          return resolvedAbs;
+        }
+        throw new Error(`[LunoServer] Path out of bounds: ${normalized}`);
+      }
+  
+      // 4. If path starts with an existing project folder in webRoot
+      const segments = normalized.split('/');
+      const firstSegment = segments[0];
+      const candidateDir = path.join(webRoot, firstSegment);
+      if (fs.existsSync(candidateDir) && fs.statSync(candidateDir).isDirectory()) {
+        return path.join(webRoot, normalized);
+      }
+  
+      // 5. Otherwise resolve strictly inside baseDir (no fallbacks or guessing)
+      const targetDir = baseDir || LunoServer.getRootDir();
+      return path.resolve(targetDir, normalized);
     }
-
-    if (path.isAbsolute(normalized)) {
-      if (fs.existsSync(normalized)) return path.resolve(normalized);
-    }
-
-    // 1. Target project resolution first
-    const relResolved = path.resolve(currentRoot, normalized);
-    if (fs.existsSync(relResolved) && fs.statSync(relResolved).isFile()) {
-      return relResolved;
-    }
-
-    // 2. Web root match (e.g. Library/...)
-    const webResolved = path.resolve(webRoot, normalized);
-    if (fs.existsSync(webResolved)) {
-      return webResolved;
-    }
-
-    // 3. Fallback within Luno/ core
-    const lunoResolved = path.resolve(webRoot, 'Luno', normalized);
-    if (fs.existsSync(lunoResolved)) {
-      return lunoResolved;
-    }
-
-    return relResolved;
-  }
 
   static async parseAndSaveFiles(bodyText, projectOverride) {
     let filesToWrite = [];

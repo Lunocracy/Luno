@@ -165,6 +165,7 @@ class LunoProjectTemplates {
         };
 
     const isLib = p.isLibrary;
+    const isCore = (p.name === 'Luno');
     const currentTarget = (typeof ClientApp !== 'undefined' && ClientApp.getTargetProject) ? ClientApp.getTargetProject() : '';
     const isActive = (p.name === currentTarget);
 
@@ -194,7 +195,7 @@ class LunoProjectTemplates {
             background: isActive ? '#238636' : '#21262d',
             color: isActive ? '#fff' : '#8b949e'
           }
-        }, isActive ? '✓ Active Target' : (isLib ? 'Shared Library' : 'Project'))
+        }, isActive ? '✓ Active Target' : (isLib ? 'Shared Library' : (isCore ? 'Core System' : 'Project')))
       ),
       el('div', { style: { fontSize: '0.78rem', color: '#c9d1d9', lineHeight: '1.35' } }, p.description || 'Workspace project folder.'),
       el('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '0.3rem', fontSize: '0.72rem', color: '#8b949e', flexWrap: 'wrap', gap: '0.4rem' } },
@@ -222,12 +223,68 @@ class LunoProjectTemplates {
               }
               LunoProjectTemplates.mountFullPageView(container);
             }
-          }, '⚡ Set Target ➔') : null
+          }, '⚡ Set Target ➔') : null,
+          (!isCore && !isLib) ? el('button', {
+            style: { padding: '0.3rem 0.55rem', background: '#21262d', color: '#ff7b72', border: '1px solid #da3633', borderRadius: '4px', fontWeight: 'bold', cursor: 'pointer', fontSize: '0.72rem', fontFamily: 'monospace' },
+            title: 'Safely delete project directory from disk',
+            onclick: () => LunoProjectTemplates.deleteProject(p.name, container)
+          }, '🗑️') : null
         )
       )
     );
 
     return card;
+  }
+
+  static async deleteProject(projectName, container) {
+    if (!projectName || projectName === 'Luno' || projectName.toLowerCase() === 'library') {
+      alert('Cannot delete core system or shared library folders.');
+      return;
+    }
+
+    const confirmDelete = confirm('⚠️ Are you sure you want to permanently delete project [' + projectName + '] from disk? This cannot be undone.');
+    if (!confirmDelete) return;
+
+    try {
+      const serverScriptObj = {
+        files: [],
+        serverScript: [
+          'const fs = require("fs");',
+          'const path = require("path");',
+          'const projRoot = LunoServer.resolveProjectBaseDir("' + projectName + '");',
+          'const webRoot = LunoServer.getWebRootDir();',
+          'if (projRoot && projRoot.startsWith(webRoot) && projRoot !== webRoot && !projRoot.endsWith("Luno")) {',
+          '  fs.rmSync(projRoot, { recursive: true, force: true });',
+          '  return "Deleted project folder: " + projRoot;',
+          '} else {',
+          '  throw new Error("Invalid project deletion path target.");',
+          '}'
+        ].join('\n')
+      };
+
+      const res = await fetch('/api/save', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(serverScriptObj)
+      });
+      const data = await res.json();
+
+      if (res.ok && data && data.success) {
+        if (typeof ClientApp !== 'undefined') {
+          if (ClientApp.getTargetProject() === projectName) {
+            ClientApp.setTargetProject('Luno');
+          }
+          if (ClientApp.showToast) {
+            ClientApp.showToast('Deleted project [' + projectName + '] from disk', 'info', '🗑️');
+          }
+        }
+        LunoProjectTemplates.mountFullPageView(container);
+      } else {
+        alert('Delete failed: ' + ((data && data.error) || 'Server error'));
+      }
+    } catch (e) {
+      alert('Delete network exception: ' + e.message);
+    }
   }
 
   static async createFromTemplate(templateId, parentDir) {
@@ -268,6 +325,111 @@ class LunoProjectTemplates {
       alert('Error creating project: ' + e.message);
     }
   }
+
+  static async forkProject(sourceProjectName, container) {
+      if (!sourceProjectName) return;
+  
+      var defaultNewName = sourceProjectName + '_fork';
+      var rawName = prompt('Enter a name for your new project fork (copying ' + sourceProjectName + '):', defaultNewName);
+      if (!rawName) return;
+  
+      var cleanNewName = rawName.trim().replace(/[^a-zA-Z0-9_\-]/g, '');
+      if (!cleanNewName) {
+        alert('Invalid project name. Please use letters, numbers, dashes, or underscores.');
+        return;
+      }
+  
+      if (cleanNewName === sourceProjectName) {
+        alert('Fork name must be different from the source project name.');
+        return;
+      }
+  
+      if (typeof ClientApp !== 'undefined' && ClientApp.showToast) {
+        ClientApp.showToast('Forking [' + sourceProjectName + '] into [' + cleanNewName + ']...', 'info', '🍴');
+      }
+  
+      try {
+        // 1. Fetch all files belonging to the source project
+        var res = await fetch('/api/all-code?project=' + encodeURIComponent(sourceProjectName));
+        var data = await res.json();
+  
+        if (!res.ok || !data || !data.filesMap) {
+          throw new Error((data && data.error) || 'Failed to fetch source project files');
+        }
+  
+        var sourceFilesMap = data.filesMap;
+        var newFilesList = [];
+  
+        // 2. Client-side remapping and manifest update
+        for (var rawPath in sourceFilesMap) {
+          if (!Object.prototype.hasOwnProperty.call(sourceFilesMap, rawPath)) continue;
+  
+          var content = sourceFilesMap[rawPath];
+          var normPath = rawPath.replace(/\\/g, '/').replace(/^\/+/, '');
+  
+          // Re-anchor path to the new project name
+          var relSubPath = normPath;
+          if (relSubPath.startsWith(sourceProjectName + '/')) {
+            relSubPath = relSubPath.slice(sourceProjectName.length + 1);
+          }
+  
+          var newFilePath = cleanNewName + '/' + relSubPath;
+  
+          // If manifest, update the project name in memory
+          if (relSubPath === 'luno.json' || relSubPath === 'package.json') {
+            try {
+              var metaObj = JSON.parse(content);
+              metaObj.name = cleanNewName;
+              metaObj.processedCountSinceCheckpoint = 0;
+              metaObj.lastCheckpointTime = new Date().toISOString();
+              metaObj.pendingCheckpointDescription = 'Forked from ' + sourceProjectName;
+              content = JSON.stringify(metaObj, null, 2) + '\n';
+            } catch(e) {}
+          }
+  
+          newFilesList.push({
+            filePath: newFilePath,
+            content: content,
+            action: 'direct'
+          });
+        }
+  
+        // 3. Save the forked project via dumb server API
+        var savePayload = {
+          files: newFilesList,
+          serverScript: '',
+          project: cleanNewName
+        };
+  
+        var saveRes = await fetch('/api/save?project=' + encodeURIComponent(cleanNewName), {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(savePayload)
+        });
+        var saveData = await saveRes.json();
+  
+        if (saveRes.ok && saveData.success) {
+          // 4. Switch active target and mount new project preview
+          if (typeof ClientApp !== 'undefined' && ClientApp.setTargetProject) {
+            ClientApp.setTargetProject(cleanNewName, { openTab: true });
+            if (ClientApp.showToast) {
+              ClientApp.showToast('Successfully forked into [' + cleanNewName + ']! Ready to build.', 'success', '🚀');
+            }
+          }
+  
+          if (typeof LunoSpaDock !== 'undefined') {
+            LunoSpaDock.mountView('app_' + cleanNewName);
+          } else if (container) {
+            LunoProjectTemplates.mountFullPageView(container);
+          }
+        } else {
+          throw new Error((saveData && saveData.error) || 'Failed to save forked project');
+        }
+      } catch (err) {
+        console.error('[Fork Project Error]', err);
+        alert('Error forking project: ' + err.message);
+      }
+    }
 }
 
 globalThis.LunoProjectTemplates = LunoProjectTemplates;

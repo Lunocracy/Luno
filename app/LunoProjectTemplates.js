@@ -155,86 +155,91 @@ class LunoProjectTemplates {
     container.appendChild(listContainer);
   }
 
-  static buildProjectCard(p, container) {
-    const el = (typeof LunoUIComponents !== 'undefined' && LunoUIComponents.makeElement)
-      ? LunoUIComponents.makeElement
-      : function(tag, attrs) {
-          const e = document.createElement(tag || 'div');
-          if (attrs && typeof attrs === 'object') Object.assign(e, attrs);
-          return e;
-        };
-
-    const isLib = p.isLibrary;
-    const isCore = (p.name === 'Luno');
-    const currentTarget = (typeof ClientApp !== 'undefined' && ClientApp.getTargetProject) ? ClientApp.getTargetProject() : '';
-    const isActive = (p.name === currentTarget);
-
-    const card = el('div', {
-      style: {
-        background: isActive ? '#0d2818' : '#0d1117',
-        border: '1px solid ' + (isActive ? '#238636' : (isLib ? '#8257e5' : '#30363d')),
-        borderRadius: '8px',
-        padding: '0.85rem',
-        display: 'flex',
-        flexDirection: 'column',
-        gap: '0.4rem',
-        boxShadow: isActive ? '0 0 12px rgba(35,134,54,0.3)' : 'none'
-      }
-    },
-      el('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center' } },
-        el('strong', { style: { color: isActive ? '#3fb950' : (isLib ? '#d2a8ff' : '#00f2fe'), fontSize: '0.95rem' } },
-          (isLib ? '📚 ' : '📁 ') + p.name + ' ',
-          el('span', { style: { fontWeight: 'normal', fontSize: '0.72rem', color: '#8b949e' } }, '(' + (p.version || '1.0.0') + ')')
-        ),
-        el('span', {
-          style: {
-            fontSize: '0.7rem',
-            fontWeight: 'bold',
-            padding: '0.2rem 0.5rem',
-            borderRadius: '4px',
-            background: isActive ? '#238636' : '#21262d',
-            color: isActive ? '#fff' : '#8b949e'
-          }
-        }, isActive ? '✓ Active Target' : (isLib ? 'Shared Library' : (isCore ? 'Core System' : 'Project')))
-      ),
-      el('div', { style: { fontSize: '0.78rem', color: '#c9d1d9', lineHeight: '1.35' } }, p.description || 'Workspace project folder.'),
-      el('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '0.3rem', fontSize: '0.72rem', color: '#8b949e', flexWrap: 'wrap', gap: '0.4rem' } },
-        el('span', {}, '📊 ' + (p.fileCount || 0) + ' file(s) (' + (p.totalSizeKb || 0) + ' KB)'),
-        el('div', { style: { display: 'flex', gap: '0.4rem', flexWrap: 'wrap' } },
-          el('button', {
-            style: { padding: '0.3rem 0.6rem', background: '#161b22', color: '#00f2fe', border: '1px solid #00f2fe', borderRadius: '4px', fontWeight: 'bold', cursor: 'pointer', fontSize: '0.75rem', fontFamily: 'monospace' },
-            onclick: () => {
-              if (typeof ClientApp !== 'undefined' && ClientApp.setTargetProject) {
-                ClientApp.setTargetProject(p.name, { openTab: true });
-              }
-              if (typeof LunoSpaDock !== 'undefined') {
-                LunoSpaDock.mountView('app_' + p.name);
-              }
+    static buildProjectCard(p, container) {
+      const el = (typeof LunoUIComponents !== 'undefined' && LunoUIComponents.makeElement)
+        ? LunoUIComponents.makeElement
+        : function(tag, attrs) {
+            const e = document.createElement(tag || 'div');
+            if (attrs && typeof attrs === 'object') Object.assign(e, attrs);
+            return e;
+          };
+  
+      const isLib = p.isLibrary;
+      const isCore = (p.name === 'Luno');
+      const currentTarget = (typeof ClientApp !== 'undefined' && ClientApp.getTargetProject) ? ClientApp.getTargetProject() : '';
+      const isActive = (p.name === currentTarget);
+  
+      const card = el('div', {
+        style: {
+          background: isActive ? '#0d2818' : '#0d1117',
+          border: '1px solid ' + (isActive ? '#238636' : (isLib ? '#8257e5' : '#30363d')),
+          borderRadius: '8px',
+          padding: '0.85rem',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '0.4rem',
+          boxShadow: isActive ? '0 0 12px rgba(35,134,54,0.3)' : 'none'
+        }
+      },
+        el('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center' } },
+          el('strong', { style: { color: isActive ? '#3fb950' : (isLib ? '#d2a8ff' : '#00f2fe'), fontSize: '0.95rem' } },
+            (isLib ? '📚 ' : '📁 ') + p.name + ' ',
+            el('span', { style: { fontWeight: 'normal', fontSize: '0.72rem', color: '#8b949e' } }, '(' + (p.version || '1.0.0') + ')')
+          ),
+          el('span', {
+            style: {
+              fontSize: '0.7rem',
+              fontWeight: 'bold',
+              padding: '0.2rem 0.5rem',
+              borderRadius: '4px',
+              background: isActive ? '#238636' : '#21262d',
+              color: isActive ? '#fff' : '#8b949e'
             }
-          }, '👁️ Preview'),
-          !isActive ? el('button', {
-            style: { padding: '0.3rem 0.6rem', background: '#238636', color: '#fff', border: 'none', borderRadius: '4px', fontWeight: 'bold', cursor: 'pointer', fontSize: '0.75rem', fontFamily: 'monospace' },
-            onclick: () => {
-              if (typeof ClientApp !== 'undefined' && ClientApp.setTargetProject) {
-                ClientApp.setTargetProject(p.name);
-                if (typeof ClientApp.showToast === 'function') {
-                  ClientApp.showToast('Active Target switched to ' + p.name, 'success', '📁');
+          }, isActive ? '✓ Active Target' : (isLib ? 'Shared Library' : (isCore ? 'Core System' : 'Project')))
+        ),
+        el('div', { style: { fontSize: '0.78rem', color: '#c9d1d9', lineHeight: '1.35' } }, p.description || 'Workspace project folder.'),
+        el('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '0.3rem', fontSize: '0.72rem', color: '#8b949e', flexWrap: 'wrap', gap: '0.4rem' } },
+          el('span', {}, '📊 ' + (p.fileCount || 0) + ' file(s) (' + (p.totalSizeKb || 0) + ' KB)'),
+          el('div', { style: { display: 'flex', gap: '0.4rem', flexWrap: 'wrap' } },
+            el('button', {
+              style: { padding: '0.3rem 0.6rem', background: '#161b22', color: '#00f2fe', border: '1px solid #00f2fe', borderRadius: '4px', fontWeight: 'bold', cursor: 'pointer', fontSize: '0.75rem', fontFamily: 'monospace' },
+              onclick: () => {
+                if (typeof ClientApp !== 'undefined' && ClientApp.setTargetProject) {
+                  ClientApp.setTargetProject(p.name, { openTab: true });
+                }
+                if (typeof LunoSpaDock !== 'undefined') {
+                  LunoSpaDock.mountView('app_' + p.name);
                 }
               }
-              LunoProjectTemplates.mountFullPageView(container);
-            }
-          }, '⚡ Set Target ➔') : null,
-          (!isCore && !isLib) ? el('button', {
-            style: { padding: '0.3rem 0.55rem', background: '#21262d', color: '#ff7b72', border: '1px solid #da3633', borderRadius: '4px', fontWeight: 'bold', cursor: 'pointer', fontSize: '0.72rem', fontFamily: 'monospace' },
-            title: 'Safely delete project directory from disk',
-            onclick: () => LunoProjectTemplates.deleteProject(p.name, container)
-          }, '🗑️') : null
+            }, '👁️ Preview'),
+            !isActive ? el('button', {
+              style: { padding: '0.3rem 0.6rem', background: '#238636', color: '#fff', border: 'none', borderRadius: '4px', fontWeight: 'bold', cursor: 'pointer', fontSize: '0.75rem', fontFamily: 'monospace' },
+              onclick: () => {
+                if (typeof ClientApp !== 'undefined' && ClientApp.setTargetProject) {
+                  ClientApp.setTargetProject(p.name);
+                  if (typeof ClientApp.showToast === 'function') {
+                    ClientApp.showToast('Active Target switched to ' + p.name, 'success', '📁');
+                  }
+                }
+                LunoProjectTemplates.mountFullPageView(container);
+              }
+            }, '⚡ Set Target ➔') : null,
+            (!isCore && !isLib) ? el('button', {
+              style: { padding: '0.3rem 0.6rem', background: '#271052', color: '#d2a8ff', border: '1px solid #8257e5', borderRadius: '4px', fontWeight: 'bold', cursor: 'pointer', fontSize: '0.75rem', fontFamily: 'monospace' },
+              title: 'Fork and duplicate this project to make your own custom version',
+              onclick: () => LunoProjectTemplates.forkProject(p.name, container)
+            }, '🍴 Fork') : null,
+            (!isCore && !isLib) ? el('button', {
+              style: { padding: '0.3rem 0.55rem', background: '#21262d', color: '#ff7b72', border: '1px solid #da3633', borderRadius: '4px', fontWeight: 'bold', cursor: 'pointer', fontSize: '0.72rem', fontFamily: 'monospace' },
+              title: 'Safely delete project directory from disk',
+              onclick: () => LunoProjectTemplates.deleteProject(p.name, container)
+            }, '🗑️') : null
+          )
         )
-      )
-    );
-
-    return card;
-  }
+      );
+  
+      return card;
+    }
 
   static async deleteProject(projectName, container) {
     if (!projectName || projectName === 'Luno' || projectName.toLowerCase() === 'library') {
@@ -325,6 +330,111 @@ class LunoProjectTemplates {
       alert('Error creating project: ' + e.message);
     }
   }
+
+  static async forkProject(sourceProjectName, container) {
+      if (!sourceProjectName) return;
+  
+      var defaultNewName = sourceProjectName + '_fork';
+      var rawName = prompt('Enter a name for your new project fork (copying ' + sourceProjectName + '):', defaultNewName);
+      if (!rawName) return;
+  
+      var cleanNewName = rawName.trim().replace(/[^a-zA-Z0-9_\-]/g, '');
+      if (!cleanNewName) {
+        alert('Invalid project name. Please use letters, numbers, dashes, or underscores.');
+        return;
+      }
+  
+      if (cleanNewName === sourceProjectName) {
+        alert('Fork name must be different from the source project name.');
+        return;
+      }
+  
+      if (typeof ClientApp !== 'undefined' && ClientApp.showToast) {
+        ClientApp.showToast('Forking [' + sourceProjectName + '] into [' + cleanNewName + ']...', 'info', '🍴');
+      }
+  
+      try {
+        // 1. Fetch all files belonging to the source project
+        var res = await fetch('/api/all-code?project=' + encodeURIComponent(sourceProjectName));
+        var data = await res.json();
+  
+        if (!res.ok || !data || !data.filesMap) {
+          throw new Error((data && data.error) || 'Failed to fetch source project files');
+        }
+  
+        var sourceFilesMap = data.filesMap;
+        var newFilesList = [];
+  
+        // 2. Client-side remapping and manifest update
+        for (var rawPath in sourceFilesMap) {
+          if (!Object.prototype.hasOwnProperty.call(sourceFilesMap, rawPath)) continue;
+  
+          var content = sourceFilesMap[rawPath];
+          var normPath = rawPath.replace(/\\/g, '/').replace(/^\/+/, '');
+  
+          // Re-anchor path to the new project name
+          var relSubPath = normPath;
+          if (relSubPath.startsWith(sourceProjectName + '/')) {
+            relSubPath = relSubPath.slice(sourceProjectName.length + 1);
+          }
+  
+          var newFilePath = cleanNewName + '/' + relSubPath;
+  
+          // If manifest, update the project name in memory
+          if (relSubPath === 'luno.json' || relSubPath === 'package.json') {
+            try {
+              var metaObj = JSON.parse(content);
+              metaObj.name = cleanNewName;
+              metaObj.processedCountSinceCheckpoint = 0;
+              metaObj.lastCheckpointTime = new Date().toISOString();
+              metaObj.pendingCheckpointDescription = 'Forked from ' + sourceProjectName;
+              content = JSON.stringify(metaObj, null, 2) + '\n';
+            } catch(e) {}
+          }
+  
+          newFilesList.push({
+            filePath: newFilePath,
+            content: content,
+            action: 'direct'
+          });
+        }
+  
+        // 3. Save the forked project via dumb server API
+        var savePayload = {
+          files: newFilesList,
+          serverScript: '',
+          project: cleanNewName
+        };
+  
+        var saveRes = await fetch('/api/save?project=' + encodeURIComponent(cleanNewName), {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(savePayload)
+        });
+        var saveData = await saveRes.json();
+  
+        if (saveRes.ok && saveData.success) {
+          // 4. Switch active target and mount new project preview
+          if (typeof ClientApp !== 'undefined' && ClientApp.setTargetProject) {
+            ClientApp.setTargetProject(cleanNewName, { openTab: true });
+            if (ClientApp.showToast) {
+              ClientApp.showToast('Successfully forked into [' + cleanNewName + ']! Ready to build.', 'success', '🚀');
+            }
+          }
+  
+          if (typeof LunoSpaDock !== 'undefined') {
+            LunoSpaDock.mountView('app_' + cleanNewName);
+          } else if (container) {
+            LunoProjectTemplates.mountFullPageView(container);
+          }
+        } else {
+          throw new Error((saveData && saveData.error) || 'Failed to save forked project');
+        }
+      } catch (err) {
+        console.error('[Fork Project Error]', err);
+        alert('Error forking project: ' + err.message);
+      }
+    }
 }
 
 globalThis.LunoProjectTemplates = LunoProjectTemplates;

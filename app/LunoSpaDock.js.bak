@@ -1,28 +1,15 @@
 class LunoSpaDock {
-  /**
-   * ⚙️ CONSTRUCTOR: LunoSpaDock()
-   */
   constructor() {}
 
   static activeDockView = (typeof localStorage !== 'undefined' && localStorage.getItem('luno_active_dock_view')) || 'workspace';
   static _iframeCache = {};
 
-  /**
-   * ⚙️ METHOD: toggleDock(viewKey)
-   * - Type: Static Method
-   * - Modifier: sync
-   */
   static toggleDock(viewKey) {
     var vk = viewKey || 'browser';
     LunoSpaDock.activeDockView = vk;
     LunoSpaDock.mountView(vk);
   }
 
-  /**
-   * ⚙️ METHOD: renderHeaderNav(viewKey)
-   * - Type: Static Method
-   * - Modifier: sync
-   */
   static renderHeaderNav(viewKey) {
     if (typeof LunoSpaHeaderNav !== 'undefined') {
       return LunoSpaHeaderNav.render(viewKey);
@@ -32,10 +19,6 @@ class LunoSpaDock {
     return el;
   }
 
-  /**
-   * ⚙️ METHOD: reloadActivePreviewIframe(projectName)
-   * Force reloads the active preview iframe for a specific project.
-   */
   static reloadActivePreviewIframe(projectName) {
     var pName = projectName || (typeof ClientApp !== 'undefined' && ClientApp.getTargetProject ? ClientApp.getTargetProject() : '');
     if (!pName) return;
@@ -49,10 +32,6 @@ class LunoSpaDock {
     }
   }
 
-  /**
-   * ⚙️ METHOD: mountView(viewKey)
-   * Dynamically mounts active dock views and robust project preview iframes.
-   */
   static mountView(viewKey) {
     LunoSpaDock.activeDockView = viewKey;
     if (typeof localStorage !== 'undefined') {
@@ -99,12 +78,12 @@ class LunoSpaDock {
       if (viewKey.startsWith('app_')) {
         targetProj = viewKey.replace(/^app_/, '');
       } else {
-        targetProj = (typeof ClientApp !== 'undefined' && ClientApp.getTargetProject) ? ClientApp.getTargetProject() : 'Basic3D';
+        targetProj = (typeof ClientApp !== 'undefined' && ClientApp.getTargetProject) ? ClientApp.getTargetProject() : 'Luno';
       }
 
       var invalidNames = (typeof LunoSettings !== 'undefined' && LunoSettings.INVALID_PROJECT_NAMES) ? LunoSettings.INVALID_PROJECT_NAMES : ['web', 'storage', 'emulated', 'LunoWeb', '0'];
       if (!targetProj || invalidNames.includes(targetProj)) {
-        targetProj = 'Basic3D';
+        targetProj = 'Luno';
       }
 
       if (typeof ClientApp !== 'undefined' && ClientApp.setTargetProject) {
@@ -143,7 +122,6 @@ class LunoSpaDock {
         persistentAppRoot.appendChild(holder);
         LunoSpaDock._iframeCache[targetProj] = holder;
       } else {
-        // Refresh stale iframe on demand
         var holder = LunoSpaDock._iframeCache[targetProj];
         var iframe = holder.querySelector('iframe');
         if (iframe && (!iframe.src || iframe.src.indexOf('project=' + targetProj) === -1)) {
