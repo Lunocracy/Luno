@@ -1,6 +1,5 @@
 class SvgCountdownClock {
   constructor(options = {}) {
-
     const opts = options || {};
     this.size = opts.size || 24;
     this.strokeWidth = opts.strokeWidth || 3;
@@ -49,11 +48,9 @@ class SvgCountdownClock {
 
     this.element = svg;
     this.fgCircle = fgCircle;
-
   }
 
   start() {
-
     if (this.isRunning && !this.isPaused) return;
 
     this.isRunning = true;
@@ -89,10 +86,9 @@ class SvgCountdownClock {
     } else {
       this.animFrameId = setTimeout(() => tick(performance.now()), 16);
     }
-
   }
-  pause() {
 
+  pause() {
     if (!this.isRunning || this.isPaused) return;
 
     this.isPaused = true;
@@ -106,10 +102,9 @@ class SvgCountdownClock {
     }
     this.pausedElapsed = performance.now() - this.startTime;
     if (this.onPause) this.onPause();
-
   }
-  stop() {
 
+  stop() {
     this.isRunning = false;
     this.isPaused = false;
     if (this.animFrameId) {
@@ -124,13 +119,11 @@ class SvgCountdownClock {
     if (this.fgCircle) {
       this.fgCircle.setAttribute('stroke-dashoffset', '0');
     }
-
   }
-  reset() {
 
+  reset() {
     this.stop();
     this.start();
-
   }
 }
 
