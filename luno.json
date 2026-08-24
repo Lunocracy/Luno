@@ -52,11 +52,18 @@
     "Luno/test/LunoTestRunner.js"
   ],
   "docs": [
+    "Luno/docs/SPS1.md",
+    "Luno/docs/SPS2.md",
+    "Luno/docs/SPS3.md",
+    "Luno/docs/SPS4.md",
+    "Luno/docs/SPS5.md",
+    "Luno/docs/SPS6.md",
+    "Luno/docs/SPS7.md",
     "Luno/docs/BookmarkletStudioRoadmap.md"
   ],
   "patchJournal": "LunoPatchLog.html",
-  "processedCountSinceCheckpoint": 8,
-  "lastCheckpointTime": "2026-08-24T01:13:04.737Z",
+  "processedCountSinceCheckpoint": 9,
+  "lastCheckpointTime": "2026-08-24T01:16:05.955Z",
   "pendingCheckpointDescription": "Clean working tree",
   "changedMethods": {
     "Luno/app/ClientApp.js": "2026-08-24T00:59:44.265Z",
@@ -122,6 +129,13 @@
     "Luno/docs/AiStudioRelayDocs.js": "2026-08-24T01:15:59.029Z",
     "Luno/bookmarklet/index.html": "2026-08-24T01:13:34.898Z",
     "Luno/docs/BookmarkletStudioRoadmap.md": "2026-08-24T01:13:34.898Z",
-    "Luno/docs/AiStudioRelayDocs.js.bak": "2026-08-24T01:15:59.029Z"
+    "Luno/docs/AiStudioRelayDocs.js.bak": "2026-08-24T01:15:59.029Z",
+    "Luno/docs/SiblingProjectSurvey.md": "2026-08-24T03:18:58.071Z",
+    "VideoEditor/luno.json": "2026-08-24T03:28:31.188Z",
+    "guessTheNoteGame/luno.json": "2026-08-24T03:28:31.188Z",
+    "Luno/docs/SPS2.md": "2026-08-24T09:12:32.699Z",
+    "Library/DomBasics.js": "2026-08-24T09:14:53.039Z",
+    "Library/luno.json": "2026-08-24T09:16:12.096Z",
+    "Library/LunoDialog.js": "2026-08-24T09:16:12.096Z"
   }
 }
