@@ -63,12 +63,12 @@
     "Luno/docs/BookmarkletStudioRoadmap.md"
   ],
   "patchJournal": "LunoPatchLog.html",
-  "processedCountSinceCheckpoint": 7,
-  "lastCheckpointTime": "2026-08-24T16:55:13.417Z",
+  "processedCountSinceCheckpoint": 11,
+  "lastCheckpointTime": "2026-08-24T19:48:00.960Z",
   "pendingCheckpointDescription": "Clean working tree",
   "changedMethods": {
     "Luno/app/ClientApp.js": "2026-08-24T16:23:22.128Z",
-    "Luno/app/LunoSpaHeaderNav.js": "2026-08-24T00:59:44.265Z",
+    "Luno/app/LunoSpaHeaderNav.js": "2026-08-24T21:42:53.483Z",
     "Luno/app/DiffApprovalModal.js": "2026-08-24T00:59:44.265Z",
     "Luno/luno.json": "2026-08-24T00:59:38.729Z",
     "Luno/app/ClientApp.js.bak": "2026-08-24T00:59:44.265Z",
@@ -162,7 +162,7 @@
     "Luno/app/OutboxOptionsModal.js.bak": "2026-08-24T16:10:53.223Z",
     "Luno/core/LunoServer.js.bak": "2026-08-24T16:44:36.621Z",
     "Luno/app/OutboxQueue.js": "2026-08-24T16:12:33.517Z",
-    "Luno/app/LunoManifestDecisionEngine.js": "2026-08-24T16:44:36.621Z",
+    "Luno/app/LunoManifestDecisionEngine.js": "2026-08-24T21:38:19.917Z",
     "Luno/app/OutboxQueue.js.bak": "2026-08-24T16:12:33.517Z",
     "Luno/app/LunoManifestDecisionEngine.js.bak": "2026-08-24T16:44:36.621Z",
     "Luno/app/LunoPatchConsolidator.js": "2026-08-24T16:13:40.517Z",
@@ -170,15 +170,19 @@
     "Luno/app/LunoLoader.js.bak": "2026-08-24T16:13:40.517Z",
     "Luno/app/LunoPatchConsolidator.js.bak": "2026-08-24T16:13:40.517Z",
     "Luno/app/LunoProjectTemplates.js.bak": "2026-08-24T16:49:12.448Z",
-    "Luno/app/ClientAppUI.js": "2026-08-24T16:49:52.052Z",
-    "Luno/app/LunoSpaDock.js": "2026-08-24T16:20:06.965Z",
+    "Luno/app/ClientAppUI.js": "2026-08-24T21:42:53.483Z",
+    "Luno/app/LunoSpaDock.js": "2026-08-24T21:42:53.483Z",
     "Luno/app/ClientAppUI.js.bak": "2026-08-24T16:49:52.052Z",
     "Luno/app/LunoSpaDock.js.bak": "2026-08-24T16:15:22.770Z",
     "Luno/index.html": "2026-08-24T16:25:04.449Z",
     "Luno/core/LunoContextExtractor.js": "2026-08-24T16:44:36.621Z",
     "Luno/core/LunoContextExtractor.js.bak": "2026-08-24T16:44:36.621Z",
-    "Luno/app/LunoDeployEngine.js": "2026-08-24T16:48:31.113Z",
+    "Luno/app/LunoDeployEngine.js": "2026-08-24T21:40:22.826Z",
     "Luno/app/LunoCheckpointView.js": "2026-08-24T17:01:28.939Z",
-    "Luno/app/LunoCheckpointView.js.bak": "2026-08-24T16:59:14.993Z"
+    "Luno/app/LunoCheckpointView.js.bak": "2026-08-24T16:59:14.993Z",
+    "Luno/Basic3D/index.html": "2026-08-24T21:38:19.917Z",
+    "Luno/VideoEditor/index.html": "2026-08-24T21:38:19.917Z",
+    "Luno/guessTheNoteGame/index.html": "2026-08-24T21:38:19.917Z",
+    "Luno/images/index.html": "2026-08-24T21:40:22.826Z"
   }
 }

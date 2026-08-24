@@ -30,7 +30,6 @@ class LunoSpaDock {
     var persistentAppRoot = document.getElementById('luno-persistent-app-root');
     if (!persistentAppRoot) return;
 
-    // Clean teardown: Remove stale iframe container completely
     if (LunoSpaDock._iframeCache[pName]) {
       var oldHolder = LunoSpaDock._iframeCache[pName];
       if (oldHolder && oldHolder.parentNode) {
@@ -39,7 +38,6 @@ class LunoSpaDock {
       delete LunoSpaDock._iframeCache[pName];
     }
 
-    // Deterministic fresh mount with cache buster
     var iframeUrl = '/app-preview?project=' + encodeURIComponent(pName) + '&v=' + Date.now();
     var newHolder = document.createElement('div');
     newHolder.id = 'iframe-holder-' + pName;
@@ -49,7 +47,6 @@ class LunoSpaDock {
     persistentAppRoot.appendChild(newHolder);
     LunoSpaDock._iframeCache[pName] = newHolder;
 
-    // Hide any other sibling project iframes
     Object.entries(LunoSpaDock._iframeCache).forEach(function(entry) {
       if (entry[0] === pName) {
         entry[1].style.display = 'block';
@@ -152,6 +149,8 @@ class LunoSpaDock {
       }
     } else if (viewKey === 'projects' && typeof LunoProjectTemplates !== 'undefined' && typeof LunoProjectTemplates.mountFullPageView === 'function') {
       LunoProjectTemplates.mountFullPageView(contentArea);
+    } else if (viewKey === 'deploy' && typeof LunoDeployEngine !== 'undefined' && typeof LunoDeployEngine.mountUI === 'function') {
+      LunoDeployEngine.mountUI(contentArea);
     } else if (viewKey === 'checkpoint') {
       if (typeof LunoCheckpointView !== 'undefined' && typeof LunoCheckpointView.mountUI === 'function') {
         LunoCheckpointView.mountUI(contentArea);

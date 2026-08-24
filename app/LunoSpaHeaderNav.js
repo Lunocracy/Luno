@@ -88,7 +88,8 @@ class LunoSpaHeaderNav {
 
     var baseNavItems = [
       { key: 'workspace', label: '🏠 Home' },
-      { key: 'projects', label: '🚀 Projects' }
+      { key: 'projects', label: '🚀 Projects' },
+      { key: 'deploy', label: '🌐 Deploy' }
     ];
 
     var invalidNames = ['web', 'storage', 'emulated', 'LunoWeb', '0', 'Library'];
@@ -152,9 +153,9 @@ class LunoSpaHeaderNav {
           whiteSpace: 'nowrap',
           display: 'inline-flex',
           alignItems: 'center',
-          background: isActive ? '#238636' : '#21262d',
-          color: isActive ? '#ffffff' : '#c9d1d9',
-          border: '1px solid ' + (isActive ? '#3fb950' : '#30363d'),
+          background: isActive ? '#238636' : (item.key === 'deploy' ? '#271052' : '#21262d'),
+          color: isActive ? '#ffffff' : (item.key === 'deploy' ? '#d2a8ff' : '#c9d1d9'),
+          border: '1px solid ' + (isActive ? '#3fb950' : (item.key === 'deploy' ? '#8257e5' : '#30363d')),
           boxShadow: isActive ? '0 0 10px rgba(57,211,83,0.3)' : 'none'
         },
         onclick: function() {
