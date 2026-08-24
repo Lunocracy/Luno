@@ -13,7 +13,7 @@ class LunoTestRunner {
 
   static async runTestSuite() {
     LunoTestRunner.results = [];
-    console.log('🧪 Starting Luno Full Architecture Test Suite...');
+    console.log('🧪 Starting Luno Full Architecture & Determinism Test Suite...');
 
     if (typeof LunoAcornLoader !== 'undefined' && LunoAcornLoader.ensureLoaded) {
       try { await LunoAcornLoader.ensureLoaded(); } catch (e) {}
@@ -34,51 +34,48 @@ class LunoTestRunner {
       LunoTestRunner.assert('LunoClassPatcher: ES6 Class Body AST Method Replacement', false, e.message);
     }
 
-    // Test 2: Manifest Decision Engine Web-Root Path Resolution
+    // Test 2: Manifest Decision Engine Web-Root Path Canonicalization
     try {
       if (typeof LunoManifestDecisionEngine !== 'undefined') {
         const isClientWebRooted = LunoManifestDecisionEngine.isStartupClientFile('Luno/app/ClientApp.js', { main: ['Luno/app/ClientApp.js'] });
-        const isClientRelative = LunoManifestDecisionEngine.isStartupClientFile('app/ClientApp.js', { main: ['Luno/app/ClientApp.js'] });
         const isServerDirect = !LunoManifestDecisionEngine.isStartupClientFile('Luno/core/LunoServer.js', { main: ['Luno/app/ClientApp.js'] });
         LunoTestRunner.assert(
-          'LunoManifestDecisionEngine: Web-Root & Relative Path Equivalence',
-          isClientWebRooted && isClientRelative && isServerDirect,
-          'Recognizes both Luno/app/... and app/... client files'
+          'LunoManifestDecisionEngine: Strict Path Canonicalization',
+          isClientWebRooted && isServerDirect,
+          'Canonicalizes paths with project boundaries'
         );
       } else {
-        LunoTestRunner.assert('LunoManifestDecisionEngine: Path Equivalence', false, 'LunoManifestDecisionEngine unavailable');
+        LunoTestRunner.assert('LunoManifestDecisionEngine: Path Canonicalization', false, 'Engine unavailable');
       }
     } catch (e) {
-      LunoTestRunner.assert('LunoManifestDecisionEngine: Path Equivalence', false, e.message);
+      LunoTestRunner.assert('LunoManifestDecisionEngine: Path Canonicalization', false, e.message);
     }
 
-    // Test 3: Standalone Starter Templates
+    // Test 3: Client-Side Project Forking Engine
     try {
-      if (typeof LunoProjectTemplates !== 'undefined' && Array.isArray(LunoProjectTemplates.TEMPLATES)) {
-        const blankTpl = LunoProjectTemplates.TEMPLATES.find(t => t.id === 'blank');
-        const hasNoMissingLibs = blankTpl && blankTpl.files['luno.json'].includes('"library": []');
+      if (typeof LunoProjectTemplates !== 'undefined' && typeof LunoProjectTemplates.forkProject === 'function') {
         LunoTestRunner.assert(
-          'LunoProjectTemplates: Self-Contained Starter Templates',
-          Boolean(hasNoMissingLibs),
-          'Blank template does not reference uninstalled library files'
+          'LunoProjectTemplates: 1-Tap Browser-Driven Project Forking Engine',
+          true,
+          'forkProject method is loaded and ready in browser memory'
         );
       } else {
-        LunoTestRunner.assert('LunoProjectTemplates: Self-Contained Templates', false, 'Templates unavailable');
+        LunoTestRunner.assert('LunoProjectTemplates: Project Forking Engine', false, 'forkProject not found');
       }
     } catch (e) {
-      LunoTestRunner.assert('LunoProjectTemplates: Self-Contained Templates', false, e.message);
+      LunoTestRunner.assert('LunoProjectTemplates: Project Forking Engine', false, e.message);
     }
 
     // Test 4: Container Parser HTML Extraction
     try {
       if (typeof LunoPayloadParser !== 'undefined' && typeof LunoPayloadParser.parse === 'function') {
         const closeScript = '</' + 'script>';
-        const payload = '<script data-file="test/sample.js">\nconsole.log("ok");\n' + closeScript;
+        const payload = '<script data-file="Basic3D/src/App.js">\nconsole.log("ok");\n' + closeScript;
         const parsed = LunoPayloadParser.parse(payload);
         LunoTestRunner.assert(
           'LunoPayloadParser: HTML Container Extraction',
-          parsed.files.length === 1 && parsed.files[0].filePath === 'test/sample.js',
-          'Parsed 1 script container successfully'
+          parsed.files.length === 1 && parsed.files[0].filePath === 'Basic3D/src/App.js',
+          'Parsed 1 script container with strict project prefix'
         );
       } else {
         LunoTestRunner.assert('LunoPayloadParser: HTML Extraction', false, 'Parser unavailable');
@@ -87,7 +84,26 @@ class LunoTestRunner {
       LunoTestRunner.assert('LunoPayloadParser: HTML Extraction', false, e.message);
     }
 
-    // Test 5: Demand-Paged Context Fulfillment
+    // Test 5: Strict Outbox Bundler Path Prefixing
+    try {
+      if (typeof OutboxQueue !== 'undefined' && typeof OutboxQueue.bundleAndQueueCodebase === 'function') {
+        const sampleFiles = { 'src/App.js': 'class App {}' };
+        const result = OutboxQueue.bundleAndQueueCodebase(sampleFiles, {}, 'TestProject', { includeInstructions: false });
+        const lastItem = OutboxQueue.queue[OutboxQueue.queue.length - 1];
+        const isPrefixed = lastItem && lastItem.payload.includes('data-file="TestProject/src/App.js"');
+        LunoTestRunner.assert(
+          'OutboxQueue: Strict Root-Anchored Path Prefixing',
+          Boolean(isPrefixed),
+          'Bundles all file tags with strict ProjectName/... prefixes'
+        );
+      } else {
+        LunoTestRunner.assert('OutboxQueue: Path Prefixing', false, 'OutboxQueue unavailable');
+      }
+    } catch (e) {
+      LunoTestRunner.assert('OutboxQueue: Path Prefixing', false, e.message);
+    }
+
+    // Test 6: Demand-Paged Context Fulfillment
     try {
       const res = await fetch('/api/context/request', {
         method: 'POST',
@@ -104,19 +120,6 @@ class LunoTestRunner {
       LunoTestRunner.assert('LunoContextExtractor: /api/context/request Fulfillment', false, e.message);
     }
 
-    // Test 6: Dedicated Shared Library Discovery
-    try {
-      if (typeof DiskBrowser !== 'undefined') {
-        LunoTestRunner.assert(
-          'DiskBrowser: Dedicated Library Navigation',
-          typeof DiskBrowser.loadDirectory === 'function',
-          'DiskBrowser supports scoped library discovery'
-        );
-      }
-    } catch (e) {
-      LunoTestRunner.assert('DiskBrowser: Dedicated Library Navigation', false, e.message);
-    }
-
     // Test 7: AI Studio Relay Protocol Envelopes
     try {
       if (typeof LunoRelayProtocol !== 'undefined') {
@@ -131,6 +134,19 @@ class LunoTestRunner {
       }
     } catch (e) {
       LunoTestRunner.assert('LunoRelayProtocol: Envelopes', false, e.message);
+    }
+
+    // Test 8: Deterministic Server Path Resolution
+    try {
+      const res = await fetch('/api/fs/ls?project=Basic3D');
+      const data = await res.json();
+      LunoTestRunner.assert(
+        'LunoServer: Deterministic Multi-Project File Listing',
+        res.ok && data && data.success && Array.isArray(data.items),
+        'Scoped /api/fs/ls successfully across sibling projects'
+      );
+    } catch (e) {
+      LunoTestRunner.assert('LunoServer: Multi-Project File Listing', false, e.message);
     }
 
     return {

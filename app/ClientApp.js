@@ -91,79 +91,85 @@ class ClientApp {
     }
   }
 
-  static showToast(message, type, icon) {
-    var toastType = type || 'success';
-    var toastIcon = icon || '✨';
-    var msgText = String(message || '');
-
-    if (typeof LunoPlaybackLogger !== 'undefined') {
-      if (toastType === 'error') LunoPlaybackLogger.error('Toast Error', msgText);
-      else if (toastType === 'info') LunoPlaybackLogger.boot('Toast Notice', msgText);
-      else LunoPlaybackLogger.patch('Toast Success', msgText);
-    }
-
-    var container = document.getElementById('toast-box');
-    if (!container) {
-      container = document.createElement('div');
-      container.id = 'toast-box';
-      container.style.cssText = 'position:fixed; top:1rem; left:50%; transform:translateX(-50%); z-index:99999; display:flex; flex-direction:column; gap:0.5rem; max-width:92vw; width:max-content; pointer-events:auto;';
-      document.body.appendChild(container);
-    }
-
-    var t = document.createElement('div');
-    var isErr = toastType === 'error';
-    var isInfo = toastType === 'info';
-    var bg = isErr ? '#2c080a' : (isInfo ? '#0d2d4a' : '#0d2818');
-    var color = isErr ? '#ff7b72' : (isInfo ? '#58a6ff' : '#3fb950');
-    var border = isErr ? '#f85149' : (isInfo ? '#0088cc' : '#238636');
-
-    t.style.cssText = [
-      'background:' + bg + ';',
-      'color:' + color + ';',
-      'border:2px solid ' + border + ';',
-      'padding:0.65rem 1rem;',
-      'border-radius:10px;',
-      'font-family:monospace;',
-      'font-size:0.8rem;',
-      'font-weight:bold;',
-      'box-shadow:0 8px 24px rgba(0,0,0,0.8);',
-      'cursor:pointer;',
-      'user-select:none;',
-      'display:flex;',
-      'align-items:center;',
-      'justify-content:space-between;',
-      'gap:0.6rem;',
-      'word-break:break-word;',
-      'transform: translateY(-12px) scale(0.95);',
-      'opacity: 0;',
-      'transition: transform 0.24s cubic-bezier(0.34, 1.56, 0.64, 1), opacity 0.2s ease-out;'
-    ].join('\n');
-
-    t.title = 'Tap to copy message';
-    t.innerHTML = '<span>' + toastIcon + ' ' + msgText + '</span>';
-
-    t.onclick = function() {
-      if (navigator.clipboard && navigator.clipboard.writeText) {
-        navigator.clipboard.writeText(msgText);
+    static showToast(message, type, icon) {
+      var toastType = type || 'success';
+      var toastIcon = icon || '✨';
+      var msgText = String(message || '');
+  
+      if (typeof LunoPlaybackLogger !== 'undefined') {
+        if (toastType === 'error') LunoPlaybackLogger.error('Toast Error', msgText);
+        else if (toastType === 'info') LunoPlaybackLogger.boot('Toast Notice', msgText);
+        else LunoPlaybackLogger.patch('Toast Success', msgText);
       }
-      t.style.borderColor = '#00f2fe';
-    };
-
-    container.appendChild(t);
-
-    requestAnimationFrame(function() {
-      t.style.transform = 'translateY(0) scale(1)';
-      t.style.opacity = '1';
-    });
-
-    setTimeout(function() {
-      if (t.parentNode) {
-        t.style.transform = 'translateY(-10px) scale(0.92)';
-        t.style.opacity = '0';
-        setTimeout(function() { if (t.parentNode) t.remove(); }, 240);
+  
+      var container = document.getElementById('toast-box');
+      if (!container) {
+        container = document.createElement('div');
+        container.id = 'toast-box';
+        container.style.cssText = 'position:fixed; top:1rem; left:50%; transform:translateX(-50%); z-index:99999; display:flex; flex-direction:column; gap:0.5rem; max-width:92vw; width:max-content; pointer-events:auto;';
+        document.body.appendChild(container);
       }
-    }, isErr ? 8000 : (isInfo ? 3500 : 2200));
-  }
+  
+      var t = document.createElement('div');
+      var isErr = toastType === 'error';
+      var isInfo = toastType === 'info';
+      var bg = isErr ? '#2c080a' : (isInfo ? '#0d2d4a' : '#0d2818');
+      var color = isErr ? '#ff7b72' : (isInfo ? '#58a6ff' : '#3fb950');
+      var border = isErr ? '#f85149' : (isInfo ? '#0088cc' : '#238636');
+  
+      t.style.cssText = [
+        'background:' + bg + ';',
+        'color:' + color + ';',
+        'border:2px solid ' + border + ';',
+        'padding:0.75rem 1.2rem;',
+        'border-radius:10px;',
+        'font-family:monospace;',
+        'font-size:0.85rem;',
+        'font-weight:bold;',
+        'box-shadow:0 8px 24px rgba(0,0,0,0.9);',
+        'cursor:pointer;',
+        'user-select:none;',
+        'display:flex;',
+        'align-items:center;',
+        'justify-content:space-between;',
+        'gap:0.75rem;',
+        'word-break:break-word;',
+        'transform: translateY(-12px) scale(0.95);',
+        'opacity: 0;',
+        'transition: transform 0.24s cubic-bezier(0.34, 1.56, 0.64, 1), opacity 0.2s ease-out;'
+      ].join('\n');
+  
+      t.title = 'Tap to copy error message';
+      t.innerHTML = '<span>' + toastIcon + ' ' + msgText + '</span><span style="font-size:0.72rem; opacity:0.7; margin-left:0.5rem;">[Tap to Copy / Dismiss]</span>';
+  
+      t.onclick = function() {
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(msgText);
+        }
+        t.style.borderColor = '#00f2fe';
+        setTimeout(function() {
+          if (t.parentNode) t.remove();
+        }, 350);
+      };
+  
+      container.appendChild(t);
+  
+      requestAnimationFrame(function() {
+        t.style.transform = 'translateY(0) scale(1)';
+        t.style.opacity = '1';
+      });
+  
+      // Error toasts stay for 60 seconds; normal toasts stay for 3.5s
+      var dismissTimeout = isErr ? 60000 : (isInfo ? 3500 : 2200);
+  
+      setTimeout(function() {
+        if (t.parentNode) {
+          t.style.transform = 'translateY(-10px) scale(0.92)';
+          t.style.opacity = '0';
+          setTimeout(function() { if (t.parentNode) t.remove(); }, 240);
+        }
+      }, dismissTimeout);
+    }
 
   static async fetchCodebaseMetrics(projectOverride) {
     var proj = projectOverride || ClientApp.getTargetProject() || 'Luno';

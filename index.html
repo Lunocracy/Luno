@@ -42,13 +42,22 @@
     window.addEventListener('error', function(e) {
       var root = document.getElementById('app-root');
       if (root) {
-        root.innerHTML = '<div style="padding:1.5rem;background:#2c080a;color:#ff7b72;border:2px solid #f85149;border-radius:8px;font-family:monospace;margin:1rem;">' +
-          '<h3>❌ Browser Boot Exception</h3>' +
-          '<p><strong>Error:</strong> ' + e.message + '</p>' +
-          '<p><strong>File:</strong> ' + (e.filename || 'unknown') + ' (Line ' + e.lineno + ')</p>' +
-          '</div>';
+        var errBox = document.getElementById('luno-permanent-boot-error');
+        if (!errBox) {
+          errBox = document.createElement('div');
+          errBox.id = 'luno-permanent-boot-error';
+          errBox.style.cssText = 'position:fixed; top:10px; left:10px; right:10px; z-index:999999; padding:1.25rem; background:#2c080a; color:#ff7b72; border:2px solid #f85149; border-radius:8px; font-family:monospace; box-shadow:0 8px 32px rgba(0,0,0,0.9);';
+          document.body.appendChild(errBox);
+        }
+        errBox.innerHTML = '<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.5rem;">' +
+          '<strong style="font-size:1rem; color:#ff7b72;">❌ Browser Boot Exception</strong>' +
+          '<button onclick="this.parentNode.parentNode.remove()" style="background:#161b22; color:#c9d1d9; border:1px solid #30363d; border-radius:4px; padding:0.2rem 0.5rem; cursor:pointer;">✖ Close</button>' +
+          '</div>' +
+          '<p style="margin:0.2rem 0;"><strong>Error:</strong> ' + e.message + '</p>' +
+          '<p style="margin:0.2rem 0; font-size:0.8rem; color:#8b949e;"><strong>File:</strong> ' + (e.filename || 'unknown') + ' (Line ' + e.lineno + ')</p>';
       }
     });
+
     document.addEventListener("DOMContentLoaded", async function() {
       if (typeof LunoLoader !== "undefined") {
         await LunoLoader.loadApp("app-root");

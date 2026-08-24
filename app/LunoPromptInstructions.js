@@ -44,16 +44,20 @@ class LunoPromptInstructions {
   static getContainerDirectivesSpec() {
     var scr = 'scr' + 'ipt';
     return [
-      'HTML CONTAINER PROTOCOL DIRECTIVES:',
+      'HTML CONTAINER PROTOCOL DIRECTIVES & STRICT PATH RULES:',
+      '• STRICT PATH ANCHORING: Every data-file attribute MUST include the full path up',
+      '  to the workspace root (e.g. data-file="ProjectName/src/App.js", data-file="Luno/app/ClientApp.js",',
+      '  or data-file="Library/DomBasics.js"). Never write ambiguous bare relative paths like data-file="src/App.js".',
+      '',
       '• Full File Write / Replacement:',
-      '  <' + scr + ' data-file="path/to/file.js">',
+      '  <' + scr + ' data-file="ProjectName/path/to/file.js">',
       '  // Full file source code here...',
       '  </' + scr + '>',
       '',
       '• Surgical ES6 Class Method Patch (Updates ONLY that specific method):',
-      '  <' + scr + ' data-file="path/to/file.js" data-method="ClassName.methodName" data-action="patch">',
+      '  <' + scr + ' data-file="ProjectName/path/to/file.js" data-method="ClassName.methodName" data-action="patch">',
       '  methodName(args) {',
-      '    // Updated method code only...',
+      '    // Complete updated method code only...',
       '  }',
       '  </' + scr + '>',
       '',
@@ -63,7 +67,7 @@ class LunoPromptInstructions {
       '  return "Executed successfully";',
       '  </' + scr + '>',
       '',
-      '• Stylesheets (<style data-file="css/style.css">) and Templates (<template data-file="view.html">).'
+      '• Stylesheets (<style data-file="ProjectName/css/style.css">) and Templates (<template data-file="ProjectName/view.html">).'
     ].join('\n');
   }
 
@@ -85,7 +89,7 @@ class LunoPromptInstructions {
       'GOOGLE AI STUDIO & GEMINI STREAMING RULES:',
       '• Keep method replacements surgical and modular so they stream cleanly.',
       '• Always maintain exact HTML container attribute names (data-file, data-method, data-action).',
-      '• Avoid conversational text inside the code block; keep all conversation in the English wrapper.'
+      '• Never omit code inside surgical patches with comments like // ... keep complete methods.'
     ].join('\n');
   }
 
