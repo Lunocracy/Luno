@@ -1,10 +1,7 @@
 class LunoRuntimeStringifier {
-  constructor() {
-
-  }
+  constructor() {}
 
   static stringifyObject(obj, targetName) {
-
     if (obj === null || obj === undefined) return '// Object is null or undefined';
     const name = targetName || 'Object';
     let output = `// Runtime Stringification for: ${name}\n`;
@@ -31,10 +28,9 @@ class LunoRuntimeStringifier {
     } catch (e) {
       return output + `// Error stringifying object: ${e.message}`;
     }
-
   }
-  static mountUI(container) {
 
+  static mountUI(container) {
     if (!container || typeof document === 'undefined') return;
     container.innerHTML = '';
 
@@ -53,6 +49,7 @@ class LunoRuntimeStringifier {
       onchange: (e) => LunoRuntimeStringifier.inspectTarget(e.target.value, codeBox)
     },
       m('option', { value: 'ClientApp' }, 'ClientApp (Main Controller)'),
+      m('option', { value: 'ClientAppPaster' }, 'ClientAppPaster (Save Execution Loop)'),
       m('option', { value: 'OutboxQueue' }, 'OutboxQueue (Queue Manager)'),
       m('option', { value: 'LunoLinePatcher' }, 'LunoLinePatcher (Method Patch Engine)'),
       m('option', { value: 'LunoPayloadParser' }, 'LunoPayloadParser (HTML Container Parser)'),
@@ -68,7 +65,7 @@ class LunoRuntimeStringifier {
       style: { background: '#161b22', border: '2px solid #00f2fe', borderRadius: '10px', padding: '1rem', fontFamily: 'monospace', boxShadow: '0 4px 16px rgba(0,242,254,0.15)' }
     },
       m('h3', { style: { color: '#00f2fe', fontSize: '1.05rem', margin: '0 0 0.4rem 0', display: 'flex', alignItems: 'center', gap: '0.4rem' } }, '🔬 Live Memory Runtime Stringifier'),
-      m('p', { style: { fontSize: '0.78rem', color: '#8b949e', margin: '0 0 0.65rem 0' } }, 'Inspect live functions, prototypes, and properties directly out of runtime memory:'),
+      m('p', { style: { fontSize: '0.78rem', color: '#8b949e', margin: '0 0 0.65rem 0' } }, 'Inspect live functions, prototypes, and properties directly out of browser runtime memory:'),
       select,
       codeBox,
       m('div', { style: { display: 'flex', gap: '0.5rem' } },
@@ -80,7 +77,7 @@ class LunoRuntimeStringifier {
               if (typeof ClientApp !== 'undefined') ClientApp.showToast('Copied Runtime Source!', 'success', '📋');
             }
           }
-        }, '📋 Copy Stringified Source'),
+        }, '📋 Copy Source'),
         btnOutbox = m('button', {
           style: { flex: 1, padding: '0.6rem', background: '#271052', color: '#d2a8ff', border: '1px solid #8257e5', borderRadius: '6px', cursor: 'pointer', fontSize: '0.8rem', fontWeight: 'bold' },
           onclick: () => {
@@ -91,16 +88,15 @@ class LunoRuntimeStringifier {
               if (typeof ClientApp !== 'undefined') ClientApp.showToast(`Sent ${select.value} Runtime Dump to Outbox!`, 'success', '📤');
             }
           }
-        }, 'Outbox ➔ Queue Runtime Dump')
+        }, 'Outbox ➔ Queue Dump')
       )
     );
 
     container.appendChild(card);
     LunoRuntimeStringifier.inspectTarget('ClientApp', codeBox);
-
   }
-  static inspectTarget(targetName, codeBoxEl) {
 
+  static inspectTarget(targetName, codeBoxEl) {
     if (!codeBoxEl) return;
     const target = globalThis[targetName];
     if (target) {
@@ -108,7 +104,6 @@ class LunoRuntimeStringifier {
     } else {
       codeBoxEl.textContent = `// Target "${targetName}" not found in global scope.`;
     }
-
   }
 }
 

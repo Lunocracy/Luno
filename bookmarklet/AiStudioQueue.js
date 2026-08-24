@@ -1,12 +1,9 @@
 class AiStudioQueue {
-  constructor() {
-
-  }
+  constructor() {}
 
   static MAX_QUEUE_SIZE = 50;
 
   static computeFingerprint(text) {
-
     if (!text) return "";
     const trimmed = text.trim();
     const len = trimmed.length;
@@ -14,24 +11,21 @@ class AiStudioQueue {
     const head = trimmed.slice(0, 30).replace(/\s+/g, "");
     const tail = trimmed.slice(-30).replace(/\s+/g, "");
     return `fp_${lines}_${len}_${head}_${tail}`;
-
   }
-  static getRegistry() {
 
+  static getRegistry() {
     if (typeof globalThis === "undefined") return new Map();
     globalThis.__LUNO_BLOCK_REGISTRY__ = globalThis.__LUNO_BLOCK_REGISTRY__ || new Map();
     return globalThis.__LUNO_BLOCK_REGISTRY__;
-
   }
-  static getQueue() {
 
+  static getQueue() {
     if (typeof globalThis === "undefined") return [];
     globalThis.__LUNO_AI_STUDIO_QUEUE__ = globalThis.__LUNO_AI_STUDIO_QUEUE__ || [];
     return globalThis.__LUNO_AI_STUDIO_QUEUE__;
-
   }
-  static push(blockItem) {
 
+  static push(blockItem) {
     if (!blockItem || typeof blockItem !== "object") return null;
     const queue = AiStudioQueue.getQueue();
     const registry = AiStudioQueue.getRegistry();
@@ -43,7 +37,7 @@ class AiStudioQueue {
     if (isRequest) {
       blockItem.isContextRequest = true;
       if (blockItem.classification) {
-        blockItem.classification.badgeLabel = "🧠 LLM Context Request";
+        blockItem.classification.badgeLabel = "🧠 Context Request";
         blockItem.classification.badgeColor = "#a371f7";
       }
     }
@@ -67,10 +61,9 @@ class AiStudioQueue {
 
     registry.set(fingerprint, blockItem);
     return blockItem;
-
   }
-  static markApplied(fingerprint) {
 
+  static markApplied(fingerprint) {
     if (!fingerprint) return;
     const registry = AiStudioQueue.getRegistry();
     const queue = AiStudioQueue.getQueue();
@@ -85,19 +78,17 @@ class AiStudioQueue {
         queue[i].isApplied = true;
       }
     }
-
   }
-  static clear() {
 
+  static clear() {
     if (typeof globalThis === "undefined") return;
     globalThis.__LUNO_AI_STUDIO_QUEUE__ = [];
     if (globalThis.__LUNO_BLOCK_REGISTRY__) {
       globalThis.__LUNO_BLOCK_REGISTRY__.clear();
     }
-
   }
-  static setupQueueListener() {
 
+  static setupQueueListener() {
     if (typeof globalThis === "undefined" || globalThis.__LUNO_QUEUE_LISTENER_ACTIVE__) return;
     globalThis.__LUNO_QUEUE_LISTENER_ACTIVE__ = true;
 
@@ -126,7 +117,6 @@ class AiStudioQueue {
         }
       });
     }
-
   }
 }
 

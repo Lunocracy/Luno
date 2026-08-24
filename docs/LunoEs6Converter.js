@@ -1,7 +1,5 @@
 class LunoEs6Converter {
-  constructor() {
-
-  }
+  constructor() {}
 
   static activeSource = '';
   static activeFilePath = '';
@@ -10,13 +8,12 @@ class LunoEs6Converter {
   static astDiagnostics = null;
   static activeBatch = 3;
   static BATCHES = {
-  1: ['test/sample_legacy_class.js', 'app/ClientAppPaster.js', 'app/LunoLinePatcher.js'],
-  2: ['app/LunoLinearParser.js', 'app/LunoPayloadParser.js', 'browser/DiskBrowser.js'],
-  3: ['app/ClientApp.js', 'app/ClientAppUI.js', 'core/LunoClassPatcher.js']
-};
+    1: ['test/sample_legacy_class.js', 'app/ClientAppPaster.js', 'app/LunoLinePatcher.js'],
+    2: ['app/LunoLinearParser.js', 'app/LunoPayloadParser.js', 'browser/DiskBrowser.js'],
+    3: ['app/ClientApp.js', 'app/ClientAppUI.js', 'core/LunoClassPatcher.js']
+  };
 
   static mountUI(container) {
-
     if (!container || typeof document === 'undefined') return;
     container.innerHTML = '';
 
@@ -32,7 +29,8 @@ class LunoEs6Converter {
           return el;
         };
 
-    // Header & Step Progress Bar
+    var currentTarget = (typeof ClientApp !== 'undefined' && ClientApp.getTargetProject) ? ClientApp.getTargetProject() : 'Luno';
+
     var header = m('div', {
       style: {
         background: '#161b22',
@@ -46,26 +44,18 @@ class LunoEs6Converter {
     },
       m('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.4rem', flexWrap: 'wrap', gap: '0.4rem' } },
         m('h2', { style: { color: '#00f2fe', fontSize: '1.15rem', margin: 0, display: 'flex', alignItems: 'center', gap: '0.4rem' } }, '🔄 Prototype ➔ ES6 Class Converter Engine'),
-        m('span', { style: { fontSize: '0.72rem', color: '#3fb950', background: '#0d2818', border: '1px solid #238636', padding: '0.2rem 0.6rem', borderRadius: '12px', fontWeight: 'bold' } }, 'Node.js & Browser Export Support Active')
+        m('span', { style: { fontSize: '0.72rem', color: '#3fb950', background: '#0d2818', border: '1px solid #238636', padding: '0.2rem 0.6rem', borderRadius: '12px', fontWeight: 'bold' } }, 'Target: ' + currentTarget)
       ),
       m('p', { style: { fontSize: '0.78rem', color: '#8b949e', margin: 0, lineHeight: '1.4' } },
         'Convert legacy function prototype assignments into clean ES6 class syntax with Smart Method Comments and 1-tap Outbox batch generation.'
-      ),
-      m('div', { style: { display: 'flex', gap: '0.35rem', marginTop: '0.65rem', flexWrap: 'wrap' } },
-        m('span', { style: { fontSize: '0.7rem', padding: '0.2rem 0.5rem', background: '#238636', color: '#fff', borderRadius: '4px', fontWeight: 'bold' } }, '✓ Step 1: UI Harness'),
-        m('span', { style: { fontSize: '0.7rem', padding: '0.2rem 0.5rem', background: '#238636', color: '#fff', borderRadius: '4px', fontWeight: 'bold' } }, '✓ Step 2: AST Analysis'),
-        m('span', { style: { fontSize: '0.7rem', padding: '0.2rem 0.5rem', background: '#238636', color: '#fff', borderRadius: '4px', fontWeight: 'bold' } }, '✓ Step 3: Smart ES6 Comments'),
-        m('span', { style: { fontSize: '0.7rem', padding: '0.2rem 0.5rem', background: '#238636', color: '#fff', borderRadius: '4px', fontWeight: 'bold' } }, '✓ Step 4: Equivalence Suite'),
-        m('span', { style: { fontSize: '0.7rem', padding: '0.2rem 0.5rem', background: '#00f2fe', color: '#070a13', borderRadius: '4px', fontWeight: 'bold' } }, '⚡ Step 5: Batch Outbox Driver')
       )
     );
 
-    // File Picker / Controls Bar
     var pathInput = m('input', {
       id: 'es6-file-path-input',
       type: 'text',
-      value: LunoEs6Converter.activeFilePath || 'app/ClientApp.js',
-      placeholder: 'e.g. app/ClientApp.js or test/sample_legacy_class.js',
+      value: LunoEs6Converter.activeFilePath || 'Luno/app/ClientApp.js',
+      placeholder: 'e.g. Luno/app/ClientApp.js',
       style: { flex: 1, minWidth: '220px', background: '#0d1117', color: '#00f2fe', border: '1px solid #30363d', padding: '0.55rem', borderRadius: '6px', fontFamily: 'monospace', fontSize: '0.8rem', outline: 'none' }
     });
 
@@ -79,7 +69,7 @@ class LunoEs6Converter {
         }
         if (navigator.clipboard && navigator.clipboard.writeText) {
           navigator.clipboard.writeText(LunoEs6Converter.convertedPreview);
-          btnCopyClipboard.textContent = '✓ Copied to Clipboard!';
+          btnCopyClipboard.textContent = '✓ Copied!';
           if (typeof ClientApp !== 'undefined' && ClientApp.showToast) {
             ClientApp.showToast('Copied Converted ES6 Code to Clipboard!', 'success', '📋');
           }
@@ -89,14 +79,6 @@ class LunoEs6Converter {
         }
       }
     }, '📋 Copy ES6 Code');
-
-    var btnGuardedSave = m('button', {
-      style: { padding: '0.35rem 0.6rem', background: '#21262d', color: '#ff7b72', border: '1px solid #da3633', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold', fontSize: '0.7rem', fontFamily: 'monospace', marginLeft: 'auto' },
-      title: 'Advanced option: Write converted file to disk',
-      onclick: function() {
-        LunoEs6Converter.saveConvertedToDiskGuarded();
-      }
-    }, '⚠️ Save to Disk (Advanced)');
 
     var controlsBar = m('div', {
       style: { background: '#161b22', border: '1px solid #30363d', borderRadius: '8px', padding: '0.65rem', marginBottom: '0.75rem', display: 'flex', gap: '0.45rem', alignItems: 'center', flexWrap: 'wrap' }
@@ -111,13 +93,6 @@ class LunoEs6Converter {
         }
       }, '📂 Read File'),
       m('button', {
-        style: { padding: '0.55rem 0.85rem', background: '#271052', color: '#d2a8ff', border: '1px solid #8257e5', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold', fontSize: '0.78rem', fontFamily: 'monospace' },
-        onclick: function() {
-          pathInput.value = 'test/sample_legacy_class.js';
-          LunoEs6Converter.loadFile('test/sample_legacy_class.js', container);
-        }
-      }, '🧪 Load Legacy Sample'),
-      m('button', {
         style: { padding: '0.55rem 0.85rem', background: '#0d2d4a', color: '#58a6ff', border: '1px solid #0088cc', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold', fontSize: '0.78rem', fontFamily: 'monospace' },
         onclick: function() {
           LunoEs6Converter.executeStep2Analysis(container);
@@ -129,11 +104,9 @@ class LunoEs6Converter {
           LunoEs6Converter.executeStep3Transform(container);
         }
       }, '⚡ Transform ES6'),
-      btnCopyClipboard,
-      btnGuardedSave
+      btnCopyClipboard
     );
 
-    // View Layout
     var isFullscreen = LunoEs6Converter.viewMode === 'fullscreen';
 
     var btnToggleView = m('button', {
@@ -142,7 +115,7 @@ class LunoEs6Converter {
         LunoEs6Converter.viewMode = isFullscreen ? 'split' : 'fullscreen';
         LunoEs6Converter.mountUI(container);
       }
-    }, isFullscreen ? '↔️ Split View' : '🖥️ Fullscreen Preview View');
+    }, isFullscreen ? '↔️ Split View' : '🖥️ Fullscreen Preview');
 
     var viewHeader = m('div', {
       style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }
@@ -219,259 +192,20 @@ class LunoEs6Converter {
     );
     mainViewContainer.appendChild(rightCol);
 
-    // Bottom Automation & Batch Outbox Controller Panel
-    var batchPanel = LunoEs6Converter.renderBatchControllerPanel(m, container);
-
     container.appendChild(header);
     container.appendChild(controlsBar);
     container.appendChild(viewHeader);
     container.appendChild(mainViewContainer);
-    container.appendChild(batchPanel);
 
     if (!LunoEs6Converter.activeSource) {
-      LunoEs6Converter.loadFile('app/ClientApp.js', container);
+      LunoEs6Converter.loadFile('Luno/app/ClientApp.js', container);
     }
-
   }
-  static renderBatchControllerPanel(m, container) {
 
-    var bNum = LunoEs6Converter.activeBatch;
-    var currentTargets = LunoEs6Converter.BATCHES[bNum] || [];
-
-    var batchSelect = m('select', {
-      style: { background: '#0d1117', color: '#00f2fe', border: '1px solid #00f2fe', padding: '0.45rem 0.65rem', borderRadius: '6px', fontFamily: 'monospace', fontSize: '0.8rem', fontWeight: 'bold', cursor: 'pointer' },
-      onchange: function(e) {
-        LunoEs6Converter.activeBatch = parseInt(e.target.value, 10);
-        LunoEs6Converter.mountUI(container);
-      }
-    },
-      m('option', { value: 1, selected: bNum === 1 }, 'Batch 1: sample_legacy_class, ClientAppPaster, LunoLinePatcher'),
-      m('option', { value: 2, selected: bNum === 2 }, 'Batch 2: LunoLinearParser, LunoPayloadParser, DiskBrowser'),
-      m('option', { value: 3, selected: bNum === 3 }, 'Batch 3: ClientApp, ClientAppUI, LunoClassPatcher')
-    );
-
-    var targetRows = currentTargets.map(function(f) {
-      return m('div', {
-        style: { background: '#0d1117', border: '1px solid #21262d', borderRadius: '6px', padding: '0.45rem 0.65rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.78rem' }
-      },
-        m('span', { style: { color: '#f0f6fc', fontWeight: 'bold' } }, '📄 ' + f),
-        m('button', {
-          style: { padding: '0.2rem 0.5rem', background: '#161b22', color: '#00f2fe', border: '1px solid #00f2fe', borderRadius: '4px', cursor: 'pointer', fontSize: '0.7rem', fontWeight: 'bold' },
-          onclick: function() {
-            var input = document.getElementById('es6-file-path-input');
-            if (input) input.value = f;
-            LunoEs6Converter.loadFile(f, container);
-          }
-        }, 'Inspect In Memory ➔')
-      );
-    });
-
-    return m('div', {
-      style: {
-        background: '#161b22',
-        border: '2px solid #8257e5',
-        borderRadius: '10px',
-        padding: '1rem',
-        marginTop: '1rem',
-        boxShadow: '0 4px 16px rgba(130,87,229,0.2)',
-        display: 'flex',
-        flexDirection: 'column',
-        gap: '0.75rem',
-        fontFamily: 'monospace'
-      }
-    },
-      m('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.4rem' } },
-        m('strong', { style: { color: '#d2a8ff', fontSize: '0.95rem', display: 'flex', alignItems: 'center', gap: '0.4rem' } }, '🚀 3-File Batch Outbox Push & Sidecar Backup System'),
-        m('span', { style: { fontSize: '0.7rem', color: '#d2a8ff', background: '#271052', border: '1px solid #8257e5', padding: '0.15rem 0.5rem', borderRadius: '10px', fontWeight: 'bold' } }, 'Smart Method Comments')
-      ),
-      m('p', { style: { fontSize: '0.75rem', color: '#8b949e', margin: 0, lineHeight: '1.4' } },
-        'Converts 3 files at a time into ES6 classes with Smart Method Comments and pushes the converted package directly to Outbox.'
-      ),
-      m('div', { style: { display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap' } },
-        m('span', { style: { fontSize: '0.78rem', color: '#c9d1d9', fontWeight: 'bold' } }, 'Select Batch:'),
-        batchSelect
-      ),
-      m('div', { style: { display: 'flex', flexDirection: 'column', gap: '0.35rem' } }, ...targetRows),
-      m('div', { style: { display: 'flex', gap: '0.5rem', flexWrap: 'wrap', marginTop: '0.25rem' } },
-        m('button', {
-          style: { flex: 2, minWidth: '220px', padding: '0.7rem', background: '#271052', color: '#d2a8ff', border: '1px solid #8257e5', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer', fontSize: '0.85rem', fontFamily: 'monospace', boxShadow: '0 4px 12px rgba(130,87,229,0.3)' },
-          onclick: function() {
-            LunoEs6Converter.pushBatchConvertedToOutbox(currentTargets);
-          }
-        }, '📤 Push Converted Batch ' + bNum + ' to Outbox'),
-        m('button', {
-          style: { flex: 1, minWidth: '160px', padding: '0.7rem', background: '#8257e5', color: '#fff', border: 'none', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer', fontSize: '0.8rem', fontFamily: 'monospace' },
-          onclick: function() {
-            LunoEs6Converter.execute3FileBatchMigration(currentTargets, container);
-          }
-        }, '⚡ Write Batch to Disk (With `.oldschool.bak`)'),
-        m('button', {
-          style: { flex: 1, minWidth: '160px', padding: '0.7rem', background: '#161b22', color: '#ff7b72', border: '1px solid #da3633', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer', fontSize: '0.8rem', fontFamily: 'monospace' },
-          onclick: function() {
-            LunoEs6Converter.execute0ReloadRollback(currentTargets, container);
-          }
-        }, '↩️ Instant Restore Backups')
-      )
-    );
-
-  }
-  static async pushBatchConvertedToOutbox(fileList) {
-
-    if (!fileList || fileList.length === 0) return;
-
-    if (typeof LunoAcornLoader !== 'undefined' && LunoAcornLoader.ensureLoaded) {
-      try { await LunoAcornLoader.ensureLoaded(); } catch (e) {}
-    }
-
-    var closeScript = '</' + 'script>';
-    var bundledPayload = '\n\n';
-    var convertedCount = 0;
-
-    for (var i = 0; i < fileList.length; i++) {
-      var fPath = fileList[i];
-      try {
-        var res = await fetch('/api/fs/read?path=' + encodeURIComponent(fPath));
-        var data = await res.json();
-        if (res.ok && data && data.content) {
-          var convertedEs6 = LunoEs6Converter.transformToEs6Class(data.content);
-          bundledPayload += '<script data-file="' + fPath + '">\n' + convertedEs6 + '\n' + closeScript + '\n\n';
-          convertedCount++;
-        }
-      } catch (e) {}
-    }
-
-    if (typeof OutboxQueue !== 'undefined' && OutboxQueue.addBundle && convertedCount > 0) {
-      OutboxQueue.addBundle('Converted ES6 Batch (' + convertedCount + ' Files)', bundledPayload);
-      if (typeof ClientApp !== 'undefined' && ClientApp.showToast) {
-        ClientApp.showToast('Pushed Converted ES6 Batch (' + convertedCount + ' Files) to Outbox! Tap Copy Outbox Package above.', 'success', '📤');
-      }
-    }
-
-  }
-  static async execute3FileBatchMigration(fileList, container) {
-
-    if (!fileList || fileList.length === 0) return;
-
-    var confirmBatch = confirm('Convert 3 files to ES6 class syntax on disk?\n\nTargets:\n- ' + fileList.join('\n- ') + '\n\nSidecar backups (.oldschool.bak) will be created automatically before writing.');
-    if (!confirmBatch) return;
-
-    if (typeof LunoAcornLoader !== 'undefined' && LunoAcornLoader.ensureLoaded) {
-      try { await LunoAcornLoader.ensureLoaded(); } catch (e) {}
-    }
-
-    var scriptLines = [
-      'const fs = require("fs");',
-      'const path = require("path");',
-      'const root = LunoServer.getRootDir();',
-      'const targets = ' + JSON.stringify(fileList) + ';',
-      'let backedUp = 0;',
-      'for (const rel of targets) {',
-      '  const srcPath = path.join(root, rel);',
-      '  const bakPath = srcPath + ".oldschool.bak";',
-      '  if (fs.existsSync(srcPath) && !fs.existsSync(bakPath)) {',
-      '    fs.copyFileSync(srcPath, bakPath);',
-      '    backedUp++;',
-      '  }',
-      '}',
-      'return "Created " + backedUp + " sidecar backup(s) (.oldschool.bak)";'
-    ];
-
-    try {
-      var backupRes = await fetch('/api/save', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ files: [], serverScript: scriptLines.join('\n') })
-      });
-
-      var filesToWrite = [];
-      for (var i = 0; i < fileList.length; i++) {
-        var fPath = fileList[i];
-        var readRes = await fetch('/api/fs/read?path=' + encodeURIComponent(fPath));
-        var readData = await readRes.json();
-        if (readRes.ok && readData && readData.content) {
-          var cleanEs6Content = LunoEs6Converter.transformToEs6Class(readData.content);
-          filesToWrite.push({
-            filePath: fPath,
-            action: 'write',
-            content: cleanEs6Content
-          });
-        }
-      }
-
-      var saveRes = await fetch('/api/save', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ files: filesToWrite, serverScript: '' })
-      });
-      var saveData = await saveRes.json();
-
-      if (saveRes.ok && saveData.success) {
-        if (typeof ClientApp !== 'undefined' && ClientApp.showToast) {
-          ClientApp.showToast('Converted 3 files to ES6 class syntax on disk!', 'success', '⚡');
-        }
-        LunoEs6Converter.convertedPreview = '// ============================================================================\n' +
-          '// ⚡ 3-FILE BATCH CONVERSION COMPLETE\n' +
-          '// Updated Files:\n// - ' + fileList.join('\n// - ') + '\n' +
-          '// Backup Notice: Sidecar backups (.oldschool.bak) created.\n' +
-          '// ============================================================================';
-
-        if (container) {
-          var previewEl = document.getElementById('es6-converter-preview-text');
-          if (previewEl) previewEl.textContent = LunoEs6Converter.convertedPreview;
-        }
-      } else {
-        alert('Batch Save Error: ' + (saveData.error || 'Server error'));
-      }
-    } catch (err) {
-      alert('Batch Migration Network Error: ' + err.message);
-    }
-
-  }
-  static async execute0ReloadRollback(fileList, container) {
-
-    if (!fileList || fileList.length === 0) return;
-
-    var scriptLines = [
-      'const fs = require("fs");',
-      'const path = require("path");',
-      'const root = LunoServer.getRootDir();',
-      'const targets = ' + JSON.stringify(fileList) + ';',
-      'let restored = 0;',
-      'for (const rel of targets) {',
-      '  const srcPath = path.join(root, rel);',
-      '  const bakPath = srcPath + ".oldschool.bak";',
-      '  if (fs.existsSync(bakPath)) {',
-      '    fs.copyFileSync(bakPath, srcPath);',
-      '    restored++;',
-      '  }',
-      '}',
-      'return "Restored " + restored + " file(s) from .oldschool.bak backups!";'
-    ];
-
-    try {
-      var res = await fetch('/api/save', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ files: [], serverScript: scriptLines.join('\n') })
-      });
-      var data = await res.json();
-      if (res.ok && data.success) {
-        if (typeof ClientApp !== 'undefined' && ClientApp.showToast) {
-          ClientApp.showToast('Restored files from .oldschool.bak backups!', 'success', '↩️');
-        }
-        if (fileList.length > 0) {
-          LunoEs6Converter.loadFile(fileList[0], container);
-        }
-      }
-    } catch (err) {
-      alert('Rollback Error: ' + err.message);
-    }
-
-  }
   static async loadFile(filePath, container) {
-
     try {
-      var res = await fetch('/api/fs/read?path=' + encodeURIComponent(filePath));
+      var targetProj = (typeof ClientApp !== 'undefined' && ClientApp.getTargetProject) ? ClientApp.getTargetProject() : 'Luno';
+      var res = await fetch('/api/fs/read?path=' + encodeURIComponent(filePath) + '&project=' + encodeURIComponent(targetProj));
       var data = await res.json();
       if (res.ok && data && data.content) {
         LunoEs6Converter.activeFilePath = filePath;
@@ -487,10 +221,9 @@ class LunoEs6Converter {
         ClientApp.showToast('File read error: ' + err.message, 'error', '❌');
       }
     }
-
   }
-  static analyzeAST(sourceCode) {
 
+  static analyzeAST(sourceCode) {
     var acornObj = globalThis.acorn;
     if (!acornObj && typeof require !== 'undefined') {
       try { acornObj = require('acorn'); } catch (e) {}
@@ -654,19 +387,13 @@ class LunoEs6Converter {
             }
           }
         }
-      } else if (node.type === 'IfStatement') {
-        var stmtCode = sourceCode.slice(node.range[0], node.range[1]).trim();
-        if (stmtCode.includes('window.') || stmtCode.includes('module.exports')) {
-          diagnostics.exports.push({ target: stmtCode, loc: { start: lineStart, end: lineEnd } });
-        }
       }
     }
 
     return diagnostics;
-
   }
-  static formatMethodBodyWithRelativeIndent(sourceCode, bodyRange, baseIndent) {
 
+  static formatMethodBodyWithRelativeIndent(sourceCode, bodyRange, baseIndent) {
     if (!bodyRange) return [];
     var rawBody = sourceCode.slice(bodyRange[0] + 1, bodyRange[1] - 1);
     var lines = rawBody.split('\n');
@@ -693,10 +420,9 @@ class LunoEs6Converter {
     });
 
     return formattedLines;
-
   }
-  static generateMethodSmartComment(name, params, isAsync, isStatic) {
 
+  static generateMethodSmartComment(name, params, isAsync, isStatic) {
     var typeStr = isStatic ? 'Static Method' : 'Instance Method';
     var modifierStr = isAsync ? 'async' : 'sync';
     var paramStr = params.length > 0 ? params.join(', ') : 'none';
@@ -709,10 +435,9 @@ class LunoEs6Converter {
       '   * - Parameters: ' + paramStr,
       '   */'
     ].join('\n');
-
   }
-  static transformToEs6Class(sourceCode) {
 
+  static transformToEs6Class(sourceCode) {
     var diag = LunoEs6Converter.analyzeAST(sourceCode);
     if (diag.error) {
       return '// ❌ Cannot convert file due to AST parse error:\n// ' + diag.error;
@@ -721,16 +446,8 @@ class LunoEs6Converter {
     var className = diag.className || 'AppClass';
     var lines = [];
 
-    lines.push('// ============================================================================');
-    lines.push('// ⚡ CONVERTED ES6 CLASS SYNTAX (STEP 3 SYNTHESIS)');
-    lines.push('// Source File: ' + (LunoEs6Converter.activeFilePath || 'In-Memory Snippet'));
-    lines.push('// Converted At: ' + new Date().toLocaleString());
-    lines.push('// ============================================================================');
-    lines.push('');
-
     lines.push('class ' + className + ' {');
 
-    // 1. Constructor
     var cParams = diag.constructorParams.join(', ');
     lines.push('  /**');
     lines.push('   * ⚙️ CONSTRUCTOR: ' + className + '(' + cParams + ')');
@@ -742,7 +459,6 @@ class LunoEs6Converter {
     }
     lines.push('  }');
 
-    // 2. Static Properties
     if (diag.staticProps.length > 0) {
       lines.push('');
       lines.push('  // Static Properties');
@@ -751,7 +467,6 @@ class LunoEs6Converter {
       });
     }
 
-    // 3. Static Methods
     if (diag.staticMethods.length > 0) {
       lines.push('');
       lines.push('  // Static Methods');
@@ -767,7 +482,6 @@ class LunoEs6Converter {
       });
     }
 
-    // 4. Instance Prototype Methods
     if (diag.protoMethods.length > 0) {
       lines.push('');
       lines.push('  // Instance Methods');
@@ -785,17 +499,13 @@ class LunoEs6Converter {
 
     lines.push('}');
     lines.push('');
-
-    // 5. Clean Global & CommonJS Export Binding
     lines.push('globalThis.' + className + ' = ' + className + ';');
     lines.push('if (typeof module !== "undefined" && module.exports) module.exports = ' + className + ';');
-    lines.push('');
 
     return lines.join('\n');
-
   }
-  static async executeStep2Analysis(container) {
 
+  static async executeStep2Analysis(container) {
     if (!LunoEs6Converter.activeSource) return;
 
     if (typeof LunoAcornLoader !== 'undefined' && LunoAcornLoader.ensureLoaded) {
@@ -807,9 +517,8 @@ class LunoEs6Converter {
 
     var report = [
       '// ============================================================================',
-      '// 🔍 ES6 CONVERTER AST DIAGNOSTIC REPORT (STEP 2)',
+      '// 🔍 ES6 CONVERTER AST DIAGNOSTIC REPORT',
       '// Target File: ' + (LunoEs6Converter.activeFilePath || 'In-Memory Snippet'),
-      '// Analyzed At: ' + new Date().toLocaleString(),
       '// Acorn AST Status: ' + (diag.error ? '❌ ' + diag.error : '✅ Parse Successful'),
       '// ============================================================================',
       ''
@@ -822,24 +531,14 @@ class LunoEs6Converter {
       report.push('• Primary Class Name: ' + (diag.className || 'UnknownClass'));
       report.push('• Constructor Parameters: (' + (diag.constructorParams.join(', ') || '') + ')');
       report.push('');
-
       report.push('[STATIC PROPERTIES (' + diag.staticProps.length + ')]');
-      diag.staticProps.forEach(function(sp) {
-        report.push('• ' + sp.className + '.' + sp.propName + ' = ' + sp.value);
-      });
+      diag.staticProps.forEach(sp => report.push('• ' + sp.className + '.' + sp.propName + ' = ' + sp.value));
       report.push('');
-
       report.push('[STATIC METHODS (' + diag.staticMethods.length + ')]');
-      diag.staticMethods.forEach(function(sm) {
-        report.push('• ' + (sm.isAsync ? 'async ' : '') + sm.className + '.' + sm.methodName + '(' + sm.params.join(', ') + ')');
-      });
+      diag.staticMethods.forEach(sm => report.push('• ' + (sm.isAsync ? 'async ' : '') + sm.className + '.' + sm.methodName + '(' + sm.params.join(', ') + ')'));
       report.push('');
-
-      report.push('[PROTOTYPE INSTANCE METHODS (' + diag.protoMethods.length + ')]');
-      diag.protoMethods.forEach(function(pm) {
-        report.push('• ' + (pm.isAsync ? 'async ' : '') + pm.className + '.prototype.' + pm.methodName + '(' + pm.params.join(', ') + ')');
-      });
-      report.push('');
+      report.push('[PROTOTYPE METHODS (' + diag.protoMethods.length + ')]');
+      diag.protoMethods.forEach(pm => report.push('• ' + (pm.isAsync ? 'async ' : '') + pm.className + '.prototype.' + pm.methodName + '(' + pm.params.join(', ') + ')'));
     }
 
     LunoEs6Converter.convertedPreview = report.join('\n');
@@ -848,10 +547,9 @@ class LunoEs6Converter {
       var previewEl = document.getElementById('es6-converter-preview-text');
       if (previewEl) previewEl.textContent = LunoEs6Converter.convertedPreview;
     }
-
   }
-  static async executeStep3Transform(container) {
 
+  static async executeStep3Transform(container) {
     if (!LunoEs6Converter.activeSource) return;
 
     if (typeof LunoAcornLoader !== 'undefined' && LunoAcornLoader.ensureLoaded) {
@@ -870,7 +568,6 @@ class LunoEs6Converter {
     if (typeof ClientApp !== 'undefined' && ClientApp.showToast) {
       ClientApp.showToast('Synthesized ES6 Class Syntax!', 'success', '⚡');
     }
-
   }
 }
 

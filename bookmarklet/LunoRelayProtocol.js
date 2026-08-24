@@ -1,7 +1,5 @@
 class LunoRelayProtocol {
-  constructor() {
-
-  }
+  constructor() {}
 
   static TARGET_DOMAIN = "aistudio.google.com";
   static MSG_TYPES = {
@@ -13,11 +11,11 @@ class LunoRelayProtocol {
     CODE_DISCOVERED: "LUNO_CODE_DISCOVERED",
     QUEUE_RESPONSE: "LUNO_QUEUE_RESPONSE",
     SEND_INBOX: "LUNO_SEND_INBOX",
-    OUTBOX_NOTIFY: "LUNO_OUTBOX_NOTIFY"
+    OUTBOX_NOTIFY: "LUNO_OUTBOX_NOTIFY",
+    BLOCK_APPLIED: "LUNO_BLOCK_APPLIED"
   };
 
   static createEnvelope(type, payload, targetDomain) {
-
     var tgt = targetDomain || LunoRelayProtocol.TARGET_DOMAIN;
     var p = payload || {};
     return {
@@ -27,10 +25,9 @@ class LunoRelayProtocol {
       timeString: new Date().toLocaleTimeString(),
       payload: p
     };
-
   }
-  static createCodeBlockSchema(id, rawText, options) {
 
+  static createCodeBlockSchema(id, rawText, options) {
     var opts = options || {};
     var text = rawText || "";
     var lines = text ? text.split(/\r?\n/).length : 0;
@@ -44,10 +41,9 @@ class LunoRelayProtocol {
       elementIndex: opts.elementIndex || 0,
       timestamp: new Date().toISOString()
     };
-
   }
-  static verifyConnection(targetWindow) {
 
+  static verifyConnection(targetWindow) {
     if (!targetWindow || typeof targetWindow.postMessage !== "function") return false;
     try {
       var pingEnv = LunoRelayProtocol.createEnvelope(LunoRelayProtocol.MSG_TYPES.PING, { status: "checking" });
@@ -56,10 +52,9 @@ class LunoRelayProtocol {
     } catch (e) {
       return false;
     }
-
   }
-  static parseMessageData(data) {
 
+  static parseMessageData(data) {
     if (!data || typeof data !== "object") return null;
     if (data.type && typeof data.type === "string" && data.type.startsWith("LUNO_")) {
       return {
@@ -70,7 +65,6 @@ class LunoRelayProtocol {
       };
     }
     return null;
-
   }
 }
 

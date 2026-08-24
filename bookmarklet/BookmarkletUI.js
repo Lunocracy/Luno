@@ -1,10 +1,7 @@
 class BookmarkletUI {
-  constructor() {
-
-  }
+  constructor() {}
 
   static makeElement(tag, attrs) {
-
     var el = document.createElement(tag || "div");
     if (attrs && typeof attrs === "object") {
       for (var key in attrs) {
@@ -51,35 +48,34 @@ class BookmarkletUI {
       }
     }
     return el;
-
   }
-  static renderWorkshop(container, appInstance) {
 
+  static renderWorkshop(container, appInstance) {
     if (!container) return;
     container.innerHTML = "";
     var m = BookmarkletUI.makeElement;
 
     var header = m("div", { style: { marginBottom: "0.75rem", borderBottom: "1px solid #30363d", paddingBottom: "0.5rem" } },
       m("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center" } },
-        m("h1", { style: { margin: "0", fontSize: "1.4rem", color: "#00f2fe", fontFamily: "monospace" } }, "Bookmarklet Workshop"),
-        m("span", { style: { fontSize: "0.7rem", color: "#3fb950", background: "#0d2818", border: "1px solid #238636", padding: "0.2rem 0.5rem", borderRadius: "10px", fontWeight: "bold" } }, "[RELAY TERMINAL v1.0.5 - ACTIVE]")
+        m("h1", { style: { margin: "0", fontSize: "1.3rem", color: "#00f2fe", fontFamily: "monospace" } }, "🤖 AI Studio Bookmarklet Workshop"),
+        m("span", { style: { fontSize: "0.7rem", color: "#3fb950", background: "#0d2818", border: "1px solid #238636", padding: "0.2rem 0.5rem", borderRadius: "10px", fontWeight: "bold" } }, "Active Relay")
       )
     );
 
     var btnScan = m("button", {
-      style: { padding: "0.35rem 0.55rem", background: "#21262d", color: "#00f2fe", border: "1px solid #00f2fe", borderRadius: "4px", fontSize: "0.72rem", fontWeight: "bold", cursor: "pointer", fontFamily: "monospace" },
+      style: { padding: "0.35rem 0.65rem", background: "#21262d", color: "#00f2fe", border: "1px solid #00f2fe", borderRadius: "4px", fontSize: "0.72rem", fontWeight: "bold", cursor: "pointer", fontFamily: "monospace" },
       onclick: function() { if (appInstance) appInstance.requestTargetScan(); }
-    }, "Scan AI Studio");
+    }, "🔍 Scan AI Studio");
 
     var btnGetQueue = m("button", {
-      style: { padding: "0.35rem 0.55rem", background: "#271052", color: "#d2a8ff", border: "1px solid #8257e5", borderRadius: "4px", fontSize: "0.72rem", fontWeight: "bold", cursor: "pointer", fontFamily: "monospace" },
+      style: { padding: "0.35rem 0.65rem", background: "#271052", color: "#d2a8ff", border: "1px solid #8257e5", borderRadius: "4px", fontSize: "0.72rem", fontWeight: "bold", cursor: "pointer", fontFamily: "monospace" },
       onclick: function() { if (appInstance) appInstance.requestTargetQueue(); }
-    }, "Request Queue");
+    }, "📥 Request Queue");
 
     var btnClearQueue = m("button", {
-      style: { padding: "0.35rem 0.55rem", background: "#161b22", color: "#ff7b72", border: "1px solid #da3633", borderRadius: "4px", fontSize: "0.72rem", fontWeight: "bold", cursor: "pointer", fontFamily: "monospace" },
+      style: { padding: "0.35rem 0.65rem", background: "#161b22", color: "#ff7b72", border: "1px solid #da3633", borderRadius: "4px", fontSize: "0.72rem", fontWeight: "bold", cursor: "pointer", fontFamily: "monospace" },
       onclick: function() { if (appInstance) appInstance.clearTargetQueue(); }
-    }, "Clear Queue");
+    }, "🧹 Clear Queue");
 
     var driverRow = m("div", { style: { display: "flex", gap: "0.4rem", marginBottom: "0.5rem", flexWrap: "wrap" } },
       btnScan,
@@ -90,12 +86,12 @@ class BookmarkletUI {
     var queueInspectorBox = m("div", {
       id: "relay-queue-inspector-box",
       style: {
-        maxHeight: "100px",
+        maxHeight: "110px",
         overflowY: "auto",
         background: "#070a13",
         border: "1px solid #30363d",
         borderRadius: "6px",
-        padding: "0.4rem",
+        padding: "0.45rem",
         color: "#8b949e",
         fontSize: "0.72rem",
         fontFamily: "monospace",
@@ -117,7 +113,7 @@ class BookmarkletUI {
       }
     },
       m("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center" } },
-        m("strong", { style: { color: "#d2a8ff", fontSize: "0.85rem" } }, "Host Message Relay & Remote Query Driver"),
+        m("strong", { style: { color: "#d2a8ff", fontSize: "0.85rem" } }, "Host Message Relay & Remote Driver"),
         m("span", {
           id: "relay-status-badge",
           style: {
@@ -148,47 +144,7 @@ class BookmarkletUI {
           wordBreak: "break-all",
           fontFamily: "monospace"
         }
-      }, "Waiting for incoming target page messages..."),
-      m("div", { style: { display: "flex", gap: "0.4rem" } },
-        m("input", {
-          id: "relay-host-reply-in",
-          type: "text",
-          placeholder: "Type reply back to AI Studio page...",
-          style: {
-            flex: "1",
-            background: "#070a13",
-            border: "1px solid #30363d",
-            color: "#00f2fe",
-            padding: "0.35rem 0.5rem",
-            borderRadius: "4px",
-            fontSize: "0.75rem",
-            fontFamily: "monospace",
-            outline: "none"
-          }
-        }),
-        m("button", {
-          style: {
-            padding: "0.35rem 0.65rem",
-            background: "#8257e5",
-            color: "#fff",
-            border: "none",
-            borderRadius: "4px",
-            fontSize: "0.75rem",
-            fontWeight: "bold",
-            cursor: "pointer",
-            fontFamily: "monospace"
-          },
-          onclick: function() {
-            var input = document.getElementById("relay-host-reply-in");
-            var val = input ? input.value.trim() : "";
-            if (!val) return;
-            if (appInstance && typeof appInstance.sendHostMessageToTarget === "function") {
-              appInstance.sendHostMessageToTarget(val);
-            }
-            if (input) input.value = "";
-          }
-        }, "Send Reply")
-      )
+      }, "Waiting for incoming target page messages...")
     );
 
     var metricsBadge = m("div", {
@@ -203,7 +159,7 @@ class BookmarkletUI {
         padding: "0.4rem 0.6rem",
         borderRadius: "6px"
       }
-    }, "Metrics: Select or generate a bookmarklet...");
+    }, "Metrics: Ready");
 
     var presets = typeof BookmarkletPresets !== "undefined" ? BookmarkletPresets.getPresets() : [];
     var presetOptions = presets.map(function(p) {
@@ -214,7 +170,7 @@ class BookmarkletUI {
       id: "bookmarklet-source",
       style: {
         width: "100%",
-        minHeight: "200px",
+        minHeight: "180px",
         resize: "vertical",
         padding: "0.75rem",
         border: "1px solid #30363d",
@@ -238,10 +194,10 @@ class BookmarkletUI {
       var rawChars = src.length;
       var encChars = encoded.length;
 
-      var isSafe = encChars < 2000;
+      var isSafe = encChars < 2500;
       metricsBadge.style.borderColor = isSafe ? "#238636" : "#da3633";
       metricsBadge.style.color = isSafe ? "#7ee787" : "#ff7b72";
-      metricsBadge.textContent = "Metrics: " + lines + " lines | " + rawChars + " raw chars | Encoded: " + encChars + " chars " + (isSafe ? "(Safe < 2000)" : "(Warning > 2000)");
+      metricsBadge.textContent = "Metrics: " + lines + " lines | " + rawChars + " chars | Encoded: " + encChars + " chars " + (isSafe ? "(Safe Bookmarklet Length)" : "(Large)");
     }
 
     sourceArea.oninput = function() {
@@ -249,64 +205,10 @@ class BookmarkletUI {
       updateMetrics();
     };
 
-    var presetSelect = m("select", {
-      id: "preset-dropdown-select",
-      style: {
-        width: "100%",
-        background: "#0d1117",
-        color: "#00f2fe",
-        border: "1px solid #00f2fe",
-        padding: "0.6rem 0.8rem",
-        borderRadius: "8px",
-        fontSize: "0.85rem",
-        fontFamily: "monospace",
-        fontWeight: "bold",
-        cursor: "pointer",
-        marginBottom: "0.75rem",
-        outline: "none"
-      },
-      onchange: function(e) {
-        var selectedId = e.target.value;
-        var targetPreset = presets.find(function(p) { return p.id === selectedId; });
-        if (targetPreset) {
-          appInstance.loadPreset(targetPreset);
-          updateMetrics();
-        }
-      }
-    }, presetOptions);
-
-    var btnGenerate = m("button", {
-      style: { padding: "0.6rem 0.9rem", background: "#8257e5", color: "#fff", border: "none", borderRadius: "6px", fontWeight: "bold", cursor: "pointer", fontFamily: "monospace", fontSize: "0.8rem" },
-      onclick: function() { appInstance.generate(); updateMetrics(); }
-    }, "Generate Bookmarklet");
-
     var btnCopyBookmarklet = m("button", {
       style: { padding: "0.6rem 0.9rem", background: "#238636", color: "#fff", border: "none", borderRadius: "6px", fontWeight: "bold", cursor: "pointer", fontFamily: "monospace", fontSize: "0.8rem" },
       onclick: function(e) { appInstance.copyBookmarklet(e.target); }
-    }, "Copy Bookmarklet");
-
-    var buttonRow = m("div", { style: { display: "flex", gap: "0.5rem", flexWrap: "wrap", margin: "0.75rem 0" } },
-      btnGenerate,
-      btnCopyBookmarklet
-    );
-
-    var bookmarkletLink = m("a", {
-      id: "bookmarklet-link",
-      href: "#",
-      style: {
-        display: "inline-block",
-        color: "#00f2fe",
-        fontWeight: "bold",
-        textDecoration: "none",
-        padding: "0.5rem 0.8rem",
-        borderRadius: "6px",
-        background: "#0d2d4a",
-        border: "1px solid #58a6ff66",
-        wordBreak: "break-all",
-        fontFamily: "monospace",
-        fontSize: "0.8rem"
-      }
-    }, "Run Bookmarklet");
+    }, "📋 Copy Bookmarklet URL");
 
     var encodedOutput = m("textarea", {
       id: "bookmarklet-encoded",
@@ -314,7 +216,7 @@ class BookmarkletUI {
       style: {
         marginTop: "0.5rem",
         width: "100%",
-        minHeight: "80px",
+        minHeight: "75px",
         background: "#070a13",
         color: "#8b949e",
         border: "1px solid #30363d",
@@ -335,22 +237,18 @@ class BookmarkletUI {
         background: "#161b22"
       }
     },
-      m("label", { style: { display: "block", marginBottom: "0.3rem", color: "#8b949e", fontSize: "0.75rem", fontWeight: "bold" } }, "Generated Bookmarklet Link:"),
-      bookmarkletLink,
-      m("label", { style: { display: "block", marginTop: "0.75rem", marginBottom: "0.2rem", color: "#8b949e", fontSize: "0.75rem", fontWeight: "bold" } }, "Bookmarklet Output & Length:"),
+      m("label", { style: { display: "block", marginBottom: "0.3rem", color: "#8b949e", fontSize: "0.75rem", fontWeight: "bold" } }, "Encoded javascript: Bookmarklet Output:"),
       encodedOutput
     );
 
     container.appendChild(header);
     container.appendChild(relayTerminalCard);
     container.appendChild(metricsBadge);
-    container.appendChild(presetSelect);
     container.appendChild(sourceArea);
-    container.appendChild(buttonRow);
+    container.appendChild(m("div", { style: { margin: "0.6rem 0" } }, btnCopyBookmarklet));
     container.appendChild(resultBox);
 
     setTimeout(updateMetrics, 100);
-
   }
 }
 

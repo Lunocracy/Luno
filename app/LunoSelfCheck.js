@@ -1,10 +1,7 @@
 class LunoSelfCheck {
-  constructor() {
-
-  }
+  constructor() {}
 
   static verifyContainers(codeText = '') {
-
     if (!codeText || typeof codeText !== 'string') return { valid: false, error: 'Payload is empty.' };
     const tagRegex = /<(script|style|template|svg)\b([^>]*)>([\s\S]*?)<\/\1>/gi;
     const matches = [];
@@ -13,13 +10,12 @@ class LunoSelfCheck {
       matches.push(match[1]);
     }
     if (matches.length === 0) {
-      return { valid: false, error: 'Missing HTML container tag. Example required: <script data-file="path/to/file.js">' };
+      return { valid: false, error: 'Missing HTML container tag. Example: <script data-file="path/to/file.js">' };
     }
     return { valid: true, count: matches.length, containers: matches };
-
   }
-  static isStrictFilePath(headerText) {
 
+  static isStrictFilePath(headerText) {
     if (!headerText || typeof headerText !== 'string') return false;
     const h = headerText.trim();
     if (!h) return false;
@@ -46,14 +42,12 @@ class LunoSelfCheck {
       return false;
     }
 
-    // Strict File Path check: must not contain spaces, must follow valid path format with extension
     if (/\s/.test(h)) return false;
 
     return /^[a-zA-Z0-9_@\-\/\.]+\.[a-zA-Z0-9_-]+$/.test(h) || /^[a-zA-Z0-9_@\-\/]+\/[a-zA-Z0-9_@\-\/\.]+$/.test(h);
-
   }
-  static async runPostPatchCheck() {
 
+  static async runPostPatchCheck() {
     try {
       const res = await fetch('/api/ping');
       const data = await res.json();
@@ -61,7 +55,6 @@ class LunoSelfCheck {
     } catch (err) {
       return { healthy: false, error: 'Server ping failed: ' + err.message };
     }
-
   }
 }
 

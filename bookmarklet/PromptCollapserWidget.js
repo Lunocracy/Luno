@@ -1,33 +1,28 @@
 class PromptCollapserWidget {
-  constructor() {
-
-  }
+  constructor() {}
 
   static STYLES_ID = "luno-prompt-widget-styles";
   static STATE_STORAGE_KEY = "luno_prompt_states_v1";
 
   static getSavedStates() {
-
     try {
       const raw = localStorage.getItem(PromptCollapserWidget.STATE_STORAGE_KEY);
       return raw ? JSON.parse(raw) : {};
     } catch (e) {
       return {};
     }
-
   }
-  static saveState(fingerprint, isCollapsed) {
 
+  static saveState(fingerprint, isCollapsed) {
     if (!fingerprint) return;
     try {
       const states = PromptCollapserWidget.getSavedStates();
       states[fingerprint] = Boolean(isCollapsed);
       localStorage.setItem(PromptCollapserWidget.STATE_STORAGE_KEY, JSON.stringify(states));
     } catch (e) {}
-
   }
-  static injectStyles() {
 
+  static injectStyles() {
     if (typeof document === "undefined" || document.getElementById(PromptCollapserWidget.STYLES_ID)) return;
     const style = document.createElement("style");
     style.id = PromptCollapserWidget.STYLES_ID;
@@ -37,7 +32,7 @@ class PromptCollapserWidget {
       "  margin: 6px 0 !important;",
       "  background: #1a1012 !important;",
       "  border: 2px solid #d35400 !important;",
-      "  border-radius: 0px !important;",
+      "  border-radius: 6px !important;",
       "  padding: 6px 10px !important;",
       "  font-family: monospace !important;",
       "  font-size: 11px !important;",
@@ -57,7 +52,7 @@ class PromptCollapserWidget {
       "  white-space: nowrap !important;",
       "  overflow: hidden !important;",
       "  text-overflow: ellipsis !important;",
-      "  opacity: 0.8 !important;",
+      "  opacity: 0.85 !important;",
       "  margin-top: 3px !important;",
       "}",
       ".luno-prompt-expanded-bar {",
@@ -71,23 +66,22 @@ class PromptCollapserWidget {
       "  font-family: monospace !important;",
       "  font-size: 11px !important;",
       "  cursor: pointer !important;",
+      "  border-radius: 6px 6px 0 0 !important;",
       "}"
     ].join("\n");
     (document.head || document.documentElement).appendChild(style);
-
   }
-  static computePromptFingerprint(text) {
 
+  static computePromptFingerprint(text) {
     if (!text) return "";
     const trimmed = text.trim();
     const len = trimmed.length;
     const lines = trimmed.split("\n").length;
     const head = trimmed.slice(0, 25).replace(/\s+/g, "");
     return `prompt_${lines}_${len}_${head}`;
-
   }
-  static wrapPrompt(promptElement, options = {}) {
 
+  static wrapPrompt(promptElement, options = {}) {
     if (!promptElement || promptElement.__lunoPromptController__) return null;
 
     PromptCollapserWidget.injectStyles();
@@ -106,7 +100,6 @@ class PromptCollapserWidget {
     const charCount = rawText.length;
     const firstLine = lines[0] || rawText;
 
-    // Create Prompt Preview Shim
     const shim = document.createElement("div");
     shim.className = "luno-prompt-shim-base";
 
@@ -118,8 +111,8 @@ class PromptCollapserWidget {
     label.textContent = `✍️ User Prompt (${lineCount} lines / ${charCount} chars)`;
 
     const btnExpand = document.createElement("button");
-    btnExpand.textContent = "[+ Expand Prompt]";
-    btnExpand.style.cssText = "background:#2d1200; color:#ffb74d; border:1px solid #d35400; padding:2px 6px; font-size:10px; font-family:monospace; cursor:pointer; font-weight:bold;";
+    btnExpand.textContent = "[+ Expand]";
+    btnExpand.style.cssText = "background:#2d1200; color:#ffb74d; border:1px solid #d35400; padding:2px 6px; font-size:10px; font-family:monospace; cursor:pointer; font-weight:bold; border-radius:4px;";
 
     header.appendChild(label);
     header.appendChild(btnExpand);
@@ -131,7 +124,6 @@ class PromptCollapserWidget {
     shim.appendChild(header);
     shim.appendChild(preview);
 
-    // Create Expanded Header Bar
     const expandedBar = document.createElement("div");
     expandedBar.className = "luno-prompt-expanded-bar";
 
@@ -141,8 +133,8 @@ class PromptCollapserWidget {
     expandedLabel.textContent = `✍️ User Prompt (${lineCount} lines / ${charCount} chars)`;
 
     const btnCollapse = document.createElement("button");
-    btnCollapse.textContent = "[− Collapse Prompt]";
-    btnCollapse.style.cssText = "background:#2d1200; color:#ffb74d; border:1px solid #d35400; padding:2px 6px; font-size:10px; font-family:monospace; cursor:pointer; font-weight:bold;";
+    btnCollapse.textContent = "[− Collapse]";
+    btnCollapse.style.cssText = "background:#2d1200; color:#ffb74d; border:1px solid #d35400; padding:2px 6px; font-size:10px; font-family:monospace; cursor:pointer; font-weight:bold; border-radius:4px;";
 
     expandedBar.appendChild(expandedLabel);
     expandedBar.appendChild(btnCollapse);
@@ -191,7 +183,6 @@ class PromptCollapserWidget {
     controller.setCollapsed(startCollapsed);
     promptElement.__lunoPromptController__ = controller;
     return controller;
-
   }
 }
 
