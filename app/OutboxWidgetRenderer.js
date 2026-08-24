@@ -114,7 +114,7 @@ class OutboxWidgetRenderer {
     return itemWrapper;
   }
 
-        static renderWidget(containerId, retryCount) {
+          static renderWidget(containerId, retryCount) {
       var retries = retryCount || 0;
       var targetId = containerId || 'outbox-queue-container';
       var container = document.getElementById(targetId);
@@ -133,17 +133,17 @@ class OutboxWidgetRenderer {
         var itemCount = queue.length;
   
         var actionRow = document.createElement('div');
-        actionRow.style.cssText = 'display:flex; gap:0.4rem; margin-bottom:0.6rem; flex-wrap:wrap;';
+        actionRow.style.cssText = 'display:flex; gap:0.4rem; margin-bottom:0.6rem; flex-wrap:wrap; width:100%;';
   
         var bundleBtn = document.createElement('button');
         bundleBtn.id = 'btn-bundle-code';
         bundleBtn.style.cssText = 'flex:1; min-width:105px; padding:0.65rem; background:#8257e5; color:#fff; border:none; border-radius:8px; font-weight:bold; font-size:0.85rem; cursor:pointer; font-family:monospace; box-shadow:0 4px 12px rgba(130, 87, 229, 0.3);';
         bundleBtn.textContent = '📦 Bundle Code';
-        bundleBtn.onclick = function() {
+        bundleBtn.onclick = function(e) {
           if (typeof OutboxOptionsModal !== 'undefined') {
-            OutboxOptionsModal.promptBundleOptionsModal();
+            OutboxOptionsModal.promptBundleOptionsModal(e.currentTarget || bundleBtn);
           } else if (targetQueue && targetQueue.promptBundleOptionsModal) {
-            targetQueue.promptBundleOptionsModal();
+            targetQueue.promptBundleOptionsModal(e.currentTarget || bundleBtn);
           } else if (typeof ClientApp !== 'undefined' && ClientApp.bundleAllCode) {
             ClientApp.bundleAllCode();
           }
@@ -208,7 +208,7 @@ class OutboxWidgetRenderer {
   
         if (itemCount > 0) {
           var listContainer = document.createElement('div');
-          listContainer.style.cssText = 'display:flex; flex-direction:column; gap:0.35rem; margin-top:0.5rem;';
+          listContainer.style.cssText = 'display:flex; flex-direction:column; gap:0.35rem; margin-top:0.5rem; width:100%;';
           queue.forEach(function(item) {
             if (item) {
               var row = OutboxWidgetRenderer.renderQueueItemRow(item);

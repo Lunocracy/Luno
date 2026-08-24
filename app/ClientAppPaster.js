@@ -72,7 +72,7 @@ class ClientAppPaster {
    * ⚙️ METHOD: executeSave(overrideText)
    * Hardened top-level execution loop running 100% in browser JavaScript.
    */
-    static async executeSave(overrideText) {
+      static async executeSave(overrideText) {
       var targetApp = globalThis.ClientAppCore || globalThis.ClientApp;
       var input = document.getElementById('code-input') || document.getElementById('payload-input');
       var rawText = overrideText || (input ? input.value : '');

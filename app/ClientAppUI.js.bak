@@ -15,54 +15,6 @@ class ClientAppUI {
     }
   }
 
-  static renderHotPatchAlertBanner(payloadText) {
-    var existing = document.getElementById('luno-hotpatch-alert-banner');
-    if (existing) existing.remove();
-
-    var parent = document.getElementById('inbox-card-content') || document.getElementById('app-root') || document.body;
-
-    var banner = document.createElement('div');
-    banner.id = 'luno-hotpatch-alert-banner';
-    banner.style.cssText = 'display:flex; align-items:center; justify-content:space-between; width:100%; background:#271052; border:2px solid #8257e5; padding:0.6rem 0.8rem; border-radius:8px; font-size:0.78rem; color:#d2a8ff; margin-bottom:0.65rem; font-family:monospace; box-sizing:border-box; flex-wrap:wrap; gap:0.4rem; box-shadow:0 4px 16px rgba(130,87,229,0.3);';
-
-    var info = document.createElement('div');
-    info.style.cssText = 'display:flex; align-items:center; gap:0.5rem;';
-    info.innerHTML = '<span>⚡ <strong>Pending Patches Active</strong> in LunoPatchLog.html</span>';
-
-    var btnGroup = document.createElement('div');
-    btnGroup.style.cssText = 'display:flex; gap:0.4rem;';
-
-    var btnSaveDisk = document.createElement('button');
-    btnSaveDisk.style.cssText = 'background:#238636; color:#fff; border:none; border-radius:6px; padding:0.35rem 0.65rem; font-size:0.72rem; cursor:pointer; font-family:monospace; font-weight:bold;';
-    btnSaveDisk.textContent = '💾 Consolidate to ES6 Base Files';
-    btnSaveDisk.onclick = function(e) {
-      e.stopPropagation();
-      if (typeof LunoPatchConsolidator !== 'undefined' && LunoPatchConsolidator.consolidate) {
-        LunoPatchConsolidator.consolidate();
-      }
-    };
-
-    var btnDismiss = document.createElement('button');
-    btnDismiss.style.cssText = 'background:#161b22; color:#c9d1d9; border:1px solid #30363d; border-radius:6px; padding:0.35rem 0.55rem; font-size:0.72rem; cursor:pointer; font-family:monospace;';
-    btnDismiss.textContent = '✖ Dismiss';
-    btnDismiss.onclick = function(e) {
-      e.stopPropagation();
-      banner.remove();
-    };
-
-    btnGroup.appendChild(btnSaveDisk);
-    btnGroup.appendChild(btnDismiss);
-
-    banner.appendChild(info);
-    banner.appendChild(btnGroup);
-
-    if (parent.firstChild) {
-      parent.insertBefore(banner, parent.firstChild);
-    } else {
-      parent.appendChild(banner);
-    }
-  }
-
   static renderStarterPanel(m) {
     var el = m || (typeof LunoUIComponents !== 'undefined' ? LunoUIComponents.makeElement : null);
     var isCollapsed = typeof localStorage !== 'undefined' && localStorage.getItem('luno_starter_panel_collapsed') === 'true';
@@ -201,123 +153,73 @@ class ClientAppUI {
     );
   }
 
-  static renderOutboxCard(m) {
-    var el = m || (typeof LunoUIComponents !== 'undefined' ? LunoUIComponents.makeElement : null);
-    var arrowOutbox = el('span', { style: { fontSize: '0.85rem', color: '#d2a8ff' } }, ClientAppUI.outboxExpanded ? '▲' : '▼');
-
-    var outboxContent = el('div', { id: 'outbox-card-content', style: { display: ClientAppUI.outboxExpanded ? 'block' : 'none', marginTop: '0.5rem', width: '100%', boxSizing: 'border-box' } },
-      el('div', { id: 'outbox-queue-container' })
-    );
-
-    setTimeout(function() {
-      if (typeof OutboxQueue !== 'undefined' && OutboxQueue.renderWidget) {
-        try { OutboxQueue.renderWidget(); } catch(e){}
-      }
-    }, 20);
-
-    return el('div', {
-      className: 'outbox-card glow-card',
-      style: { background: 'linear-gradient(135deg, #271052 0%, #161b22 100%)', border: '2px solid #8257e5', borderRadius: '10px', padding: '0.75rem', boxShadow: '0 4px 12px rgba(130, 87, 229, 0.25)', width: '100%', boxSizing: 'border-box' }
-    },
-      el('div', {
-        style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer', flexWrap: 'wrap', gap: '0.35rem' },
-        onclick: function(e) {
-          if (e.target.tagName !== 'BUTTON') {
-            ClientAppUI.outboxExpanded = !ClientAppUI.outboxExpanded;
-            outboxContent.style.display = ClientAppUI.outboxExpanded ? 'block' : 'none';
-            arrowOutbox.textContent = ClientAppUI.outboxExpanded ? '▲' : '▼';
-            if (ClientAppUI.outboxExpanded && typeof OutboxQueue !== 'undefined') {
-              OutboxQueue.renderWidget();
-            }
-          }
+    static renderOutboxCard(m) {
+      var el = m || (typeof LunoUIComponents !== 'undefined' ? LunoUIComponents.makeElement : null);
+      ClientAppUI.outboxExpanded = true;
+  
+      var arrowOutbox = el('span', {
+        className: 'luno-accordion-arrow',
+        style: { fontSize: '0.85rem', color: '#d2a8ff' }
+      }, '▼');
+  
+      var outboxContent = el('div', {
+        id: 'outbox-card-content',
+        style: {
+          display: 'block',
+          marginTop: '0.5rem',
+          width: '100%',
+          boxSizing: 'border-box'
         }
       },
-        el('div', { style: { display: 'flex', flexDirection: 'column', gap: '0.1rem' } },
-          el('div', { style: { fontSize: '1rem', fontWeight: 'bold', color: '#a371f7', display: 'flex', alignItems: 'center', gap: '0.35rem', whiteSpace: 'nowrap' } },
-            'OUTBOX',
-            el('span', { style: { fontSize: '0.72rem', color: '#d2a8ff', opacity: 0.85, fontWeight: 'normal' } }, '(send to llm)')
-          )
+        el('div', { id: 'outbox-queue-container', style: { width: '100%', minHeight: '80px' } })
+      );
+  
+      setTimeout(function() {
+        if (typeof OutboxWidgetRenderer !== 'undefined' && OutboxWidgetRenderer.renderWidget) {
+          try { OutboxWidgetRenderer.renderWidget('outbox-queue-container'); } catch(e){}
+        } else if (typeof OutboxQueue !== 'undefined' && OutboxQueue.renderWidget) {
+          try { OutboxQueue.renderWidget(); } catch(e){}
+        }
+      }, 20);
+  
+      return el('div', {
+        className: 'outbox-card glow-card',
+        style: { background: 'linear-gradient(135deg, #271052 0%, #161b22 100%)', border: '2px solid #8257e5', borderRadius: '10px', padding: '0.75rem', boxShadow: '0 4px 12px rgba(130, 87, 229, 0.25)', width: '100%', boxSizing: 'border-box' }
+      },
+        el('div', {
+          style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer', flexWrap: 'wrap', gap: '0.35rem' },
+          onclick: function(e) {
+            if (e.target.tagName !== 'BUTTON') {
+              ClientAppUI.outboxExpanded = !ClientAppUI.outboxExpanded;
+              outboxContent.style.display = ClientAppUI.outboxExpanded ? 'block' : 'none';
+              if (ClientAppUI.outboxExpanded) {
+                arrowOutbox.classList.remove('luno-arrow-collapsed');
+                if (typeof OutboxWidgetRenderer !== 'undefined') {
+                  OutboxWidgetRenderer.renderWidget('outbox-queue-container');
+                }
+              } else {
+                arrowOutbox.classList.add('luno-arrow-collapsed');
+              }
+            }
+          }
+        },
+          el('div', { style: { display: 'flex', flexDirection: 'column', gap: '0.1rem' } },
+            el('div', { style: { fontSize: '1rem', fontWeight: 'bold', color: '#a371f7', display: 'flex', alignItems: 'center', gap: '0.35rem', whiteSpace: 'nowrap' } },
+              'OUTBOX',
+              el('span', { style: { fontSize: '0.72rem', color: '#d2a8ff', opacity: 0.85, fontWeight: 'normal' } }, '(send to llm)')
+            )
+          ),
+          arrowOutbox
         ),
-        arrowOutbox
-      ),
-      outboxContent
-    );
-  }
+        outboxContent
+      );
+    }
 
   static renderInboxCard(m) {
     var el = m || (typeof LunoUIComponents !== 'undefined' ? LunoUIComponents.makeElement : null);
     var arrowInbox = el('span', { style: { fontSize: '0.85rem', color: '#7ee787' } }, ClientAppUI.inboxExpanded ? '▲' : '▼');
-    var currentTarget = (typeof ClientApp !== 'undefined' && ClientApp.getTargetProject) ? ClientApp.getTargetProject() : 'Luno';
-
-    var targetSelect = el('select', {
-      id: 'target-project-select',
-      style: {
-        background: '#0d1117',
-        color: '#00f2fe',
-        border: '1px solid #00f2fe',
-        padding: '0.25rem 0.5rem',
-        borderRadius: '6px',
-        fontSize: '0.72rem',
-        fontFamily: 'monospace',
-        fontWeight: 'bold',
-        cursor: 'pointer',
-        outline: 'none',
-        flex: '1 1 auto'
-      },
-      onchange: function(e) {
-        var val = e.target.value;
-        if (typeof ClientApp !== 'undefined' && ClientApp.setTargetProject) {
-          ClientApp.setTargetProject(val);
-        }
-      }
-    }, el('option', { value: currentTarget }, '📁 ' + currentTarget));
-
-    setTimeout(async function() {
-      try {
-        if (typeof LunoApiClient !== 'undefined' && LunoApiClient.fetchProjectsList) {
-          var data = await LunoApiClient.fetchProjectsList();
-          if (data && Array.isArray(data.projects)) {
-            var activeTarget = (typeof ClientApp !== 'undefined' && ClientApp.getTargetProject) ? ClientApp.getTargetProject() : '';
-            targetSelect.innerHTML = '';
-            data.projects.forEach(function(p) {
-              if (p.isLibrary || p.name === 'Library') return;
-              var opt = document.createElement('option');
-              opt.value = p.name;
-              opt.textContent = '📁 ' + p.name + (p.name === 'Luno' ? ' (Core)' : '');
-              if (p.name === activeTarget) opt.selected = true;
-              targetSelect.appendChild(opt);
-            });
-          }
-        }
-      } catch (e) {}
-    }, 50);
-
-    var targetRow = el('div', {
-      style: {
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        background: '#0d1117',
-        border: '1px solid #238636',
-        borderRadius: '6px',
-        padding: '0.35rem 0.6rem',
-        marginBottom: '0.45rem',
-        flexWrap: 'wrap',
-        gap: '0.4rem'
-      }
-    },
-      el('div', { style: { display: 'flex', alignItems: 'center', gap: '0.35rem' } },
-        el('span', { style: { fontSize: '0.72rem', color: '#8b949e', fontWeight: 'bold' } }, 'Target Project:'),
-        targetSelect
-      ),
-      el('span', {
-        id: 'target-project-badge',
-        style: { fontSize: '0.68rem', color: '#3fb950', background: '#0d2818', border: '1px solid #238636', padding: '0.15rem 0.45rem', borderRadius: '8px', fontWeight: 'bold' }
-      }, 'Pasting into: ' + (currentTarget || 'Luno'))
-    );
 
     var inboxContent = el('div', { id: 'inbox-card-content', style: { display: ClientAppUI.inboxExpanded ? 'block' : 'none', marginTop: '0.5rem', width: '100%', boxSizing: 'border-box' } },
-      targetRow,
       el('div', { style: { display: 'flex', gap: '0.4rem', marginBottom: '0.45rem', flexWrap: 'wrap' } },
         el('button', {
           className: 'btn-primary',
@@ -506,7 +408,7 @@ class ClientAppUI {
     var m = typeof LunoUIComponents !== 'undefined' ? LunoUIComponents.makeElement : null;
 
     container.innerHTML = '';
-    var verText = (typeof LunoVersion !== 'undefined') ? LunoVersion.getBadgeText() : 'v3.6.0';
+    var verText = (typeof LunoVersion !== 'undefined') ? LunoVersion.getBadgeText() : 'v3.6.1';
     var mainBox = m('div', { style: { fontFamily: 'monospace', padding: '0.6rem', maxWidth: '100vw', width: '100%', margin: '0 auto', minHeight: '100vh', display: 'flex', flexDirection: 'column', gap: '0.65rem', boxSizing: 'border-box', overflowX: 'hidden' } });
 
     var header = (typeof LunoSpaDock !== 'undefined' && LunoSpaDock.renderHeaderNav) ? LunoSpaDock.renderHeaderNav('workspace') : m('header', {}, 'Luno Home');

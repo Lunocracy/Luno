@@ -153,48 +153,67 @@ class ClientAppUI {
     );
   }
 
-  static renderOutboxCard(m) {
-    var el = m || (typeof LunoUIComponents !== 'undefined' ? LunoUIComponents.makeElement : null);
-    var arrowOutbox = el('span', { style: { fontSize: '0.85rem', color: '#d2a8ff' } }, ClientAppUI.outboxExpanded ? '▲' : '▼');
-
-    var outboxContent = el('div', { id: 'outbox-card-content', style: { display: ClientAppUI.outboxExpanded ? 'block' : 'none', marginTop: '0.5rem', width: '100%', boxSizing: 'border-box' } },
-      el('div', { id: 'outbox-queue-container' })
-    );
-
-    setTimeout(function() {
-      if (typeof OutboxQueue !== 'undefined' && OutboxQueue.renderWidget) {
-        try { OutboxQueue.renderWidget(); } catch(e){}
-      }
-    }, 20);
-
-    return el('div', {
-      className: 'outbox-card glow-card',
-      style: { background: 'linear-gradient(135deg, #271052 0%, #161b22 100%)', border: '2px solid #8257e5', borderRadius: '10px', padding: '0.75rem', boxShadow: '0 4px 12px rgba(130, 87, 229, 0.25)', width: '100%', boxSizing: 'border-box' }
-    },
-      el('div', {
-        style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer', flexWrap: 'wrap', gap: '0.35rem' },
-        onclick: function(e) {
-          if (e.target.tagName !== 'BUTTON') {
-            ClientAppUI.outboxExpanded = !ClientAppUI.outboxExpanded;
-            outboxContent.style.display = ClientAppUI.outboxExpanded ? 'block' : 'none';
-            arrowOutbox.textContent = ClientAppUI.outboxExpanded ? '▲' : '▼';
-            if (ClientAppUI.outboxExpanded && typeof OutboxQueue !== 'undefined') {
-              OutboxQueue.renderWidget();
-            }
-          }
+    static renderOutboxCard(m) {
+      var el = m || (typeof LunoUIComponents !== 'undefined' ? LunoUIComponents.makeElement : null);
+      ClientAppUI.outboxExpanded = true;
+  
+      var arrowOutbox = el('span', {
+        className: 'luno-accordion-arrow',
+        style: { fontSize: '0.85rem', color: '#d2a8ff' }
+      }, '▼');
+  
+      var outboxContent = el('div', {
+        id: 'outbox-card-content',
+        style: {
+          display: 'block',
+          marginTop: '0.5rem',
+          width: '100%',
+          boxSizing: 'border-box'
         }
       },
-        el('div', { style: { display: 'flex', flexDirection: 'column', gap: '0.1rem' } },
-          el('div', { style: { fontSize: '1rem', fontWeight: 'bold', color: '#a371f7', display: 'flex', alignItems: 'center', gap: '0.35rem', whiteSpace: 'nowrap' } },
-            'OUTBOX',
-            el('span', { style: { fontSize: '0.72rem', color: '#d2a8ff', opacity: 0.85, fontWeight: 'normal' } }, '(send to llm)')
-          )
+        el('div', { id: 'outbox-queue-container', style: { width: '100%', minHeight: '80px' } })
+      );
+  
+      setTimeout(function() {
+        if (typeof OutboxWidgetRenderer !== 'undefined' && OutboxWidgetRenderer.renderWidget) {
+          try { OutboxWidgetRenderer.renderWidget('outbox-queue-container'); } catch(e){}
+        } else if (typeof OutboxQueue !== 'undefined' && OutboxQueue.renderWidget) {
+          try { OutboxQueue.renderWidget(); } catch(e){}
+        }
+      }, 20);
+  
+      return el('div', {
+        className: 'outbox-card glow-card',
+        style: { background: 'linear-gradient(135deg, #271052 0%, #161b22 100%)', border: '2px solid #8257e5', borderRadius: '10px', padding: '0.75rem', boxShadow: '0 4px 12px rgba(130, 87, 229, 0.25)', width: '100%', boxSizing: 'border-box' }
+      },
+        el('div', {
+          style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer', flexWrap: 'wrap', gap: '0.35rem' },
+          onclick: function(e) {
+            if (e.target.tagName !== 'BUTTON') {
+              ClientAppUI.outboxExpanded = !ClientAppUI.outboxExpanded;
+              outboxContent.style.display = ClientAppUI.outboxExpanded ? 'block' : 'none';
+              if (ClientAppUI.outboxExpanded) {
+                arrowOutbox.classList.remove('luno-arrow-collapsed');
+                if (typeof OutboxWidgetRenderer !== 'undefined') {
+                  OutboxWidgetRenderer.renderWidget('outbox-queue-container');
+                }
+              } else {
+                arrowOutbox.classList.add('luno-arrow-collapsed');
+              }
+            }
+          }
+        },
+          el('div', { style: { display: 'flex', flexDirection: 'column', gap: '0.1rem' } },
+            el('div', { style: { fontSize: '1rem', fontWeight: 'bold', color: '#a371f7', display: 'flex', alignItems: 'center', gap: '0.35rem', whiteSpace: 'nowrap' } },
+              'OUTBOX',
+              el('span', { style: { fontSize: '0.72rem', color: '#d2a8ff', opacity: 0.85, fontWeight: 'normal' } }, '(send to llm)')
+            )
+          ),
+          arrowOutbox
         ),
-        arrowOutbox
-      ),
-      outboxContent
-    );
-  }
+        outboxContent
+      );
+    }
 
   static renderInboxCard(m) {
     var el = m || (typeof LunoUIComponents !== 'undefined' ? LunoUIComponents.makeElement : null);
@@ -287,35 +306,49 @@ class ClientAppUI {
     }, '?');
   }
 
-  static renderCheckpointButton(m) {
-    var el = m || (typeof LunoUIComponents !== 'undefined' ? LunoUIComponents.makeElement : null);
-    return el('button', {
-      style: {
-        padding: '0.85rem 1.8rem',
-        background: '#161b22',
-        color: '#c9d1d9',
-        border: '1px solid #30363d',
-        borderRadius: '8px',
-        cursor: 'pointer',
-        fontFamily: 'monospace',
-        margin: '0.2rem auto 0.4rem auto',
-        display: 'flex',
-        flexDirection: 'column',
-        alignItems: 'center',
-        justifyContent: 'center',
-        width: '100%',
-        maxWidth: '360px'
-      },
-      onclick: function() {
-        if (typeof LunoSpaDock !== 'undefined') {
-          LunoSpaDock.mountView('checkpoint');
+    static renderCheckpointButton(m) {
+      var el = m || (typeof LunoUIComponents !== 'undefined' ? LunoUIComponents.makeElement : null);
+      var btn = el('button', {
+        id: 'btn-frontpage-checkpoint',
+        style: {
+          padding: '0.85rem 1.8rem',
+          background: '#161b22',
+          color: '#c9d1d9',
+          border: '1px solid #30363d',
+          borderRadius: '8px',
+          cursor: 'pointer',
+          fontFamily: 'monospace',
+          margin: '0.2rem auto 0.4rem auto',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          width: '100%',
+          maxWidth: '360px',
+          transition: 'transform 0.15s cubic-bezier(0.34, 1.56, 0.64, 1), border-color 0.15s ease-out, box-shadow 0.15s ease-out',
+          boxShadow: '0 4px 12px rgba(0,0,0,0.3)'
+        },
+        onclick: function() {
+          if (typeof LunoAnimationEngine !== 'undefined') {
+            var rect = btn.getBoundingClientRect();
+            LunoAnimationEngine.burstSparks(rect.left + (rect.width / 2), rect.top + (rect.height / 2), '#00f2fe', 14);
+            if (typeof LunoAnimationEngine.shutterFlash === 'function') {
+              LunoAnimationEngine.shutterFlash(btn, '#00f2fe');
+            }
+          }
+          setTimeout(function() {
+            if (typeof LunoSpaDock !== 'undefined') {
+              LunoSpaDock.mountView('checkpoint');
+            }
+          }, 180);
         }
-      }
-    },
-      el('span', { style: { fontSize: '0.95rem', fontWeight: 'bold', color: '#f0f6fc' } }, 'Checkpoint'),
-      el('span', { id: 'checkpoint-btn-subtitle', style: { fontSize: '0.72rem', color: '#8b949e', marginTop: '0.15rem' } }, 'save in git')
-    );
-  }
+      },
+        el('span', { style: { fontSize: '0.95rem', fontWeight: 'bold', color: '#f0f6fc', display: 'flex', alignItems: 'center', gap: '0.35rem' } }, '📸 Checkpoint'),
+        el('span', { id: 'checkpoint-btn-subtitle', style: { fontSize: '0.72rem', color: '#8b949e', marginTop: '0.15rem' } }, 'save in git')
+      );
+  
+      return btn;
+    }
 
   static renderDevDrawer(m) {
     var el = m || (typeof LunoUIComponents !== 'undefined' ? LunoUIComponents.makeElement : null);
