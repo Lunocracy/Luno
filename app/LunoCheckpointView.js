@@ -116,7 +116,7 @@ class LunoCheckpointView {
         }, pendingPatchesCount + ' patch(es) for [' + targetProj + ']')
       ),
       m('p', { style: { color: '#8b949e', margin: 0, fontSize: '0.78rem', lineHeight: '1.4' } },
-        'Client-side consolidation validates ES6 AST syntax, creates .bak sidecar backups, merges methods into ES6 class bodies, and updates LunoPatchLog.html.'
+        'Client-side consolidation validates ES6 AST syntax, merges methods directly into ES6 class bodies, and cleans up LunoPatchLog.html.'
       ),
       m('button', {
         id: 'btn-consolidate-patches',
@@ -143,7 +143,7 @@ class LunoCheckpointView {
           try {
             var data = await LunoPatchConsolidator.consolidate(targetProj);
             if (data && data.success) {
-              LunoCheckpointView.lastConsolidationOutput = '✅ Consolidated ' + (data.consolidatedCount || 0) + ' patch(es) for [' + targetProj + ']!\nBackups created (.bak).\nModified Files:\n- ' + (data.modifiedFiles || []).join('\n- ');
+              LunoCheckpointView.lastConsolidationOutput = '✅ Consolidated ' + (data.consolidatedCount || 0) + ' patch(es) for [' + targetProj + ']!\nModified Files:\n- ' + (data.modifiedFiles || []).join('\n- ');
               LunoCheckpointView.mountUI(container);
             }
           } catch(e) {
@@ -193,7 +193,7 @@ class LunoCheckpointView {
       m('div', { style: { background: '#0d1117', border: '1px solid #238636', padding: '0.85rem', borderRadius: '8px', fontSize: '0.82rem' } },
         m('strong', { style: { color: '#3fb950', display: 'block', marginBottom: '0.35rem' } }, '📊 Uncommitted Modifications for [' + targetProj + ']: ' + uncommittedCount + ' file(s)'),
         m('p', { style: { color: '#8b949e', margin: 0, lineHeight: '1.4' } },
-          'Creates a scoped Git commit snapshot tagged for [' + targetProj + '].'
+          'Creates a clean Git snapshot tagged for [' + targetProj + '] and automatically purges temporary backup files.'
         )
       ),
 
@@ -220,7 +220,7 @@ class LunoCheckpointView {
           if (outputCard) outputCard.style.display = 'block';
           if (outputPre) {
             outputPre.style.color = '#00f2fe';
-            outputPre.textContent = '⚡ Recording Git Checkpoint for [' + targetProj + ']...';
+            outputPre.textContent = '⚡ Recording Clean Git Checkpoint for [' + targetProj + ']...';
           }
 
           try {
@@ -235,10 +235,22 @@ class LunoCheckpointView {
                 'let commitMsg = "' + desc.replace(/"/g, '\\"') + '";',
                 'let gitOutput = "";',
                 'try {',
+                '  // 1. Purge .bak files from disk and untrack from git',
+                '  function deleteBakFiles(dir) {',
+                '    if (!fs.existsSync(dir)) return;',
+                '    const list = fs.readdirSync(dir);',
+                '    for (const item of list) {',
+                '      if (item === "node_modules" || item === ".git") continue;',
+                '      const full = path.join(dir, item);',
+                '      if (fs.statSync(full).isDirectory()) deleteBakFiles(full);',
+                '      else if (item.endsWith(".bak")) { try { fs.unlinkSync(full); } catch(e){} }',
+                '    }',
+                '  }',
+                '  deleteBakFiles(activeProjRoot);',
                 '  const lockFile = path.join(gitRoot, ".git", "index.lock");',
                 '  if (fs.existsSync(lockFile)) { try { fs.unlinkSync(lockFile); } catch(e){} }',
-                '  gitOutput += "$ git add .\\n";',
-                '  try { gitOutput += (execSync("git add .", { cwd: activeProjRoot, encoding: "utf8" }) || ""); } catch(e){}',
+                '  gitOutput += "$ git add -A\\n";',
+                '  try { gitOutput += (execSync("git add -A", { cwd: activeProjRoot, encoding: "utf8" }) || ""); } catch(e){}',
                 '  gitOutput += "\\n$ git commit -m \\"" + commitMsg + "\\" --allow-empty\\n";',
                 '  gitOutput += (execSync(`git commit -m "${commitMsg}" --allow-empty`, { cwd: gitRoot, encoding: "utf8" }) || "");',
                 '  gitOutput += "\\n$ git log -1 --stat\\n";',
@@ -275,7 +287,7 @@ class LunoCheckpointView {
             }
 
             if (typeof ClientApp !== 'undefined') {
-              ClientApp.showToast('Snapshot Recorded for ' + targetProj + '!', 'success', '📸');
+              ClientApp.showToast('Clean Snapshot Recorded for ' + targetProj + '!', 'success', '📸');
               ClientApp.uncommittedCount = 0;
               await ClientApp.fetchCodebaseMetrics();
             }
