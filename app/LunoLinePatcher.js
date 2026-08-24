@@ -35,19 +35,16 @@ class LunoLinePatcher {
     let cleanMethod = methodCode.trim();
     if (cleanMethod.endsWith(';')) cleanMethod = cleanMethod.slice(0, -1).trim();
 
-    // Strip leading `static ` if present in methodCode
     if (cleanMethod.startsWith('static ')) {
       cleanMethod = cleanMethod.slice(7).trim();
     }
 
-    // Check for `async ` prefix
     let isAsync = false;
     if (cleanMethod.startsWith('async ')) {
       isAsync = true;
       cleanMethod = cleanMethod.slice(6).trim();
     }
 
-    // Convert ES6 class method syntax `methodName(...) { ... }` to a valid JavaScript function assignment expression
     if (cleanMethod.startsWith('function')) {
       cleanMethod = (isAsync ? 'async ' : '') + cleanMethod;
     } else if (/^[A-Za-z0-9_$]+\s*\([^)]*\)\s*\{/.test(cleanMethod)) {
@@ -61,7 +58,6 @@ class LunoLinePatcher {
       cleanMethod = (isAsync ? 'async function' : 'function') + cleanMethod;
     }
 
-    // Target object resolution on globalThis
     let patchTargetStr = '';
     if (typeof globalThis !== 'undefined' && globalThis[targetClass]) {
       const cls = globalThis[targetClass];
@@ -99,7 +95,7 @@ class LunoLinePatcher {
           }
         }
       } catch (e) {
-        console.warn('[LunoLinePatcher] Runtime hot-patch evaluation notice:', e.message, patchAssignmentStatement);
+        console.warn('[LunoLinePatcher] Runtime hot-patch evaluation notice:', e.message);
       }
     }
 

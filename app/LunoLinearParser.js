@@ -1,25 +1,18 @@
 class LunoLinearParser {
-  constructor() {
-
-  }
-
-  static version = 'v3.6.1-debug';
+  constructor() {}
 
   static normalizeSpec(spec) {
-
     if (!spec || typeof spec !== 'string') return '';
     let clean = spec.trim();
     if (clean.includes('@')) clean = clean.split('@').pop().trim();
     return clean.replace(/^(?:globalThis|window)\./, '');
-
   }
-  static parse(sourceCode = '') {
 
+  static parse(sourceCode = '') {
     if (!sourceCode || typeof sourceCode !== 'string') {
       return { className: null, assignments: [] };
     }
 
-    // Class/constructor fallback detection (runs even if Acorn is loading asynchronously)
     let detectedClass = null;
     const pascalMatch = sourceCode.match(/\b([A-Z][A-Za-z0-9_$]*)(?:\.prototype|\.|\s*=\s*(?:function|class|globalThis|window))/);
     if (pascalMatch && pascalMatch[1] && pascalMatch[1] !== 'Object' && pascalMatch[1] !== 'Array' && pascalMatch[1] !== 'Function') {
@@ -89,7 +82,6 @@ class LunoLinearParser {
     }
 
     return { className: detectedClass, assignments: assignments };
-
   }
 }
 

@@ -1,11 +1,6 @@
 class LunoAnimationEngine {
   constructor() {}
 
-  /**
-   * ⚙️ METHOD: flyElement(sourceElOrRect, targetElOrRect, options)
-   * Calculates dynamic 2D coordinates and propels a glowing holographic capsule
-   * from the source element directly into the target container.
-   */
   static flyElement(sourceElOrRect, targetElOrRect, options) {
     if (typeof document === 'undefined') return;
     var opts = options || {};
@@ -29,7 +24,6 @@ class LunoAnimationEngine {
     var endX = tRect.left + (tRect.width / 2);
     var endY = tRect.top + (tRect.height / 2);
 
-    // Create glowing flight capsule
     var flyer = document.createElement('div');
     flyer.className = 'luno-flight-capsule';
     flyer.style.cssText = [
@@ -59,7 +53,6 @@ class LunoAnimationEngine {
     flyer.innerHTML = '<span>' + (opts.icon || '⚡') + '</span><span>' + label + '</span>';
     document.body.appendChild(flyer);
 
-    // Spawn initial particle burst at launch
     LunoAnimationEngine.burstSparks(startX, startY, color, 8);
 
     var startTime = performance.now();
@@ -70,11 +63,9 @@ class LunoAnimationEngine {
     function step(now) {
       var elapsed = now - startTime;
       var p = Math.min(1, elapsed / duration);
-      // Fluid ease-in-out cubic
       var ease = p < 0.5 ? 4 * p * p * p : 1 - Math.pow(-2 * p + 2, 3) / 2;
 
       var currentX = startX + (deltaX * ease);
-      // Arched trajectory
       var arch = Math.sin(p * Math.PI) * archHeight;
       var currentY = startY + (deltaY * ease) - arch;
       var scale = 1 + (Math.sin(p * Math.PI) * 0.2) - (p * 0.25);
@@ -87,7 +78,6 @@ class LunoAnimationEngine {
         requestAnimationFrame(step);
       } else {
         if (flyer.parentNode) flyer.remove();
-        // Trigger landing particle burst
         LunoAnimationEngine.burstSparks(endX, endY, color, 14);
 
         if (targetEl) {
@@ -103,10 +93,6 @@ class LunoAnimationEngine {
     requestAnimationFrame(step);
   }
 
-  /**
-   * ⚙️ METHOD: pulseTarget(targetEl, options)
-   * Expands the target container with spring overshoot and radial luminous aura.
-   */
   static pulseTarget(targetEl, options) {
     if (!targetEl || !targetEl.style) return;
     var opts = options || {};
@@ -135,10 +121,38 @@ class LunoAnimationEngine {
     }, 280);
   }
 
-  /**
-   * ⚙️ METHOD: burstSparks(x, y, color, count)
-   * Spawns radiant tactile micro-sparks for dynamic kinetic feedback.
-   */
+  static wavePulse(element, color) {
+    if (!element || !element.getBoundingClientRect) return;
+    var elColor = color || '#3fb950';
+    var rect = element.getBoundingClientRect();
+
+    var wave = document.createElement('div');
+    wave.className = 'luno-wave-ring';
+    wave.style.cssText = [
+      'position: fixed;',
+      'z-index: 99998;',
+      'pointer-events: none;',
+      'top: ' + rect.top + 'px;',
+      'left: ' + rect.left + 'px;',
+      'width: ' + rect.width + 'px;',
+      'height: ' + rect.height + 'px;',
+      'border: 2px solid ' + elColor + ';',
+      'border-radius: 10px;',
+      'box-shadow: 0 0 16px ' + elColor + ';',
+      'transform: scale(1);',
+      'opacity: 0.9;',
+      'transition: transform 0.65s cubic-bezier(0.25, 1, 0.5, 1), opacity 0.65s ease-out;'
+    ].join('\n');
+
+    document.body.appendChild(wave);
+
+    requestAnimationFrame(function() {
+      wave.style.transform = 'scale(1.06, 1.15)';
+      wave.style.opacity = '0';
+      setTimeout(function() { if (wave.parentNode) wave.remove(); }, 660);
+    });
+  }
+
   static burstSparks(x, y, color, count) {
     if (typeof document === 'undefined') return;
     var sparkCount = count || 10;
@@ -181,10 +195,6 @@ class LunoAnimationEngine {
     }
   }
 
-  /**
-   * ⚙️ METHOD: animateDialogIn(dialogEl, originRect)
-   * Opens floating dialog with spring scale from source button coordinates.
-   */
   static animateDialogIn(dialogEl, originRect) {
     if (!dialogEl) return;
     var origLeft = dialogEl.offsetLeft;
@@ -206,10 +216,6 @@ class LunoAnimationEngine {
     });
   }
 
-  /**
-   * ⚙️ METHOD: animateDialogOut(dialogEl, targetRect, onComplete)
-   * Shrinks floating dialog into target element and fades away cleanly.
-   */
   static animateDialogOut(dialogEl, targetRect, onComplete) {
     if (!dialogEl) {
       if (onComplete) onComplete();
