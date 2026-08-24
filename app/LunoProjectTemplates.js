@@ -292,143 +292,160 @@ class LunoProjectTemplates {
     }
   }
 
-  static async createFromTemplate(templateId, parentDir) {
-    const tpl = LunoProjectTemplates.TEMPLATES.find(t => t.id === templateId);
-    if (!tpl) return;
-
-    const rawName = prompt('Enter new project directory name (letters, numbers, dashes, underscores):', 'my_new_project');
-    if (!rawName) return;
-
-    const cleanName = rawName.trim().replace(/[^a-zA-Z0-9_\-]/g, '');
-    if (!cleanName) {
-      alert('Invalid project name. Please use alphanumeric characters, dashes, or underscores.');
-      return;
-    }
-
-    let filesList = [];
-    for (const [relFile, content] of Object.entries(tpl.files)) {
-      filesList.push({
-        filePath: cleanName + '/' + relFile,
-        content: content,
-        action: 'direct'
-      });
-    }
-
-    try {
-      if (typeof ClientApp !== 'undefined' && ClientApp.setTargetProject) {
-        ClientApp.setTargetProject(cleanName, { openTab: true });
+    static async createFromTemplate(templateId, parentDir) {
+      const tpl = LunoProjectTemplates.TEMPLATES.find(t => t.id === templateId);
+      if (!tpl) return;
+  
+      const rawName = prompt('Enter new project name (letters, numbers, underscores):', 'my_new_app');
+      if (!rawName) return;
+  
+      const cleanName = rawName.trim().replace(/[^a-zA-Z0-9_\-]/g, '');
+      if (!cleanName) {
+        alert('Invalid project name. Please use alphanumeric characters, dashes, or underscores.');
+        return;
       }
-      await fetch('/api/save?project=' + encodeURIComponent(cleanName), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ files: filesList, serverScript: '', project: cleanName })
-      });
-      if (typeof LunoSpaDock !== 'undefined') {
-        LunoSpaDock.mountView('app_' + cleanName);
-      }
-    } catch (e) {
-      alert('Error creating project: ' + e.message);
-    }
-  }
-
-  static async forkProject(sourceProjectName, container) {
-    if (!sourceProjectName) return;
-
-    var defaultNewName = sourceProjectName + '_fork';
-    var rawName = prompt('Enter a name for your new project fork (copying ' + sourceProjectName + '):', defaultNewName);
-    if (!rawName) return;
-
-    var cleanNewName = rawName.trim().replace(/[^a-zA-Z0-9_\-]/g, '');
-    if (!cleanNewName) {
-      alert('Invalid project name. Please use letters, numbers, dashes, or underscores.');
-      return;
-    }
-
-    if (cleanNewName === sourceProjectName) {
-      alert('Fork name must be different from the source project name.');
-      return;
-    }
-
-    if (typeof ClientApp !== 'undefined' && ClientApp.showToast) {
-      ClientApp.showToast('Forking [' + sourceProjectName + '] into [' + cleanNewName + ']...', 'info', '🍴');
-    }
-
-    try {
-      var res = await fetch('/api/all-code?project=' + encodeURIComponent(sourceProjectName));
-      var data = await res.json();
-
-      if (!res.ok || !data || !data.filesMap) {
-        throw new Error((data && data.error) || 'Failed to fetch source project files');
-      }
-
-      var sourceFilesMap = data.filesMap;
-      var newFilesList = [];
-
-      for (var rawPath in sourceFilesMap) {
-        if (!Object.prototype.hasOwnProperty.call(sourceFilesMap, rawPath)) continue;
-
-        var content = sourceFilesMap[rawPath];
-        var normPath = rawPath.replace(/\\/g, '/').replace(/^\/+/, '');
-
-        var relSubPath = normPath;
-        if (relSubPath.startsWith(sourceProjectName + '/')) {
-          relSubPath = relSubPath.slice(sourceProjectName.length + 1);
-        }
-
-        var newFilePath = cleanNewName + '/' + relSubPath;
-
-        if (relSubPath === 'luno.json' || relSubPath === 'package.json') {
-          try {
-            var metaObj = JSON.parse(content);
-            metaObj.name = cleanNewName;
-            metaObj.processedCountSinceCheckpoint = 0;
-            metaObj.lastCheckpointTime = new Date().toISOString();
-            metaObj.pendingCheckpointDescription = 'Forked from ' + sourceProjectName;
-            content = JSON.stringify(metaObj, null, 2) + '\n';
-          } catch(e) {}
-        }
-
-        newFilesList.push({
-          filePath: newFilePath,
+  
+      let filesList = [];
+      for (const [relFile, content] of Object.entries(tpl.files)) {
+        filesList.push({
+          filePath: cleanName + '/' + relFile,
           content: content,
           action: 'direct'
         });
       }
-
-      var savePayload = {
-        files: newFilesList,
-        serverScript: '',
-        project: cleanNewName
-      };
-
-      var saveRes = await fetch('/api/save?project=' + encodeURIComponent(cleanNewName), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(savePayload)
+  
+      // Ensure .nojekyll for instant GitHub Pages support
+      filesList.push({
+        filePath: cleanName + '/.nojekyll',
+        content: '',
+        action: 'direct'
       });
-      var saveData = await saveRes.json();
-
-      if (saveRes.ok && saveData.success) {
+  
+      try {
         if (typeof ClientApp !== 'undefined' && ClientApp.setTargetProject) {
-          ClientApp.setTargetProject(cleanNewName, { openTab: true });
-          if (ClientApp.showToast) {
-            ClientApp.showToast('Successfully forked into [' + cleanNewName + ']! Ready to build.', 'success', '🚀');
-          }
+          ClientApp.setTargetProject(cleanName, { openTab: true });
         }
-
+        await fetch('/api/save?project=' + encodeURIComponent(cleanName), {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ files: filesList, serverScript: '', project: cleanName })
+        });
         if (typeof LunoSpaDock !== 'undefined') {
-          LunoSpaDock.mountView('app_' + cleanNewName);
-        } else if (container) {
-          LunoProjectTemplates.mountFullPageView(container);
+          LunoSpaDock.mountView('app_' + cleanName);
         }
-      } else {
-        throw new Error((saveData && saveData.error) || 'Failed to save forked project');
+        if (typeof ClientApp !== 'undefined' && ClientApp.showToast) {
+          ClientApp.showToast('Created project [' + cleanName + '] from template!', 'success', '🌱');
+        }
+      } catch (e) {
+        alert('Error creating project: ' + e.message);
       }
-    } catch (err) {
-      console.error('[Fork Project Error]', err);
-      alert('Error forking project: ' + err.message);
     }
-  }
+
+    static async forkProject(sourceProjectName, container) {
+      if (!sourceProjectName) return;
+  
+      var defaultNewName = sourceProjectName + '_fork';
+      var rawName = prompt('Enter name for your new project fork (cloning ' + sourceProjectName + '):', defaultNewName);
+      if (!rawName) return;
+  
+      var cleanNewName = rawName.trim().replace(/[^a-zA-Z0-9_\-]/g, '');
+      if (!cleanNewName) {
+        alert('Invalid project name. Please use alphanumeric characters, dashes, or underscores.');
+        return;
+      }
+  
+      if (cleanNewName === sourceProjectName) {
+        alert('Fork name must be different from the source project name.');
+        return;
+      }
+  
+      if (typeof ClientApp !== 'undefined' && ClientApp.showToast) {
+        ClientApp.showToast('Forking [' + sourceProjectName + '] into [' + cleanNewName + ']...', 'info', '🍴');
+      }
+  
+      try {
+        var res = await fetch('/api/all-code?project=' + encodeURIComponent(sourceProjectName));
+        var data = await res.json();
+  
+        if (!res.ok || !data || !data.filesMap) {
+          throw new Error((data && data.error) || 'Failed to fetch source project files');
+        }
+  
+        var sourceFilesMap = data.filesMap;
+        var newFilesList = [];
+  
+        for (var rawPath in sourceFilesMap) {
+          if (!Object.prototype.hasOwnProperty.call(sourceFilesMap, rawPath)) continue;
+  
+          var content = sourceFilesMap[rawPath];
+          var normPath = rawPath.replace(/\\/g, '/').replace(/^\/+/, '');
+  
+          var relSubPath = normPath;
+          if (relSubPath.startsWith(sourceProjectName + '/')) {
+            relSubPath = relSubPath.slice(sourceProjectName.length + 1);
+          }
+  
+          var newFilePath = cleanNewName + '/' + relSubPath;
+  
+          if (relSubPath === 'luno.json' || relSubPath === 'package.json') {
+            try {
+              var metaObj = JSON.parse(content);
+              metaObj.name = cleanNewName;
+              metaObj.processedCountSinceCheckpoint = 0;
+              metaObj.lastCheckpointTime = new Date().toISOString();
+              metaObj.pendingCheckpointDescription = 'Forked from ' + sourceProjectName;
+              content = JSON.stringify(metaObj, null, 2) + '\n';
+            } catch(e) {}
+          }
+  
+          newFilesList.push({
+            filePath: newFilePath,
+            content: content,
+            action: 'direct'
+          });
+        }
+  
+        // Ensure .nojekyll in new fork
+        newFilesList.push({
+          filePath: cleanNewName + '/.nojekyll',
+          content: '',
+          action: 'direct'
+        });
+  
+        var savePayload = {
+          files: newFilesList,
+          serverScript: '',
+          project: cleanNewName
+        };
+  
+        var saveRes = await fetch('/api/save?project=' + encodeURIComponent(cleanNewName), {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(savePayload)
+        });
+        var saveData = await saveRes.json();
+  
+        if (saveRes.ok && saveData.success) {
+          if (typeof ClientApp !== 'undefined' && ClientApp.setTargetProject) {
+            ClientApp.setTargetProject(cleanNewName, { openTab: true });
+            if (ClientApp.showToast) {
+              ClientApp.showToast('Successfully forked [' + sourceProjectName + '] into [' + cleanNewName + ']!', 'success', '🚀');
+            }
+          }
+  
+          if (typeof LunoSpaDock !== 'undefined') {
+            LunoSpaDock.mountView('app_' + cleanNewName);
+          } else if (container) {
+            LunoProjectTemplates.mountFullPageView(container);
+          }
+        } else {
+          throw new Error((saveData && saveData.error) || 'Failed to save forked project');
+        }
+      } catch (err) {
+        console.error('[Fork Project Error]', err);
+        alert('Error forking project: ' + err.message);
+      }
+    }
 }
 
 globalThis.LunoProjectTemplates = LunoProjectTemplates;

@@ -213,52 +213,85 @@ class ClientAppUI {
       );
     }
 
-  static renderInboxCard(m) {
-    var el = m || (typeof LunoUIComponents !== 'undefined' ? LunoUIComponents.makeElement : null);
-    var arrowInbox = el('span', { style: { fontSize: '0.85rem', color: '#7ee787' } }, ClientAppUI.inboxExpanded ? '▲' : '▼');
-
-    var inboxContent = el('div', { id: 'inbox-card-content', style: { display: ClientAppUI.inboxExpanded ? 'block' : 'none', marginTop: '0.5rem', width: '100%', boxSizing: 'border-box' } },
-      el('div', { style: { display: 'flex', gap: '0.4rem', marginBottom: '0.45rem', flexWrap: 'wrap' } },
-        el('button', {
-          className: 'btn-primary',
-          style: { width: '100%', padding: '0.85rem', background: '#238636', color: '#fff', fontWeight: 'bold', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '0.95rem', boxShadow: '0 4px 12px rgba(35, 134, 54, 0.3)', fontFamily: 'monospace' },
-          onclick: function() {
-            if (typeof ClientAppPaster !== 'undefined' && ClientAppPaster.pasteClipboard) {
-              ClientAppPaster.pasteClipboard();
-            } else if (typeof ClientApp !== 'undefined' && ClientApp.pasteClipboard) {
-              ClientApp.pasteClipboard();
-            }
-          }
-        }, 'Paste from Chatbot')
-      ),
-      el('div', { id: 'inbox-metrics-badge', style: { fontSize: '0.72rem', color: '#7ee787', fontFamily: 'monospace' } })
-    );
-
-    return el('div', {
-      className: 'inbox-card glow-card',
-      style: { background: 'linear-gradient(135deg, #0d2818 0%, #161b22 100%)', border: '2px solid #238636', borderRadius: '10px', padding: '0.75rem', boxShadow: '0 4px 12px rgba(35, 134, 54, 0.25)', width: '100%', boxSizing: 'border-box' }
-    },
-      el('div', {
-        style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer', flexWrap: 'wrap', gap: '0.35rem' },
-        onclick: function(e) {
-          if (e.target.tagName !== 'BUTTON' && e.target.tagName !== 'SELECT') {
-            ClientAppUI.inboxExpanded = !ClientAppUI.inboxExpanded;
-            inboxContent.style.display = ClientAppUI.inboxExpanded ? 'block' : 'none';
-            arrowInbox.textContent = ClientAppUI.inboxExpanded ? '▲' : '▼';
-          }
+    static renderInboxCard(m) {
+      var el = m || (typeof LunoUIComponents !== 'undefined' ? LunoUIComponents.makeElement : null);
+      var arrowInbox = el('span', { style: { fontSize: '0.85rem', color: '#7ee787' } }, ClientAppUI.inboxExpanded ? '▲' : '▼');
+  
+      var inboxContent = el('div', {
+        id: 'inbox-card-content',
+        style: {
+          display: ClientAppUI.inboxExpanded ? 'block' : 'none',
+          marginTop: '0.5rem',
+          width: '100%',
+          boxSizing: 'border-box'
         }
       },
-        el('div', { style: { display: 'flex', flexDirection: 'column', gap: '0.1rem' } },
-          el('div', { style: { fontSize: '1rem', fontWeight: 'bold', color: '#3fb950', display: 'flex', alignItems: 'center', gap: '0.35rem', whiteSpace: 'nowrap' } },
-            'INBOX',
-            el('span', { style: { fontSize: '0.72rem', color: '#7ee787', opacity: 0.85, fontWeight: 'normal' } }, '(receive from LLM)')
-          )
+        el('div', { style: { display: 'flex', gap: '0.4rem', marginBottom: '0.45rem', flexWrap: 'wrap' } },
+          el('button', {
+            id: 'btn-paste-chatbot',
+            className: 'btn-primary',
+            style: {
+              width: '100%',
+              padding: '0.85rem',
+              background: '#238636',
+              color: '#fff',
+              fontWeight: 'bold',
+              border: 'none',
+              borderRadius: '8px',
+              cursor: 'pointer',
+              fontSize: '0.95rem',
+              boxShadow: '0 4px 12px rgba(35, 134, 54, 0.3)',
+              fontFamily: 'monospace',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '0.4rem'
+            },
+            onclick: function() {
+              if (typeof ClientAppPaster !== 'undefined' && ClientAppPaster.pasteClipboard) {
+                ClientAppPaster.pasteClipboard();
+              } else if (typeof ClientApp !== 'undefined' && ClientApp.pasteClipboard) {
+                ClientApp.pasteClipboard();
+              }
+            }
+          }, '📥 Paste from Chatbot')
         ),
-        arrowInbox
-      ),
-      inboxContent
-    );
-  }
+        el('div', { id: 'inbox-metrics-badge', style: { fontSize: '0.72rem', color: '#7ee787', fontFamily: 'monospace' } })
+      );
+  
+      return el('div', {
+        className: 'inbox-card glow-card',
+        style: {
+          background: 'linear-gradient(135deg, #0d2818 0%, #161b22 100%)',
+          border: '2px solid #238636',
+          borderRadius: '10px',
+          padding: '0.75rem',
+          boxShadow: '0 4px 12px rgba(35, 134, 54, 0.25)',
+          width: '100%',
+          boxSizing: 'border-box'
+        }
+      },
+        el('div', {
+          style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer', flexWrap: 'wrap', gap: '0.35rem' },
+          onclick: function(e) {
+            if (e.target.tagName !== 'BUTTON' && e.target.tagName !== 'SELECT') {
+              ClientAppUI.inboxExpanded = !ClientAppUI.inboxExpanded;
+              inboxContent.style.display = ClientAppUI.inboxExpanded ? 'block' : 'none';
+              arrowInbox.textContent = ClientAppUI.inboxExpanded ? '▲' : '▼';
+            }
+          }
+        },
+          el('div', { style: { display: 'flex', flexDirection: 'column', gap: '0.1rem' } },
+            el('div', { style: { fontSize: '1rem', fontWeight: 'bold', color: '#3fb950', display: 'flex', alignItems: 'center', gap: '0.35rem', whiteSpace: 'nowrap' } },
+              'INBOX',
+              el('span', { style: { fontSize: '0.72rem', color: '#7ee787', opacity: 0.85, fontWeight: 'normal' } }, '(receive from LLM)')
+            )
+          ),
+          arrowInbox
+        ),
+        inboxContent
+      );
+    }
 
   static renderOutputFeedbackCard(m) {
     var el = m || (typeof LunoUIComponents !== 'undefined' ? LunoUIComponents.makeElement : null);
@@ -279,30 +312,30 @@ class ClientAppUI {
     );
   }
 
-  static renderQuestionAccent(m) {
-    var el = m || (typeof LunoUIComponents !== 'undefined' ? LunoUIComponents.makeElement : null);
-    ClientAppUI.injectPulseStyle();
-    return el('div', {
-      style: {
-        fontSize: '3rem',
-        fontWeight: '900',
-        color: '#ff9800',
-        cursor: 'pointer',
-        textAlign: 'center',
-        margin: '0.8rem auto 0.4rem auto',
-        userSelect: 'none',
-        fontFamily: 'monospace, sans-serif',
-        animation: 'questionPulse 2.5s infinite ease-in-out',
-        width: 'fit-content'
-      },
-      title: 'Help Portal & Guides',
-      onclick: function() {
-        if (typeof LunoUIComponents !== 'undefined' && LunoUIComponents.createSmartHelpModal) {
-          LunoUIComponents.createSmartHelpModal();
+    static renderQuestionAccent(m) {
+      var el = m || (typeof LunoUIComponents !== 'undefined' ? LunoUIComponents.makeElement : null);
+      ClientAppUI.injectPulseStyle();
+      return el('div', {
+        style: {
+          fontSize: '2.5rem',
+          fontWeight: '900',
+          color: '#ff9800',
+          cursor: 'pointer',
+          textAlign: 'center',
+          margin: '0.6rem auto 0.3rem auto',
+          userSelect: 'none',
+          fontFamily: 'monospace, sans-serif',
+          animation: 'questionPulse 2.5s infinite ease-in-out',
+          width: 'fit-content'
+        },
+        title: 'Tap for AI Mentor Guides & Walkthroughs',
+        onclick: function() {
+          if (typeof LunoUIComponents !== 'undefined' && LunoUIComponents.createSmartHelpModal) {
+            LunoUIComponents.createSmartHelpModal();
+          }
         }
-      }
-    }, '?');
-  }
+      }, '?');
+    }
 
     static renderCheckpointButton(m) {
       var el = m || (typeof LunoUIComponents !== 'undefined' ? LunoUIComponents.makeElement : null);
