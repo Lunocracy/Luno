@@ -68,7 +68,7 @@ class LunoManifestDecisionEngine {
     return false;
   }
 
-    static async processPayload(payloadObj, manifestObj, projectName = '') {
+      static async processPayload(payloadObj, manifestObj, projectName = '') {
       if (!payloadObj || !Array.isArray(payloadObj.files)) {
         return payloadObj;
       }
@@ -82,7 +82,14 @@ class LunoManifestDecisionEngine {
   
         let normPath = f.filePath.replace(/\\/g, '/').replace(/^\/+/, '').trim();
   
-        // 1. Deterministic canonicalization: Prefix with target project if not already qualified
+        // 1. Strip redundant outer workspace labels if present in prompt headers
+        if (normPath.startsWith('Luno Workspace/')) {
+          normPath = normPath.slice(15).trim();
+        } else if (normPath.startsWith('./')) {
+          normPath = normPath.slice(2).trim();
+        }
+  
+        // 2. Deterministic canonicalization: Prefix with target project if not already qualified
         if (
           normPath !== 'LunoPatchLog.html' &&
           !normPath.startsWith('Library/') &&

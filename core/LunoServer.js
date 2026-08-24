@@ -145,7 +145,7 @@ class LunoServer {
     return fileList;
   }
 
-      static sanitizeAndResolvePath(relPath, baseDir) {
+        static sanitizeAndResolvePath(relPath, baseDir) {
       const webRoot = LunoServer.getWebRootDir();
       if (!relPath || typeof relPath !== 'string' || !relPath.trim()) {
         return baseDir || LunoServer.getRootDir();
@@ -153,26 +153,33 @@ class LunoServer {
   
       let normalized = relPath.replace(/\\/g, '/').replace(/^\/+/, '').trim();
   
-      // 1. Special root-level files anchored directly to webRoot
+      // 1. Strip redundant outer labels if passed in headers
+      if (normalized.startsWith('Luno Workspace/')) {
+        normalized = normalized.slice(15).trim();
+      } else if (normalized.startsWith('./')) {
+        normalized = normalized.slice(2).trim();
+      }
+  
+      // 2. Special root-level files anchored directly to webRoot
       if (normalized === 'LunoPatchLog.html') {
         return path.join(webRoot, 'LunoPatchLog.html');
       }
   
-      // 2. Explicit Library paths anchored directly to web/Library/
+      // 3. Explicit Library paths anchored directly to web/Library/
       if (normalized.startsWith('Library/')) {
         return path.join(webRoot, normalized);
       }
   
-      // 3. Absolute path boundary check
+      // 4. Absolute path boundary validation
       if (path.isAbsolute(normalized)) {
         const resolvedAbs = path.resolve(normalized);
         if (resolvedAbs.startsWith(webRoot)) {
           return resolvedAbs;
         }
-        throw new Error(`[LunoServer] Path out of bounds: ${normalized}`);
+        throw new Error(`[LunoServer Guard] Path boundary violation: "${normalized}" is outside workspace root.`);
       }
   
-      // 4. If path starts with an existing project folder in webRoot
+      // 5. If path starts with an existing project folder in webRoot (e.g. Luno/..., Basic3D/..., MySituation/...)
       const segments = normalized.split('/');
       const firstSegment = segments[0];
       const candidateDir = path.join(webRoot, firstSegment);
@@ -180,7 +187,7 @@ class LunoServer {
         return path.join(webRoot, normalized);
       }
   
-      // 5. Otherwise resolve strictly inside baseDir (no fallbacks or guessing)
+      // 6. Otherwise resolve strictly inside baseDir (no multi-directory hunting)
       const targetDir = baseDir || LunoServer.getRootDir();
       return path.resolve(targetDir, normalized);
     }
