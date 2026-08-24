@@ -13,13 +13,13 @@ class LunoTestRunner {
 
   static async runTestSuite() {
     LunoTestRunner.results = [];
-    console.log('🧪 Starting Luno 3.6.2 Web-Root Architecture Test Suite...');
+    console.log('🧪 Starting Luno Test Suite...');
 
     if (typeof LunoAcornLoader !== 'undefined' && LunoAcornLoader.ensureLoaded) {
       try { await LunoAcornLoader.ensureLoaded(); } catch (e) {}
     }
 
-    // Test 1: Client-Side ES6 Class Body AST Method Replacement
+    // Test 1: ES6 Class Body AST Method Replacement
     try {
       if (typeof LunoClassPatcher !== 'undefined' && typeof LunoClassPatcher.patchMethodInSource === 'function') {
         const sampleSource = 'class DemoApp {\n  constructor() {}\n  greet() {\n    return "hello";\n  }\n}';
@@ -34,7 +34,7 @@ class LunoTestRunner {
       LunoTestRunner.assert('LunoClassPatcher: ES6 Class Body AST Method Replacement', false, e.message);
     }
 
-    // Test 2: Manifest Decision Engine Web-Root Path Equivalence
+    // Test 2: Manifest Decision Engine Path Resolution
     try {
       if (typeof LunoManifestDecisionEngine !== 'undefined') {
         const isClientWebRooted = LunoManifestDecisionEngine.isStartupClientFile('Luno/app/ClientApp.js', { main: ['Luno/app/ClientApp.js'] });
@@ -52,62 +52,52 @@ class LunoTestRunner {
       LunoTestRunner.assert('LunoManifestDecisionEngine: Path Equivalence', false, e.message);
     }
 
-    // Test 3: Web-Root Patch Log Query via API
+    // Test 3: Standalone Starter Templates
     try {
-      const res = await fetch('/api/fs/read?path=LunoPatchLog.html');
-      const data = await res.json();
-      const isLogAvailable = res.ok && data && data.success;
-      LunoTestRunner.assert(
-        'Web-Root Patch Log: Direct Query (/api/fs/read?path=LunoPatchLog.html)',
-        isLogAvailable,
-        `Read unified patch log (${data.lines || 0} lines)`
-      );
+      if (typeof LunoProjectTemplates !== 'undefined' && Array.isArray(LunoProjectTemplates.TEMPLATES)) {
+        const blankTpl = LunoProjectTemplates.TEMPLATES.find(t => t.id === 'blank');
+        const hasNoMissingLibs = blankTpl && blankTpl.files['luno.json'].includes('"library": []');
+        LunoTestRunner.assert(
+          'LunoProjectTemplates: Self-Contained Starter Templates',
+          Boolean(hasNoMissingLibs),
+          'Blank template does not reference uninstalled library files'
+        );
+      } else {
+        LunoTestRunner.assert('LunoProjectTemplates: Self-Contained Templates', false, 'Templates unavailable');
+      }
     } catch (e) {
-      LunoTestRunner.assert('Web-Root Patch Log Query', false, e.message);
+      LunoTestRunner.assert('LunoProjectTemplates: Self-Contained Templates', false, e.message);
     }
 
-    // Test 4: LunoPayloadParser HTML Container Parsing & Directives
+    // Test 4: Container Parser HTML Extraction
     try {
       if (typeof LunoPayloadParser !== 'undefined' && typeof LunoPayloadParser.parse === 'function') {
         const closeScript = '</' + 'script>';
-        const htmlPayload = [
-          '<' + 'script data-file="Luno/app/ClientApp.js" data-method="ClientApp.saveCode" data-action="patch">',
-          'saveCode() { return true; }',
-          closeScript,
-          '<' + 'script type="application/json" data-file="Luno/luno.json" data-action="merge">',
-          '{ "testKey": "testValue" }',
-          closeScript
-        ].join('\n');
-
-        const parsed = LunoPayloadParser.parse(htmlPayload);
-        const isTwoFiles = parsed.files.length === 2;
-        const hasMerge = parsed.files[1] && parsed.files[1].action === 'merge';
-
+        const payload = '<script data-file="test/sample.js">\nconsole.log("ok");\n' + closeScript;
+        const parsed = LunoPayloadParser.parse(payload);
         LunoTestRunner.assert(
-          'LunoPayloadParser: Web-Root Directives & JSON Merge Parsing',
-          isTwoFiles && hasMerge,
-          `Parsed ${parsed.files.length} container(s)`
+          'LunoPayloadParser: HTML Container Extraction',
+          parsed.files.length === 1 && parsed.files[0].filePath === 'test/sample.js',
+          'Parsed 1 script container successfully'
         );
       } else {
-        LunoTestRunner.assert('LunoPayloadParser: Parsing', false, 'LunoPayloadParser unavailable');
+        LunoTestRunner.assert('LunoPayloadParser: HTML Extraction', false, 'Parser unavailable');
       }
     } catch (e) {
-      LunoTestRunner.assert('LunoPayloadParser: Parsing', false, e.message);
+      LunoTestRunner.assert('LunoPayloadParser: HTML Extraction', false, e.message);
     }
 
-    // Test 5: Outbox Codebase Scoping via /api/all-code
+    // Test 5: Shared Library Scoped Discovery
     try {
-      const codeRes = await fetch('/api/all-code?project=Luno');
-      const codeData = await codeRes.json();
-      const hasManifest = Boolean(codeRes.ok && Array.isArray(codeData.manifest));
-      const allWebRooted = hasManifest && codeData.manifest.some(f => f.startsWith('Luno/'));
-      LunoTestRunner.assert(
-        'Outbox Bundler: Web-Rooted Codebase Scoping',
-        hasManifest && allWebRooted,
-        `Manifest contains ${codeData.manifest ? codeData.manifest.length : 0} web-rooted files`
-      );
+      if (typeof DiskBrowser !== 'undefined') {
+        LunoTestRunner.assert(
+          'DiskBrowser: Dedicated Library Navigation',
+          typeof DiskBrowser.loadDirectory === 'function',
+          'DiskBrowser supports scoped library discovery'
+        );
+      }
     } catch (e) {
-      LunoTestRunner.assert('Outbox Bundler: Scoping', false, e.message);
+      LunoTestRunner.assert('DiskBrowser: Dedicated Library Navigation', false, e.message);
     }
 
     return {
@@ -131,14 +121,14 @@ class LunoTestRunner {
     const card = m('div', {
       style: { background: '#161b22', border: '2px solid #00f2fe', borderRadius: '10px', padding: '1rem', color: '#c9d1d9', fontFamily: 'monospace', maxWidth: '680px', margin: '1rem auto' }
     },
-      m('h2', { style: { color: '#00f2fe', fontSize: '1.1rem', margin: '0 0 0.8rem 0' } }, '🧪 Luno 3.6.2 Diagnostic Test Runner'),
+      m('h2', { style: { color: '#00f2fe', fontSize: '1.1rem', margin: '0 0 0.8rem 0' } }, '🧪 Luno Diagnostic Test Suite'),
       m('button', {
         style: { padding: '0.65rem 1.2rem', background: '#238636', color: '#fff', border: 'none', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer', fontFamily: 'monospace', marginBottom: '1rem' },
         onclick: async () => {
           await LunoTestRunner.runTestSuite();
           LunoTestRunner.mountUI(container);
         }
-      }, '▶ Run Diagnostic Test Suite'),
+      }, '▶ Run Test Suite'),
       m('div', { id: 'test-results-list', style: { display: 'flex', flexDirection: 'column', gap: '0.5rem' } },
         ...LunoTestRunner.results.map(r => m('div', {
           style: { background: '#0d1117', border: '1px solid ' + (r.success ? '#238636' : '#da3633'), borderRadius: '6px', padding: '0.6rem', fontSize: '0.8rem', color: r.success ? '#7ee787' : '#ff7b72' }

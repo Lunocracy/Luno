@@ -1,10 +1,7 @@
 class DiffApprovalModal {
-  constructor() {
-
-  }
+  constructor() {}
 
   static escapeHtml(str) {
-
     if (!str || typeof str !== 'string') return '';
     return str
       .replace(/&/g, '&amp;')
@@ -12,10 +9,9 @@ class DiffApprovalModal {
       .replace(/>/g, '&gt;')
       .replace(/"/g, '&quot;')
       .replace(/'/g, '&#039;');
-
   }
-  static open(options) {
 
+  static open(options) {
     options = options || {};
     const existing = typeof document !== 'undefined' ? document.getElementById('luno-diff-approval-modal') : null;
     if (existing) existing.remove();
@@ -26,7 +22,6 @@ class DiffApprovalModal {
     const onConfirm = options.onConfirm || (() => {});
     const onCancel = options.onCancel || (() => {});
 
-    // Parse HTML Containers via LunoPayloadParser (Legacy comment headers are dead!)
     const parsed = typeof LunoPayloadParser !== 'undefined' && LunoPayloadParser.parse
       ? LunoPayloadParser.parse(payloadText)
       : { files: [], serverScript: '' };
@@ -41,7 +36,7 @@ class DiffApprovalModal {
     overlay.style.cssText = 'position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,0.85); display:flex; align-items:center; justify-content:center; z-index:9500; font-family:monospace; padding:1rem;';
 
     const card = document.createElement('div');
-    card.style.cssText = 'background:var(--bg-secondary, #161b22); border:2px solid ' + (hasServerScript ? '#e3b341' : '#238636') + '; border-radius:12px; padding:1.25rem; max-width:600px; width:100%; max-height:88vh; display:flex; flex-direction:column; gap:0.75rem; box-shadow:0 12px 32px rgba(0,0,0,0.7);';
+    card.style.cssText = 'background:var(--bg-secondary, #161b22); border:2px solid ' + (hasServerScript ? '#e3b341' : '#238636') + '; border-radius:12px; padding:1.25rem; max-width:620px; width:100%; max-height:88vh; display:flex; flex-direction:column; gap:0.75rem; box-shadow:0 12px 32px rgba(0,0,0,0.7);';
 
     const header = document.createElement('div');
     header.style.cssText = 'display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid #30363d; padding-bottom:0.5rem;';
@@ -139,7 +134,6 @@ class DiffApprovalModal {
       overlay.remove();
       onCancel();
     };
-
   }
 }
 

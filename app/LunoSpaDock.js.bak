@@ -2,9 +2,7 @@ class LunoSpaDock {
   /**
    * ⚙️ CONSTRUCTOR: LunoSpaDock()
    */
-  constructor() {
-
-  }
+  constructor() {}
 
   static activeDockView = (typeof localStorage !== 'undefined' && localStorage.getItem('luno_active_dock_view')) || 'workspace';
   static _iframeCache = {};
@@ -15,34 +13,47 @@ class LunoSpaDock {
    * - Modifier: sync
    */
   static toggleDock(viewKey) {
-
     var vk = viewKey || 'browser';
     LunoSpaDock.activeDockView = vk;
     LunoSpaDock.mountView(vk);
-
   }
+
   /**
    * ⚙️ METHOD: renderHeaderNav(viewKey)
    * - Type: Static Method
    * - Modifier: sync
    */
   static renderHeaderNav(viewKey) {
-
     if (typeof LunoSpaHeaderNav !== 'undefined') {
       return LunoSpaHeaderNav.render(viewKey);
     }
     var el = document.createElement('header');
     el.textContent = 'Luno Home';
     return el;
-
   }
+
+  /**
+   * ⚙️ METHOD: reloadActivePreviewIframe(projectName)
+   * Force reloads the active preview iframe for a specific project.
+   */
+  static reloadActivePreviewIframe(projectName) {
+    var pName = projectName || (typeof ClientApp !== 'undefined' && ClientApp.getTargetProject ? ClientApp.getTargetProject() : '');
+    if (!pName) return;
+
+    if (LunoSpaDock._iframeCache && LunoSpaDock._iframeCache[pName]) {
+      var holder = LunoSpaDock._iframeCache[pName];
+      var iframe = holder ? holder.querySelector('iframe') : null;
+      if (iframe) {
+        iframe.src = '/app-preview?project=' + encodeURIComponent(pName) + '&v=' + Date.now();
+      }
+    }
+  }
+
   /**
    * ⚙️ METHOD: mountView(viewKey)
-   * - Type: Static Method
-   * - Modifier: sync
+   * Dynamically mounts active dock views and robust project preview iframes.
    */
   static mountView(viewKey) {
-
     LunoSpaDock.activeDockView = viewKey;
     if (typeof localStorage !== 'undefined') {
       try { localStorage.setItem('luno_active_dock_view', viewKey); } catch (e) {}
@@ -87,29 +98,24 @@ class LunoSpaDock {
     if (isAppView) {
       if (viewKey.startsWith('app_')) {
         targetProj = viewKey.replace(/^app_/, '');
-      } else if (typeof localStorage !== 'undefined') {
-        targetProj = localStorage.getItem('luno_active_app_proj') || '';
+      } else {
+        targetProj = (typeof ClientApp !== 'undefined' && ClientApp.getTargetProject) ? ClientApp.getTargetProject() : 'Basic3D';
       }
 
-      var invalidNames = (typeof LunoSettings !== 'undefined' && LunoSettings.INVALID_PROJECT_NAMES) ? LunoSettings.INVALID_PROJECT_NAMES : ['web', 'Luno', 'storage', 'emulated', 'LunoWeb', '0'];
+      var invalidNames = (typeof LunoSettings !== 'undefined' && LunoSettings.INVALID_PROJECT_NAMES) ? LunoSettings.INVALID_PROJECT_NAMES : ['web', 'storage', 'emulated', 'LunoWeb', '0'];
       if (!targetProj || invalidNames.includes(targetProj)) {
-        targetProj = (typeof localStorage !== 'undefined' && localStorage.getItem('luno_active_app_proj')) || 'Basic3D';
-        if (invalidNames.includes(targetProj)) targetProj = 'Basic3D';
+        targetProj = 'Basic3D';
       }
 
-      if (typeof localStorage !== 'undefined') {
-        localStorage.setItem('luno_active_app_proj', targetProj);
-      }
-
-      if (typeof LunoSpaHeaderNav !== 'undefined' && targetProj) {
-        LunoSpaHeaderNav.openProjectTab(targetProj);
+      if (typeof ClientApp !== 'undefined' && ClientApp.setTargetProject) {
+        ClientApp.setTargetProject(targetProj, { openTab: true });
       }
     }
 
     var navBar = LunoSpaDock.renderHeaderNav(viewKey);
     var contentArea = document.createElement('div');
     contentArea.id = 'luno-spa-content-area';
-    contentArea.style.cssText = 'width:100%; min-height:82vh;';
+    contentArea.style.cssText = 'width:100%; min-height:82vh; position:relative;';
 
     container.appendChild(navBar);
     container.appendChild(contentArea);
@@ -127,15 +133,22 @@ class LunoSpaDock {
       persistentAppRoot.style.height = '82vh';
       persistentAppRoot.style.display = 'block';
 
-      var iframeUrl = '/app-preview?project=' + encodeURIComponent(targetProj);
+      var iframeUrl = '/app-preview?project=' + encodeURIComponent(targetProj) + '&v=' + Date.now();
 
       if (!LunoSpaDock._iframeCache[targetProj]) {
         var holder = document.createElement('div');
         holder.id = 'iframe-holder-' + targetProj;
         holder.style.cssText = 'width:100%; height:100%; display:block;';
-        holder.innerHTML = '<iframe src="' + iframeUrl + '" style="width:100%; height:100%; border:1px solid #30363d; border-radius:8px; background:#0d1117;"></iframe>';
+        holder.innerHTML = '<iframe src="' + iframeUrl + '" style="width:100%; height:100%; border:1px solid #30363d; border-radius:8px; background:#0d1117;" allow="fullscreen; autoplay"></iframe>';
         persistentAppRoot.appendChild(holder);
         LunoSpaDock._iframeCache[targetProj] = holder;
+      } else {
+        // Refresh stale iframe on demand
+        var holder = LunoSpaDock._iframeCache[targetProj];
+        var iframe = holder.querySelector('iframe');
+        if (iframe && (!iframe.src || iframe.src.indexOf('project=' + targetProj) === -1)) {
+          iframe.src = iframeUrl;
+        }
       }
 
       Object.entries(LunoSpaDock._iframeCache).forEach(function(entry) {
@@ -145,10 +158,6 @@ class LunoSpaDock {
           entry[1].style.display = 'none';
         }
       });
-
-      if (typeof DiskBrowser !== 'undefined') {
-        DiskBrowser.currentPath = '/storage/emulated/0/Luno/web/' + targetProj;
-      }
     } else if (viewKey === 'projects' && typeof LunoProjectTemplates !== 'undefined' && typeof LunoProjectTemplates.mountFullPageView === 'function') {
       LunoProjectTemplates.mountFullPageView(contentArea);
     } else if (viewKey === 'checkpoint') {
@@ -165,7 +174,6 @@ class LunoSpaDock {
     } else if (viewKey === 'test' && typeof LunoTestRunner !== 'undefined') {
       LunoTestRunner.mountUI(contentArea);
     }
-
   }
 }
 

@@ -1,17 +1,14 @@
 class BookmarkletApp {
   constructor() {
-
     this.source = "";
     this.targetWindowRef = null;
     this.connectedTargetOrigin = "*";
     this.messageLogs = [];
     this.stagedQueue = [];
     this.setupHostMessageListener();
-
   }
 
   handleIncomingRelayMessage(e) {
-
     if (!e || !e.data || typeof e.data !== "object") return;
     var type = e.data.type;
     if (!type || typeof type !== "string") return;
@@ -64,53 +61,44 @@ class BookmarkletApp {
 
       this.updateRelayLogUI();
     }
-
   }
-  setupHostMessageListener() {
 
+  setupHostMessageListener() {
     if (typeof window === "undefined") return;
     var self = this;
     window.addEventListener("message", function(e) {
       self.handleIncomingRelayMessage(e);
     });
-
   }
+
   requestTargetScan() {
-
     this.sendHostMessageToTarget("Scan for code blocks", "LUNO_CMD_SCAN");
-
   }
+
   requestTargetQueue() {
-
     this.sendHostMessageToTarget("Fetch queue", "LUNO_CMD_GET_QUEUE");
-
   }
-  clearTargetQueue() {
 
+  clearTargetQueue() {
     this.sendHostMessageToTarget("Clear queue", "LUNO_CMD_CLEAR_QUEUE");
     this.stagedQueue = [];
     this.renderQueueInspectorUI();
-
   }
-  notifyBlockAppliedToTarget(fingerprint) {
 
+  notifyBlockAppliedToTarget(fingerprint) {
     if (!fingerprint) return;
     this.sendHostMessageToTarget("Block applied to disk", "LUNO_BLOCK_APPLIED", { fingerprint: fingerprint });
-
   }
-  applyTextToLunoInbox(rawText, fingerprint) {
 
+  applyTextToLunoInbox(rawText, fingerprint) {
     if (!rawText) return;
 
     if (typeof window !== "undefined" && window.LunoSpaDock && typeof window.LunoSpaDock.mountView === "function") {
       window.LunoSpaDock.mountView("workspace");
     }
 
-    if (typeof window !== "undefined" && window.opener && typeof window.opener.ClientApp !== "undefined") {
-      if (typeof window.opener.LunoSpaDock !== "undefined") {
-        window.opener.LunoSpaDock.mountView("workspace");
-      }
-      window.opener.ClientApp.processPastedText(rawText);
+    if (typeof ClientAppPaster !== "undefined" && typeof ClientAppPaster.processPastedText === "function") {
+      ClientAppPaster.processPastedText(rawText);
     } else if (typeof ClientApp !== "undefined" && typeof ClientApp.processPastedText === "function") {
       ClientApp.processPastedText(rawText);
     } else {
@@ -122,10 +110,9 @@ class BookmarkletApp {
     if (fingerprint) {
       this.notifyBlockAppliedToTarget(fingerprint);
     }
-
   }
-  buildQueueInspectorRow(item, index) {
 
+  buildQueueInspectorRow(item, index) {
     var self = this;
     var row = document.createElement("div");
     row.style.cssText = "background:#0d1117; border:1px solid " + (item.isApplied ? "#238636" : "#21262d") + "; border-radius:4px; padding:6px; margin-bottom:4px; display:flex; justify-content:space-between; align-items:center;";
@@ -154,10 +141,9 @@ class BookmarkletApp {
     row.appendChild(info);
     row.appendChild(btn);
     return row;
-
   }
-  renderQueueInspectorUI() {
 
+  renderQueueInspectorUI() {
     var container = document.getElementById("relay-queue-inspector-box");
     if (!container) return;
 
@@ -170,10 +156,9 @@ class BookmarkletApp {
     for (var i = 0; i < this.stagedQueue.length; i++) {
       container.appendChild(this.buildQueueInspectorRow(this.stagedQueue[i], i));
     }
-
   }
-  sendHostMessageToTarget(messageText, msgType, extraPayload) {
 
+  sendHostMessageToTarget(messageText, msgType, extraPayload) {
     var type = msgType || "LUNO_HOST_MSG";
     if (!messageText || !messageText.trim()) return false;
 
@@ -196,10 +181,9 @@ class BookmarkletApp {
       this.logRelaySystem("Send Error: " + err.message);
       return false;
     }
-
   }
-  logRelaySystem(text) {
 
+  logRelaySystem(text) {
     this.messageLogs.push({
       time: new Date().toLocaleTimeString(),
       title: "System",
@@ -207,10 +191,9 @@ class BookmarkletApp {
       body: text
     });
     this.updateRelayLogUI();
-
   }
-  buildRelayLogRow(item) {
 
+  buildRelayLogRow(item) {
     var row = document.createElement("div");
     row.style.marginBottom = "4px";
     row.style.borderBottom = "1px solid #21262d";
@@ -232,10 +215,9 @@ class BookmarkletApp {
     row.appendChild(titleStrong);
     row.appendChild(bodySpan);
     return row;
-
   }
-  updateRelayLogUI() {
 
+  updateRelayLogUI() {
     var logBox = document.getElementById("relay-log-box");
     var badge = document.getElementById("relay-status-badge");
 
@@ -247,84 +229,11 @@ class BookmarkletApp {
     }
 
     if (!logBox) return;
-
     logBox.innerHTML = "";
     for (var i = 0; i < this.messageLogs.length; i++) {
       logBox.appendChild(this.buildRelayLogRow(this.messageLogs[i]));
     }
     logBox.scrollTop = logBox.scrollHeight;
-
-  }
-  getDefaultSource() {
-
-    var presets = typeof BookmarkletPresets !== "undefined" ? BookmarkletPresets.getPresets() : [];
-    return presets.length > 0 ? presets[0].source : "javascript:void(0);";
-
-  }
-  getSource() {
-
-    if (!this.source) {
-      this.source = this.getDefaultSource();
-    }
-    return this.source;
-
-  }
-  loadPreset(presetObj) {
-
-    if (presetObj && presetObj.source) {
-      this.source = presetObj.source;
-      var textarea = document.getElementById("bookmarklet-source");
-      if (textarea) textarea.value = this.source;
-      this.generate();
-    }
-
-  }
-  init(container) {
-
-    if (typeof BookmarkletUI !== "undefined") {
-      BookmarkletUI.renderWorkshop(container, this);
-      this.generate();
-    }
-
-  }
-  onSourceChanged(newSource) {
-
-    this.source = newSource;
-    this.generate();
-
-  }
-  generate() {
-
-    var src = this.getSource();
-    var encoded = "javascript:";
-    if (typeof BookmarkletEncoder !== "undefined") {
-      encoded = BookmarkletEncoder.encode(src);
-    } else {
-      encoded = "javascript:" + encodeURIComponent(src.trim());
-    }
-    var link = document.getElementById("bookmarklet-link");
-    var output = document.getElementById("bookmarklet-encoded");
-    if (link) link.href = encoded;
-    if (output) output.value = encoded;
-    return encoded;
-
-  }
-  copyBookmarklet(targetBtn) {
-
-    var encoded = this.generate();
-    if (typeof BookmarkletEncoder !== "undefined") {
-      BookmarkletEncoder.copyToClipboard(encoded, targetBtn);
-    }
-
-  }
-  copySource(targetBtn) {
-
-    var el = document.getElementById("bookmarklet-source");
-    var src = el ? el.value : this.getSource();
-    if (typeof BookmarkletEncoder !== "undefined") {
-      BookmarkletEncoder.copyToClipboard(src, targetBtn);
-    }
-
   }
 }
 

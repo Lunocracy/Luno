@@ -22,8 +22,11 @@ class AppLoader {
   }
 
   static async loadApp(containerId = 'app-root') {
-    const root = document.getElementById(containerId) || document.body;
+    if (typeof LunoLoader !== 'undefined' && typeof LunoLoader.loadApp === 'function') {
+      return await LunoLoader.loadApp(containerId);
+    }
 
+    const root = document.getElementById(containerId) || document.body;
     try {
       const projParam = (typeof window !== 'undefined' && window.location && window.location.search) ? window.location.search : '';
       const res = await fetch('luno.json' + (projParam ? (projParam + '&v=' + Date.now()) : ('?v=' + Date.now())));
@@ -38,7 +41,7 @@ class AppLoader {
 
       if (Array.isArray(config.library)) {
         for (const lib of config.library) {
-          const libPath = lib.startsWith('library/') ? lib : ('library/' + lib);
+          const libPath = lib.startsWith('/') ? lib : ('/Library/' + lib.replace(/^Library\//i, ''));
           await AppLoader.loadScript(libPath);
         }
       }
@@ -49,14 +52,10 @@ class AppLoader {
         }
       }
 
-      if (typeof DomBasics !== 'undefined' && typeof DomBasics.run === 'function') {
-        DomBasics.run();
-      }
-
-      const entryClass = (config.entrypoint && config.entrypoint.class) || config.mainClass || 'SituationApp';
+      const entryClass = (config.entrypoint && config.entrypoint.class) || config.mainClass || 'App';
       const entryMethod = (config.entrypoint && config.entrypoint.method) || 'run';
 
-      let TargetClass = window[entryClass] || globalThis[entryClass] || window.SituationApp || window.AccuDrawValuation;
+      let TargetClass = window[entryClass] || globalThis[entryClass];
       if (!TargetClass) {
         try { TargetClass = eval(entryClass); } catch (e) {}
       }
@@ -77,7 +76,6 @@ class AppLoader {
           throw new Error('Entrypoint method "' + entryMethod + '" not found on ' + entryClass);
         }
       }
-
     } catch (err) {
       console.error('[AppLoader Exception]', err);
       root.innerHTML = '<div style="padding: 24px; color: #f87171; background: #0f172a; border: 1px solid #ef4444; border-radius: 8px; font-family: monospace;">' +
@@ -90,3 +88,4 @@ class AppLoader {
 
 window.AppLoader = AppLoader;
 globalThis.AppLoader = AppLoader;
+if (typeof module !== 'undefined' && module.exports) module.exports = AppLoader;

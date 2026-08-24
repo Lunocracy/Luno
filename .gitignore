@@ -1,0 +1,5 @@
+
+*.bak
+*.oldschool.bak
+node_modules
+.checkpoints

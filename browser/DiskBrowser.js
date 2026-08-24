@@ -27,18 +27,6 @@ window.DiskBrowser.formatBytes = function(bytes) {
   return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
 };
 
-window.DiskBrowser.formatTimeAgo = function(mtimeMs) {
-  if (!mtimeMs) return '';
-  var now = Date.now();
-  var diffSec = Math.floor((now - mtimeMs) / 1000);
-  if (diffSec < 60) return 'Just now';
-  if (diffSec < 3600) return Math.floor(diffSec / 60) + 'm ago';
-  if (diffSec < 86400) return Math.floor(diffSec / 3600) + 'h ago';
-  if (diffSec < 604800) return Math.floor(diffSec / 86400) + 'd ago';
-  var d = new Date(mtimeMs);
-  return (d.getMonth() + 1) + '/' + d.getDate();
-};
-
 window.DiskBrowser.getFileBadge = function(fileName, isDir) {
   if (isDir) {
     return { ext: 'DIR', icon: '📁', color: '#00f2fe', bg: '#003847', border: '#00f2fe66' };
@@ -71,13 +59,17 @@ window.DiskBrowser.renderHeader = function(activeProjName) {
   var m = window.DiskBrowser.makeElement;
   var currentTarget = (typeof ClientApp !== 'undefined' && ClientApp.getTargetProject) ? ClientApp.getTargetProject() : 'Luno';
 
-  var projectOptions = window.DiskBrowser.projectsList.map(function(p) {
+  var validProjects = window.DiskBrowser.projectsList.filter(function(p) {
+    return !p.isLibrary && p.name.toLowerCase() !== 'library';
+  });
+
+  var projectOptions = validProjects.map(function(p) {
     var isCurrent = (p.name === currentTarget);
     var displayLabel = p.name === 'Luno' ? 'Luno (Core)' : p.name;
     return m('option', {
       value: p.name,
       selected: isCurrent
-    }, (p.isLibrary ? '📚' : '📁') + ' ' + displayLabel + ' (' + (p.fileCount || 0) + ' files)');
+    }, '📁 ' + displayLabel + ' (' + (p.fileCount || 0) + ' files)');
   });
 
   var projectSelect = m('select', {
@@ -138,6 +130,7 @@ window.DiskBrowser.mountUI = async function(container) {
       style: { padding: '0.35rem 0.75rem', background: isProjectMode ? '#238636' : '#161b22', color: isProjectMode ? '#fff' : '#c9d1d9', border: '1px solid ' + (isProjectMode ? '#3fb950' : '#30363d'), borderRadius: '6px', cursor: 'pointer', fontSize: '0.75rem', fontWeight: 'bold', fontFamily: 'monospace' },
       onclick: function() {
         window.DiskBrowser.browserMode = 'project';
+        window.DiskBrowser.currentPath = '';
         window.DiskBrowser.selectedFiles.clear();
         window.DiskBrowser.mountUI(container);
       }
@@ -147,6 +140,7 @@ window.DiskBrowser.mountUI = async function(container) {
       style: { padding: '0.35rem 0.75rem', background: !isProjectMode ? '#8257e5' : '#161b22', color: !isProjectMode ? '#fff' : '#c9d1d9', border: '1px solid ' + (!isProjectMode ? '#d2a8ff' : '#30363d'), borderRadius: '6px', cursor: 'pointer', fontSize: '0.75rem', fontWeight: 'bold', fontFamily: 'monospace' },
       onclick: function() {
         window.DiskBrowser.browserMode = 'library';
+        window.DiskBrowser.currentPath = '';
         window.DiskBrowser.selectedFiles.clear();
         window.DiskBrowser.mountUI(container);
       }
@@ -155,7 +149,7 @@ window.DiskBrowser.mountUI = async function(container) {
     var searchInput = m('input', {
       id: 'search-input',
       value: window.DiskBrowser.searchQuery,
-      placeholder: isProjectMode ? '🔍 Search files in [' + currentTarget + ']...' : '🔍 Search library utilities...',
+      placeholder: isProjectMode ? '🔍 Search files in [' + currentTarget + ']...' : '🔍 Search shared Library files...',
       style: { flex: '1 1 140px', background: '#0d1117', border: '1px solid #30363d', color: '#00f2fe', padding: '0.4rem 0.55rem', borderRadius: '6px', fontFamily: 'monospace', fontSize: '0.75rem', outline: 'none' },
       oninput: function(e) {
         window.DiskBrowser.searchQuery = e.target.value.toLowerCase().trim();
@@ -187,10 +181,11 @@ window.DiskBrowser.loadDirectory = async function() {
   var container = document.getElementById('item-list-container');
   if (!container) return;
 
-  var currentTarget = (typeof ClientApp !== 'undefined' && ClientApp.getTargetProject) ? ClientApp.getTargetProject() : '';
+  var isLibMode = (window.DiskBrowser.browserMode === 'library');
+  var queryTarget = isLibMode ? 'Library' : ((typeof ClientApp !== 'undefined' && ClientApp.getTargetProject) ? ClientApp.getTargetProject() : '');
 
   try {
-    var data = await LunoApiClient.fetchFsList(window.DiskBrowser.currentPath || '', currentTarget);
+    var data = await LunoApiClient.fetchFsList(window.DiskBrowser.currentPath || '', queryTarget);
     var displayItems = data.items || [];
 
     if (window.DiskBrowser.searchQuery) {
@@ -201,7 +196,10 @@ window.DiskBrowser.loadDirectory = async function() {
 
     container.innerHTML = '';
     if (displayItems.length === 0) {
-      container.appendChild(window.DiskBrowser.makeElement('div', { style: { padding: '0.8rem', color: '#8b949e', fontSize: '0.78rem', textAlign: 'center' } }, 'No matching files found.'));
+      var emptyMsg = isLibMode
+        ? 'Shared Library folder is empty or not found.'
+        : 'No matching files found in [' + (queryTarget || 'Project') + '].';
+      container.appendChild(window.DiskBrowser.makeElement('div', { style: { padding: '0.8rem', color: '#8b949e', fontSize: '0.78rem', textAlign: 'center' } }, emptyMsg));
       return;
     }
 
@@ -209,12 +207,11 @@ window.DiskBrowser.loadDirectory = async function() {
     displayItems.forEach(function(item) {
       var rel = item.relativePath || item.name;
       var isDir = item.isDirectory;
-      var badge = window.DiskBrowser.getFileBadge(item.name, isDir);
 
       var row = window.DiskBrowser.makeElement('div', {
         style: { background: '#0d1117', border: '1px solid #21262d', padding: '0.45rem 0.65rem', borderRadius: '6px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }
       },
-        window.DiskBrowser.makeElement('span', { style: { color: isDir ? '#00f2fe' : '#f0f6fc', fontSize: '0.82rem', fontWeight: 'bold' } }, (isDir ? '📁 ' : '📄 ') + item.name),
+        window.DiskBrowser.makeElement('span', { style: { color: isDir ? '#00f2fe' : (isLibMode ? '#d2a8ff' : '#f0f6fc'), fontSize: '0.82rem', fontWeight: 'bold' } }, (isDir ? '📁 ' : (isLibMode ? '📚 ' : '📄 ')) + item.name),
         window.DiskBrowser.makeElement('div', { style: { display: 'flex', gap: '0.3rem' } },
           !isDir ? window.DiskBrowser.makeElement('button', {
             style: { padding: '0.2rem 0.5rem', background: '#271052', color: '#d2a8ff', border: '1px solid #8257e5', borderRadius: '4px', fontSize: '0.7rem', cursor: 'pointer', fontWeight: 'bold' },
@@ -248,13 +245,15 @@ window.DiskBrowser.loadActiveManifest = async function() {
 
 window.DiskBrowser.pushSingleFileToOutbox = async function(relPath) {
   try {
-    var currentTarget = (typeof ClientApp !== 'undefined' && ClientApp.getTargetProject) ? ClientApp.getTargetProject() : '';
-    var res = await LunoApiClient.fetchFsRead(relPath, currentTarget);
+    var isLibMode = (window.DiskBrowser.browserMode === 'library');
+    var target = isLibMode ? 'Library' : ((typeof ClientApp !== 'undefined' && ClientApp.getTargetProject) ? ClientApp.getTargetProject() : '');
+    var res = await LunoApiClient.fetchFsRead(relPath, target);
     if (res && res.content) {
       var closeScript = '</' + 'script>';
-      var payload = '<script data-file="' + relPath + '">\n' + res.content + '\n' + closeScript;
+      var filePathPrefix = isLibMode ? ('Library/' + relPath.replace(/^Library\//i, '')) : relPath;
+      var payload = '<script data-file="' + filePathPrefix + '">\n' + res.content + '\n' + closeScript;
       if (typeof OutboxQueue !== 'undefined' && OutboxQueue.addBundle) {
-        OutboxQueue.addBundle('File (' + (currentTarget || 'Active') + '): ' + relPath, payload);
+        OutboxQueue.addBundle((isLibMode ? 'Library Module: ' : 'File: ') + relPath, payload);
         window.DiskBrowser.showToast('Queued ' + relPath + ' to Outbox!', 'success', '📤');
       }
     }

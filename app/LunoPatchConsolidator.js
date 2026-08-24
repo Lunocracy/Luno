@@ -4,25 +4,25 @@ class LunoPatchConsolidator {
   /**
    * ⚙️ METHOD: consolidate(projectOverride)
    * Pure client-side browser consolidation:
-   * Reads LunoPatchLog.html, performs client AST merging, validates syntax in memory,
-   * and dispatches direct consolidated files back to disk storage.
+   * Reads LunoPatchLog.html, performs client AST merging scoped to the target project,
+   * validates syntax in memory, and writes consolidated files back to disk storage.
    */
   static async consolidate(projectOverride) {
     try {
-      var targetProj = projectOverride || (typeof ClientApp !== 'undefined' && ClientApp.getTargetProject ? ClientApp.getTargetProject() : '');
+      var targetProj = projectOverride || (typeof ClientApp !== 'undefined' && ClientApp.getTargetProject ? ClientApp.getTargetProject() : 'Luno');
       var pParam = targetProj ? ('&project=' + encodeURIComponent(targetProj)) : '';
 
       if (typeof LunoAcornLoader !== 'undefined' && LunoAcornLoader.ensureLoaded) {
         try { await LunoAcornLoader.ensureLoaded(); } catch(e){}
       }
 
-      // 1. Read LunoPatchLog.html via dumb server fs read endpoint
+      // 1. Read LunoPatchLog.html
       var logRes = await fetch('/api/fs/read?path=LunoPatchLog.html' + pParam);
       var logData = await logRes.json();
 
       if (!logRes.ok || !logData || !logData.content || !logData.content.trim()) {
         if (typeof LunoPlaybackLogger !== 'undefined') {
-          LunoPlaybackLogger.boot('Consolidation Skipped', 'LunoPatchLog.html is already clean for [' + (targetProj || 'active project') + '].');
+          LunoPlaybackLogger.boot('Consolidation Skipped', 'LunoPatchLog.html is already clean for [' + targetProj + '].');
         }
         return { success: true, consolidatedCount: 0, modifiedFiles: [], note: 'Patch log is clean.' };
       }
@@ -34,9 +34,9 @@ class LunoPatchConsolidator {
       }
 
       var parsed = parser.parsePatchLog(logData.content);
-      var files = parsed.files || [];
-      if (files.length === 0) {
-        await fetch('/api/save' + (targetProj ? ('?project=' + encodeURIComponent(targetProj)) : ''), {
+      var allFiles = parsed.files || [];
+      if (allFiles.length === 0) {
+        await fetch('/api/save?project=' + encodeURIComponent(targetProj), {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ files: [{ filePath: 'LunoPatchLog.html', action: 'direct', content: '' }], project: targetProj })
@@ -44,10 +44,43 @@ class LunoPatchConsolidator {
         return { success: true, consolidatedCount: 0, modifiedFiles: [], note: 'No valid patch blocks.' };
       }
 
-      // 3. Group patches by target file
-      var fileMap = new Map();
-      files.forEach(function(f) {
+      // 3. Project Scoping Filter: Separate patches for targetProj vs other projects
+      var targetFiles = [];
+      var remainingOtherProjectBlocks = [];
+
+      allFiles.forEach(function(f) {
         if (!f || !f.filePath || f.filePath === 'LunoPatchLog.html') return;
+        var norm = f.filePath.replace(/\\/g, '/').replace(/^\/+/, '');
+
+        var isForTarget = false;
+        if (targetProj === 'Luno') {
+          isForTarget = norm.startsWith('Luno/') || norm.startsWith('app/') || norm.startsWith('core/') || norm.startsWith('browser/') || norm.startsWith('docs/') || norm.startsWith('test/');
+        } else {
+          isForTarget = norm.startsWith(targetProj + '/') || !norm.includes('/') || norm.startsWith('Library/');
+        }
+
+        if (isForTarget) {
+          targetFiles.push(f);
+        } else {
+          // Keep other projects' patches intact
+          var tag = f.tagName || 'script';
+          var closeTag = '</' + tag + '>';
+          var methodAttr = f.methodSpec ? (' data-method="' + f.methodSpec + '"') : '';
+          var actionAttr = f.action ? (' data-action="' + f.action + '"') : '';
+          remainingOtherProjectBlocks.push('<' + tag + ' data-file="' + f.filePath + '"' + methodAttr + actionAttr + '>\n' + f.content + '\n' + closeTag);
+        }
+      });
+
+      if (targetFiles.length === 0) {
+        if (typeof LunoPlaybackLogger !== 'undefined') {
+          LunoPlaybackLogger.boot('Consolidation Notice', 'No pending patches found for [' + targetProj + ']. (Found ' + allFiles.length + ' patch(es) for other projects)');
+        }
+        return { success: true, consolidatedCount: 0, modifiedFiles: [], note: 'No pending patches for ' + targetProj };
+      }
+
+      // 4. Group patches by target file
+      var fileMap = new Map();
+      targetFiles.forEach(function(f) {
         if (!fileMap.has(f.filePath)) fileMap.set(f.filePath, []);
         fileMap.get(f.filePath).push(f);
       });
@@ -55,7 +88,7 @@ class LunoPatchConsolidator {
       var filesToWrite = [];
       var modifiedFilesList = [];
 
-      // 4. Client-side AST merging in browser memory
+      // 5. Client-side AST merging in browser memory
       for (var entry of fileMap.entries()) {
         var relPath = entry[0];
         var patchList = entry[1];
@@ -100,16 +133,16 @@ class LunoPatchConsolidator {
         modifiedFilesList.push(relPath);
       }
 
-      // 5. Clean LunoPatchLog.html
+      // 6. Update LunoPatchLog.html with remaining un-consolidated patches (if any)
       filesToWrite.push({
         filePath: 'LunoPatchLog.html',
         action: 'direct',
-        content: ''
+        content: remainingOtherProjectBlocks.join('\n\n')
       });
 
-      // 6. Save consolidated files via dumb server save endpoint
+      // 7. Save consolidated files to disk
       var savePayloadObj = { files: filesToWrite, serverScript: '', project: targetProj };
-      var saveRes = await fetch('/api/save' + (targetProj ? ('?project=' + encodeURIComponent(targetProj)) : ''), {
+      var saveRes = await fetch('/api/save?project=' + encodeURIComponent(targetProj), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(savePayloadObj)
@@ -118,14 +151,14 @@ class LunoPatchConsolidator {
 
       if (saveRes.ok && saveData.success) {
         if (typeof LunoPlaybackLogger !== 'undefined') {
-          LunoPlaybackLogger.boot('Consolidation Complete', 'Consolidated ' + files.length + ' patch(es) across ' + modifiedFilesList.length + ' file(s) for [' + (targetProj || 'active project') + ']. Sidecar backups (.bak) created.');
+          LunoPlaybackLogger.boot('Consolidation Complete', 'Consolidated ' + targetFiles.length + ' patch(es) across ' + modifiedFilesList.length + ' file(s) for [' + targetProj + '].');
         }
         if (typeof ClientApp !== 'undefined' && ClientApp.showToast) {
-          ClientApp.showToast('Safely consolidated ' + files.length + ' patch(es) for [' + (targetProj || 'active project') + '] with .bak backups!', 'success', '✨');
+          ClientApp.showToast('Consolidated ' + targetFiles.length + ' patch(es) for [' + targetProj + '] with .bak backups!', 'success', '✨');
         }
         return {
           success: true,
-          consolidatedCount: files.length,
+          consolidatedCount: targetFiles.length,
           modifiedFiles: modifiedFilesList,
           project: targetProj
         };

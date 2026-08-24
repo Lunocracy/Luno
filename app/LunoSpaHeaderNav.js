@@ -1,14 +1,6 @@
 class LunoSpaHeaderNav {
-  /**
-   * ⚙️ CONSTRUCTOR: LunoSpaHeaderNav()
-   */
   constructor() {}
 
-  /**
-   * ⚙️ METHOD: getOpenProjectTabs()
-   * - Type: Static Method
-   * - Modifier: sync
-   */
   static getOpenProjectTabs() {
     try {
       var raw = localStorage.getItem('luno_open_project_tabs');
@@ -17,25 +9,15 @@ class LunoSpaHeaderNav {
     return [];
   }
 
-  /**
-   * ⚙️ METHOD: saveOpenProjectTabs(tabs)
-   * - Type: Static Method
-   * - Modifier: sync
-   */
   static saveOpenProjectTabs(tabs) {
     try {
       localStorage.setItem('luno_open_project_tabs', JSON.stringify(tabs));
     } catch(e) {}
   }
 
-  /**
-   * ⚙️ METHOD: openProjectTab(projName)
-   * - Type: Static Method
-   * - Modifier: sync
-   */
   static openProjectTab(projName) {
     if (!projName) return;
-    var invalidNames = (typeof LunoSettings !== 'undefined' && LunoSettings.INVALID_PROJECT_NAMES) ? LunoSettings.INVALID_PROJECT_NAMES : ['web', 'storage', 'emulated', 'LunoWeb', '0'];
+    var invalidNames = ['web', 'storage', 'emulated', 'LunoWeb', '0', 'Library'];
     if (invalidNames.includes(projName)) return;
 
     var tabs = LunoSpaHeaderNav.getOpenProjectTabs();
@@ -45,11 +27,6 @@ class LunoSpaHeaderNav {
     }
   }
 
-  /**
-   * ⚙️ METHOD: closeProjectTab(projName, e)
-   * - Type: Static Method
-   * - Modifier: sync
-   */
   static closeProjectTab(projName, e) {
     if (e && e.stopPropagation) e.stopPropagation();
     var tabs = LunoSpaHeaderNav.getOpenProjectTabs();
@@ -84,11 +61,6 @@ class LunoSpaHeaderNav {
     }
   }
 
-  /**
-   * ⚙️ METHOD: render(activeViewKey)
-   * - Type: Static Method
-   * - Modifier: sync
-   */
   static render(activeViewKey) {
     var activeKey = activeViewKey || 'workspace';
     var m = function(tag, attrs) {
@@ -119,7 +91,7 @@ class LunoSpaHeaderNav {
       { key: 'projects', label: '🚀 Projects' }
     ];
 
-    var invalidNames = (typeof LunoSettings !== 'undefined' && LunoSettings.INVALID_PROJECT_NAMES) ? LunoSettings.INVALID_PROJECT_NAMES : ['web', 'storage', 'emulated', 'LunoWeb', '0'];
+    var invalidNames = ['web', 'storage', 'emulated', 'LunoWeb', '0', 'Library'];
     var activeAppProj = (typeof localStorage !== 'undefined' && localStorage.getItem('luno_active_app_proj')) || '';
 
     if (invalidNames.includes(activeAppProj)) {
@@ -200,7 +172,6 @@ class LunoSpaHeaderNav {
 
     var currentTarget = (typeof ClientApp !== 'undefined' && ClientApp.getTargetProject) ? ClientApp.getTargetProject() : 'Luno';
 
-    // Elevated Global Target Project Selector in the Top Header
     var projectSelect = m('select', {
       id: 'global-target-project-select',
       style: {
@@ -229,7 +200,7 @@ class LunoSpaHeaderNav {
         if (typeof LunoApiClient !== 'undefined' && LunoApiClient.fetchProjectsList) {
           var data = await LunoApiClient.fetchProjectsList();
           if (data && Array.isArray(data.projects)) {
-            var activeTarget = (typeof ClientApp !== 'undefined' && ClientApp.getTargetProject) ? ClientApp.getTargetProject() : '';
+            var activeTarget = (typeof ClientApp !== 'undefined' && ClientApp.getTargetProject) ? ClientApp.getTargetProject() : 'Luno';
             projectSelect.innerHTML = '';
             data.projects.forEach(function(p) {
               if (p.isLibrary || p.name === 'Library') return;

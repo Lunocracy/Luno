@@ -1,7 +1,7 @@
 class OutboxOptionsModal {
   constructor() {}
 
-      static promptBundleOptionsModal(originElement) {
+        static promptBundleOptionsModal(originElement) {
       var existing = document.getElementById('luno-bundle-options-modal');
       if (existing) existing.remove();
   
@@ -138,11 +138,11 @@ class OutboxOptionsModal {
             gap: '0.4rem'
           },
           onclick: async function() {
-            var outboxTarget = document.getElementById('outbox-queue-container') || document.querySelector('.outbox-card');
+            var outboxCard = document.querySelector('.outbox-card') || document.getElementById('outbox-queue-container');
             var btnEl = document.getElementById('btn-exec-bundle-modal');
   
             if (typeof LunoAnimationEngine !== 'undefined') {
-              LunoAnimationEngine.flyElement(btnEl, outboxTarget, {
+              LunoAnimationEngine.flyElement(btnEl || originElement, outboxCard, {
                 label: '📦 ' + currentTarget + ' Package',
                 color: '#d2a8ff',
                 glowColor: 'rgba(130, 87, 229, 0.95)',
@@ -152,14 +152,20 @@ class OutboxOptionsModal {
             }
   
             modal.remove();
+  
             if (typeof ClientApp !== 'undefined' && ClientApp.showToast) {
-              ClientApp.showToast('Bundling [' + currentTarget + ']...', 'info', '⚡');
+              ClientApp.showToast('Bundling codebase for [' + currentTarget + ']...', 'info', '⚡');
             }
+  
             if (typeof OutboxQueue !== 'undefined' && OutboxQueue.executeSmartBundle) {
               await OutboxQueue.executeSmartBundle({
                 includeInstructions: includeInstructions,
                 includeLibrary: includeLibrary
               });
+            }
+  
+            if (typeof OutboxWidgetRenderer !== 'undefined' && OutboxWidgetRenderer.renderWidget) {
+              OutboxWidgetRenderer.renderWidget('outbox-queue-container');
             }
           }
         }, '📦 Bundle Project [' + currentTarget + '] ➔'),
@@ -168,9 +174,9 @@ class OutboxOptionsModal {
         m('div', {
           style: { background: '#0d1117', border: '1px solid #30363d', borderRadius: '6px', padding: '0.65rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer' },
           onclick: function(e) {
-            var outboxTarget = document.getElementById('outbox-queue-container') || document.querySelector('.outbox-card');
+            var outboxCard = document.querySelector('.outbox-card') || document.getElementById('outbox-queue-container');
             if (typeof LunoAnimationEngine !== 'undefined') {
-              LunoAnimationEngine.flyElement(e.currentTarget, outboxTarget, {
+              LunoAnimationEngine.flyElement(e.currentTarget, outboxCard, {
                 label: '📋 Protocol Rules',
                 color: '#00f2fe',
                 glowColor: 'rgba(0, 242, 254, 0.9)',
@@ -185,6 +191,9 @@ class OutboxOptionsModal {
               if (typeof ClientApp !== 'undefined' && ClientApp.showToast) {
                 ClientApp.showToast('Queued Protocol Instructions to Outbox!', 'success', '📋');
               }
+            }
+            if (typeof OutboxWidgetRenderer !== 'undefined' && OutboxWidgetRenderer.renderWidget) {
+              OutboxWidgetRenderer.renderWidget('outbox-queue-container');
             }
           }
         },

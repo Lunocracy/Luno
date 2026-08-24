@@ -1,6 +1,6 @@
 {
   "name": "Luno Workspace",
-  "version": "3.6.3",
+  "version": "3.6.4",
   "description": "Mobile-first dual-mode AI development workspace",
   "maxPackageSizeBytes": 500000,
   "type": "luno-core",
@@ -52,40 +52,20 @@
     "Luno/test/LunoTestRunner.js"
   ],
   "docs": [
-    "Luno/docs/HANDOFF_AUGUST_2026.md",
     "Luno/docs/BookmarkletStudioRoadmap.md"
   ],
   "patchJournal": "LunoPatchLog.html",
-  "processedCountSinceCheckpoint": 0,
+  "processedCountSinceCheckpoint": 11,
+  "lastCheckpointTime": "2026-08-24T00:35:00.000Z",
+  "pendingCheckpointDescription": "Clean working tree (v3.6.4 Modular Multi-Project Engine Active)",
   "changedMethods": {
-    "Luno/app/LunoAnimationEngine.js": "2026-08-24T00:15:22.338Z",
-    "Luno/app/LunoCssChunks.js": "2026-08-24T00:01:44.826Z",
-    "Luno/app/OutboxPromptBox.js": "2026-08-24T00:17:00.912Z",
-    "Luno/app/OutboxWidgetRenderer.js": "2026-08-24T00:22:06.081Z",
-    "Luno/app/ClientAppUI.js": "2026-08-24T00:23:09.382Z",
-    "Luno/app/ClientApp.js": "2026-08-24T00:23:09.382Z",
-    "Luno/app/OutboxOptionsModal.js": "2026-08-24T00:19:11.821Z",
-    "Luno/app/LunoManifestDecisionEngine.js": "2026-08-24T00:15:22.338Z",
-    "Luno/luno.json": "2026-08-23T23:59:45.891Z",
-    "Luno/app/ClientAppPaster.js": "2026-08-24T00:19:52.511Z",
-    "Luno/app/OutboxQueue.js": "2026-08-24T00:19:11.821Z",
-    "Luno/app/LunoPlaybackLogger.js": "2026-08-24T00:19:52.511Z",
-    "Luno/core/LunoClassPatcher.js": "2026-08-24T00:15:22.338Z",
-    "Luno/app/LunoPatchConsolidator.js": "2026-08-24T00:15:22.338Z",
-    "Luno/app/ClientAppPaster.js.bak": "2026-08-24T00:19:52.511Z",
-    "Luno/core/LunoClassPatcher.js.bak": "2026-08-24T00:15:22.338Z",
-    "Luno/app/LunoManifestDecisionEngine.js.bak": "2026-08-24T00:15:22.338Z",
-    "Luno/app/LunoPatchConsolidator.js.bak": "2026-08-24T00:15:22.338Z",
-    "Luno/app/LunoAnimationEngine.js.bak": "2026-08-24T00:15:22.338Z",
-    "Luno/app/OutboxQueue.js.bak": "2026-08-24T00:19:11.821Z",
-    "Luno/app/OutboxWidgetRenderer.js.bak": "2026-08-24T00:22:06.081Z",
-    "LunoPatchLog.html": "2026-08-24T00:23:09.382Z",
-    "Luno/app/OutboxPromptBox.js.bak": "2026-08-24T00:17:00.912Z",
-    "Luno/app/OutboxOptionsModal.js.bak": "2026-08-24T00:19:11.821Z",
-    "Luno/app/LunoPlaybackLogger.js.bak": "2026-08-24T00:19:52.511Z",
-    "Luno/app/ClientAppUI.js.bak": "2026-08-24T00:23:09.382Z",
-    "Luno/app/ClientApp.js.bak": "2026-08-24T00:23:09.382Z"
-  },
-  "lastCheckpointTime": "2026-08-24T00:23:12.176Z",
-  "pendingCheckpointDescription": "Clean working tree"
+    "Luno/app/ClientApp.js": "2026-08-24T00:59:44.265Z",
+    "Luno/app/LunoSpaHeaderNav.js": "2026-08-24T00:59:44.265Z",
+    "Luno/app/DiffApprovalModal.js": "2026-08-24T00:59:44.265Z",
+    "Luno/luno.json": "2026-08-24T00:59:38.729Z",
+    "Luno/app/ClientApp.js.bak": "2026-08-24T00:59:44.265Z",
+    "Luno/app/LunoSpaHeaderNav.js.bak": "2026-08-24T00:59:44.265Z",
+    "Luno/app/DiffApprovalModal.js.bak": "2026-08-24T00:59:44.265Z",
+    "LunoPatchLog.html": "2026-08-24T00:59:44.265Z"
+  }
 }

@@ -1,13 +1,9 @@
 class LunoManifestDecisionEngine {
   constructor() {}
 
-  /**
-   * ⚙️ METHOD: extractStartupPaths(manifestObj)
-   */
   static extractStartupPaths(manifestObj) {
     const meta = manifestObj || {};
     const paths = new Set();
-
     const normalize = (p) => p ? p.replace(/\\/g, '/').replace(/^\/+/, '').trim() : '';
 
     const mainList = [].concat(meta.main || []);
@@ -40,21 +36,9 @@ class LunoManifestDecisionEngine {
       }
     });
 
-    if (meta.entrypoint && meta.entrypoint.file) {
-      const n = normalize(meta.entrypoint.file);
-      if (n) {
-        paths.add(n);
-        if (n.startsWith('Luno/')) paths.add(n.slice(5));
-        else paths.add('Luno/' + n);
-      }
-    }
-
     return paths;
   }
 
-  /**
-   * ⚙️ METHOD: isStartupClientFile(filePath, manifestObj)
-   */
   static isStartupClientFile(filePath, manifestObj) {
     if (!filePath || typeof filePath !== 'string') return false;
     const norm = filePath.replace(/\\/g, '/').replace(/^\/+/, '').trim();
@@ -63,7 +47,6 @@ class LunoManifestDecisionEngine {
       return false;
     }
 
-    // Default Luno core client scripts are ALWAYS recognized as startup client files
     if (
       norm.startsWith('app/') ||
       norm.startsWith('Luno/app/') ||
@@ -85,9 +68,6 @@ class LunoManifestDecisionEngine {
     return false;
   }
 
-  /**
-   * ⚙️ METHOD: processPayload(payloadObj, manifestObj, projectName)
-   */
   static async processPayload(payloadObj, manifestObj, projectName = '') {
     if (!payloadObj || !Array.isArray(payloadObj.files)) {
       return payloadObj;

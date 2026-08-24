@@ -78,7 +78,7 @@ class LunoServer {
         if (meta.version) return "v" + meta.version.replace(/^v/, "");
       }
     } catch (e) {}
-    return "v3.6.2";
+    return "v3.6.4";
   }
 
   static sendJSON(res, status, data) {
@@ -104,6 +104,25 @@ class LunoServer {
     return false;
   }
 
+  static ensureGitignoreDefaults() {
+    try {
+      const gitRoot = LunoServer.getGitRootDir();
+      const giPath = path.join(gitRoot, '.gitignore');
+      const ignoreEntries = ['*.bak', '*.oldschool.bak', 'node_modules', '.checkpoints'];
+      let existingContent = fs.existsSync(giPath) ? fs.readFileSync(giPath, 'utf8') : '';
+      let added = false;
+      for (const entry of ignoreEntries) {
+        if (!existingContent.includes(entry)) {
+          existingContent += (existingContent.endsWith('\n') ? '' : '\n') + entry + '\n';
+          added = true;
+        }
+      }
+      if (added) {
+        fs.writeFileSync(giPath, existingContent, 'utf8');
+      }
+    } catch (e) {}
+  }
+
   static getAllFiles(dir, fileList = [], ignoreDirs = ["node_modules", ".git", "dist", "build", ".checkpoints", "_claude_salvage", "simpleVersion"], maxDepth = 5, currentDepth = 0) {
     if (currentDepth > maxDepth || !fs.existsSync(dir)) return fileList;
     try {
@@ -126,10 +145,6 @@ class LunoServer {
     return fileList;
   }
 
-  /**
-   * ⚙️ METHOD: sanitizeAndResolvePath(relPath, baseDir)
-   * Target-First Resolution: Active target project files always take priority over system fallbacks.
-   */
   static sanitizeAndResolvePath(relPath, baseDir) {
     const webRoot = LunoServer.getWebRootDir();
     const currentRoot = baseDir || LunoServer.getRootDir();
@@ -144,29 +159,22 @@ class LunoServer {
       if (fs.existsSync(normalized)) return path.resolve(normalized);
     }
 
-    // 1. TARGET PROJECT FIRST: If the active target project has this file, resolve it immediately!
+    // 1. Target project resolution first
     const relResolved = path.resolve(currentRoot, normalized);
     if (fs.existsSync(relResolved) && fs.statSync(relResolved).isFile()) {
       return relResolved;
     }
 
-    // 2. Direct match relative to web root (e.g. "Library/DomBasics.js", "Basic3D/Basic3d.js", "Luno/app/ClientApp.js")
+    // 2. Web root match (e.g. Library/...)
     const webResolved = path.resolve(webRoot, normalized);
     if (fs.existsSync(webResolved)) {
       return webResolved;
     }
 
-    // 3. Fallback within Luno/ core directory (e.g. "app/LunoLoader.js", "app/acorn.js")
+    // 3. Fallback within Luno/ core
     const lunoResolved = path.resolve(webRoot, 'Luno', normalized);
     if (fs.existsSync(lunoResolved)) {
       return lunoResolved;
-    }
-
-    // 4. Match top-level directory directly under web root
-    const firstSegment = normalized.split('/')[0];
-    const webFirstSegment = path.join(webRoot, firstSegment);
-    if (fs.existsSync(webFirstSegment)) {
-      return webResolved;
     }
 
     return relResolved;
@@ -209,7 +217,6 @@ class LunoServer {
       const isJs = ext === 'js' || ext === 'mjs';
       const canonicalPath = filePath.replace(/\\/g, '/').replace(/^\/+/, '');
 
-      // Handle additive JSON merge
       if (action === 'merge' && (ext === 'json' || canonicalPath.endsWith('.json'))) {
         const fullPath = LunoServer.sanitizeAndResolvePath(canonicalPath, baseDir);
         let existing = {};
@@ -289,6 +296,8 @@ class LunoServer {
       LunoServer.updateLunoMetadata(savedFiles, modifiedCount, baseDir);
     }
 
+    LunoServer.ensureGitignoreDefaults();
+
     let summaryText = "";
     if (savedFiles.length === 0 && !serverScript) {
       summaryText = "⚠️ No file targets or server scripts found in JSON payload.";
@@ -325,9 +334,7 @@ class LunoServer {
         lunoMeta.changedMethods[fPath] = nowIso;
       }
       fs.writeFileSync(lunoJsonPath, JSON.stringify(lunoMeta, null, 2), 'utf8');
-    } catch (metaErr) {
-      console.error('[LunoServer Metadata Write Notice]', metaErr.message);
-    }
+    } catch (metaErr) {}
   }
 
   static async executeServerScript(rawCode, baseDir) {
@@ -439,9 +446,6 @@ class LunoServer {
     });
   }
 
-  /**
-   * ⚙️ METHOD: handleAllCode(req, res, url)
-   */
   static handleAllCode(req, res, url) {
     const projectName = (url && url.searchParams) ? (url.searchParams.get('project') || '') : '';
     const includeLibrary = (url && url.searchParams) ? (url.searchParams.get('includeLibrary') === 'true' || url.searchParams.get('library') === 'true') : false;
@@ -655,6 +659,77 @@ class LunoServer {
     });
   }
 
+  static handleSetRoot(req, res) {
+    let body = '';
+    req.on('data', c => { body += c; });
+    req.on('end', () => {
+      try {
+        const parsed = JSON.parse(body || '{}');
+        if (parsed.rootPath && fs.existsSync(parsed.rootPath)) {
+          LunoServer.setRootDir(parsed.rootPath);
+          return LunoServer.sendJSON(res, 200, { success: true, rootDir: LunoServer.getRootDir() });
+        }
+        return LunoServer.sendJSON(res, 400, { success: false, error: 'Directory does not exist' });
+      } catch (e) {
+        return LunoServer.sendJSON(res, 400, { success: false, error: e.message });
+      }
+    });
+  }
+
+  static handleCreateProject(req, res) {
+    let body = '';
+    req.on('data', c => { body += c; });
+    req.on('end', () => {
+      try {
+        const parsed = JSON.parse(body || '{}');
+        const projName = (parsed.projectPath || parsed.name || '').trim().replace(/[^a-zA-Z0-9_\-]/g, '');
+        if (!projName) return LunoServer.sendJSON(res, 400, { success: false, error: 'Invalid project name' });
+
+        const webRoot = LunoServer.getWebRootDir();
+        const targetDir = path.join(webRoot, projName);
+        fs.mkdirSync(targetDir, { recursive: true });
+
+        const lunoJsonPath = path.join(targetDir, 'luno.json');
+        if (!fs.existsSync(lunoJsonPath)) {
+          const defaultMeta = { name: projName, version: "1.0.0", description: "Workspace project", type: "luno-web-app", mainClass: "App", main: ["src/App.js"], library: [] };
+          fs.writeFileSync(lunoJsonPath, JSON.stringify(defaultMeta, null, 2), 'utf8');
+        }
+
+        return LunoServer.sendJSON(res, 200, { success: true, project: projName, path: targetDir.replace(/\\/g, '/') });
+      } catch (e) {
+        return LunoServer.sendJSON(res, 500, { success: false, error: e.message });
+      }
+    });
+  }
+
+  static handleContextRequest(req, res, url) {
+    let body = '';
+    req.on('data', c => { body += c; });
+    req.on('end', () => {
+      try {
+        const targetProj = url.searchParams.get('project') || '';
+        const baseDir = LunoServer.resolveProjectBaseDir(targetProj);
+        let reqList = [];
+
+        try {
+          const parsed = JSON.parse(body || '{}');
+          if (Array.isArray(parsed.requests)) reqList = parsed.requests;
+        } catch(e) {
+          // Plaintext header parsing fallback
+          const parser = require('../app/LunoPayloadParser.js');
+          const parsed = parser.parse(body);
+          reqList = parsed.requests || [];
+        }
+
+        const extractor = require('./LunoContextExtractor.js');
+        const result = extractor.processRequestList(reqList, baseDir);
+        return LunoServer.sendJSON(res, 200, result);
+      } catch (e) {
+        return LunoServer.sendJSON(res, 500, { success: false, error: e.message });
+      }
+    });
+  }
+
   static serveAsset(req, res, relPath) {
     if (res.headersSent) return;
     try {
@@ -735,6 +810,18 @@ class LunoServer {
 
       if (method === 'GET' && url.pathname === '/api/all-code') {
         return LunoServer.handleAllCode(req, res, url);
+      }
+
+      if (method === 'POST' && url.pathname === '/api/fs/set-root') {
+        return LunoServer.handleSetRoot(req, res);
+      }
+
+      if (method === 'POST' && url.pathname === '/api/fs/create-project') {
+        return LunoServer.handleCreateProject(req, res);
+      }
+
+      if (method === 'POST' && url.pathname === '/api/context/request') {
+        return LunoServer.handleContextRequest(req, res, url);
       }
 
       if (method === 'POST' && url.pathname === '/api/deploy') {

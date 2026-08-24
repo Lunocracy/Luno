@@ -4,11 +4,6 @@ class LunoLoader {
   static loadedScripts = new Set();
   static loadedStyles = new Set();
 
-  /**
-   * ⚙️ METHOD: getActiveProjectParam()
-   * - Type: Static Method
-   * - Modifier: sync
-   */
   static getActiveProjectParam() {
     try {
       if (typeof window !== 'undefined' && window.location && window.location.search) {
@@ -19,11 +14,6 @@ class LunoLoader {
     return '';
   }
 
-  /**
-   * ⚙️ METHOD: getPatchUrlParams()
-   * - Type: Static Method
-   * - Modifier: sync
-   */
   static getPatchUrlParams() {
     try {
       if (typeof window !== 'undefined' && window.location && window.location.search) {
@@ -40,11 +30,6 @@ class LunoLoader {
     return { skip: false, limit: null };
   }
 
-  /**
-   * ⚙️ METHOD: fetchConfig(configPath, projectOverride)
-   * - Type: Static Method
-   * - Modifier: async
-   */
   static async fetchConfig(configPath, projectOverride) {
     try {
       var proj = projectOverride || LunoLoader.getActiveProjectParam() || (typeof ClientApp !== 'undefined' && ClientApp.getTargetProject ? ClientApp.getTargetProject() : '');
@@ -58,11 +43,6 @@ class LunoLoader {
     return null;
   }
 
-  /**
-   * ⚙️ METHOD: loadStyle(cssPath)
-   * - Type: Static Method
-   * - Modifier: async
-   */
   static loadStyle(cssPath) {
     return new Promise(function(resolve, reject) {
       var proj = LunoLoader.getActiveProjectParam();
@@ -95,11 +75,6 @@ class LunoLoader {
     });
   }
 
-  /**
-   * ⚙️ METHOD: loadScript(jsPath)
-   * - Type: Static Method
-   * - Modifier: async
-   */
   static loadScript(jsPath) {
     return new Promise(function(resolve, reject) {
       var proj = LunoLoader.getActiveProjectParam();
@@ -132,22 +107,15 @@ class LunoLoader {
     });
   }
 
-  /**
-   * ⚙️ METHOD: applyPatchLog(projectOverride)
-   * - Type: Static Method
-   * - Modifier: async
-   */
   static async applyPatchLog(projectOverride) {
     try {
       var urlParams = LunoLoader.getPatchUrlParams();
       if (urlParams.skip) {
-        if (typeof LunoPlaybackLogger !== 'undefined') {
-          LunoPlaybackLogger.warn('Skipping Patch Playback', '?skipPatches=true active');
-        }
         return { appliedCount: 0, skipped: true };
       }
 
-      var readUrl = '/api/fs/read?path=LunoPatchLog.html';
+      var currentProj = projectOverride || LunoLoader.getActiveProjectParam() || '';
+      var readUrl = '/api/fs/read?path=LunoPatchLog.html' + (currentProj ? '&project=' + encodeURIComponent(currentProj) : '');
       var res = await fetch(readUrl);
       var data = await res.json();
 
@@ -162,27 +130,18 @@ class LunoLoader {
 
       var payloadObj = parser.parsePatchLog(data.content);
       var files = payloadObj.files || [];
-      var totalAvailable = files.length;
-
-      var currentProj = projectOverride || LunoLoader.getActiveProjectParam() || '';
-
       var appliedCount = 0;
+
       for (var i = 0; i < files.length; i++) {
         var f = files[i];
         if (!f || !f.filePath) continue;
 
         var normPath = f.filePath.replace(/\\/g, '/').replace(/["']/g, '').replace(/^\/+/, '').trim();
+        if (!normPath.endsWith('.js') && !normPath.endsWith('.mjs')) continue;
 
-        if (!normPath.endsWith('.js') && !normPath.endsWith('.mjs')) {
-          continue;
-        }
-
-        // Child App Iframe Isolation: Do not evaluate Luno core UI scripts in subprojects
         if (currentProj && currentProj !== 'Luno') {
           var isForThisProj = normPath.startsWith(currentProj + '/') || normPath.startsWith('Library/') || !normPath.includes('/');
-          if (!isForThisProj && normPath.startsWith('Luno/')) {
-            continue;
-          }
+          if (!isForThisProj) continue;
         }
 
         try {
@@ -199,16 +158,12 @@ class LunoLoader {
         } catch (evalErr) {}
       }
 
-      return { appliedCount: appliedCount, totalAvailable: totalAvailable };
+      return { appliedCount: appliedCount, totalAvailable: files.length };
     } catch (err) {
       return { appliedCount: 0, error: err.message };
     }
   }
 
-  /**
-   * ⚙️ METHOD: loadApp(containerId)
-   * Intelligently dispatches executable scripts vs non-executable docs/data assets.
-   */
   static async loadApp(containerId) {
     var targetContainer = typeof containerId === 'string'
       ? document.getElementById(containerId)
@@ -217,15 +172,16 @@ class LunoLoader {
     var lunoMeta = await LunoLoader.fetchConfig('luno.json') || {};
     var filesMeta = await LunoLoader.fetchConfig('files.json') || {};
 
+    // Canonical priority: luno.json wins, files.json used as legacy fallback
     var mergedConfig = {
       name: lunoMeta.name || filesMeta.name || 'Luno App',
       entrypoint: lunoMeta.entrypoint || null,
       mainClass: lunoMeta.mainClass || filesMeta.mainClass || null,
-      main: [].concat(lunoMeta.main || filesMeta.main || []),
-      files: [].concat(lunoMeta.files || lunoMeta.local || filesMeta.files || filesMeta.local || []),
-      library: [].concat(lunoMeta.library || filesMeta.library || []),
-      styles: [].concat(lunoMeta.styles || lunoMeta.css || filesMeta.styles || []),
-      thirdParty: [].concat(lunoMeta.thirdParty || filesMeta.thirdParty || [])
+      main: (Array.isArray(lunoMeta.main) && lunoMeta.main.length > 0) ? lunoMeta.main : (filesMeta.main || []),
+      files: (Array.isArray(lunoMeta.files) && lunoMeta.files.length > 0) ? lunoMeta.files : (filesMeta.files || filesMeta.local || []),
+      library: (Array.isArray(lunoMeta.library) && lunoMeta.library.length > 0) ? lunoMeta.library : (filesMeta.library || []),
+      styles: (Array.isArray(lunoMeta.styles) && lunoMeta.styles.length > 0) ? lunoMeta.styles : (filesMeta.styles || []),
+      thirdParty: (Array.isArray(lunoMeta.thirdParty) && lunoMeta.thirdParty.length > 0) ? lunoMeta.thirdParty : (filesMeta.thirdParty || [])
     };
 
     var loadedSummary = { styles: [], scripts: [], libraries: [], errors: [] };
@@ -257,7 +213,7 @@ class LunoLoader {
       }
     }
 
-    // 3. Load Auxiliary Scripts (Filter strictly for .css and .js/.mjs)
+    // 3. Load Auxiliary Scripts
     var auxiliaryFiles = [].concat(mergedConfig.thirdParty, mergedConfig.files);
     for (var k = 0; k < auxiliaryFiles.length; k++) {
       var auxPath = auxiliaryFiles[k];
@@ -278,10 +234,9 @@ class LunoLoader {
           loadedSummary.errors.push(e.message);
         }
       }
-      // Non-script assets (e.g. .md, .txt, .json, .svg) are skipped from DOM <script> injection
     }
 
-    // 4. Load Main Application Scripts (Filter strictly for .js/.mjs and .css)
+    // 4. Load Main Application Scripts
     for (var m = 0; m < mergedConfig.main.length; m++) {
       var mainPath = mergedConfig.main[m];
       if (!mainPath || typeof mainPath !== 'string') continue;
@@ -313,10 +268,10 @@ class LunoLoader {
       return { success: false, errors: loadedSummary.errors };
     }
 
-    // 5. Playback Load-Time Patches from web/LunoPatchLog.html BEFORE running entrypoint
+    // 5. Playback Load-Time Patches
     var patchResult = await LunoLoader.applyPatchLog();
 
-    // 6. Dynamically Resolve and Execute Manifest Entrypoint Class
+    // 6. Resolve and Execute Manifest Entrypoint Class
     var mainClassName = (mergedConfig.entrypoint && mergedConfig.entrypoint.class) || mergedConfig.mainClass;
     var entryMethodName = (mergedConfig.entrypoint && mergedConfig.entrypoint.method) || 'init';
 
@@ -379,13 +334,6 @@ class LunoLoader {
             '<pre style="margin-top:0.5rem; white-space:pre-wrap; font-size:12px;">' + (appErr.stack || appErr.message) + '</pre>' +
             '</div>';
         }
-      }
-    } else {
-      if (targetContainer) {
-        targetContainer.innerHTML = '<div style="padding:1.5rem; background:#161b22; color:#ff7b72; border:1px solid #da3633; border-radius:8px; font-family:monospace;">' +
-          '<h3>⚠️ Entrypoint Class Not Found</h3>' +
-          '<p style="margin-top:0.5rem; font-size:12px;">Class <strong>"' + mainClassName + '"</strong> was not found on global scope after loading scripts.</p>' +
-          '</div>';
       }
     }
 

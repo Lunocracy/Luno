@@ -25,10 +25,28 @@ class OutboxQueue {
   static saveQueue() {
     try {
       if (typeof localStorage !== 'undefined') {
-        localStorage.setItem(OutboxQueue.STORAGE_KEY, JSON.stringify(OutboxQueue.queue || []));
+        var sanitizedQueue = (OutboxQueue.queue || []).slice(-10).map(function(item) {
+          var payloadStr = String(item.payload || '');
+          return {
+            id: item.id,
+            title: item.title,
+            timestamp: item.timestamp,
+            priority: item.priority,
+            lines: item.lines,
+            estTokens: item.estTokens,
+            payload: payloadStr.length > 60000 ? payloadStr.slice(0, 500) + '... [Full in Memory]' : payloadStr,
+            isMemoryOnly: payloadStr.length > 60000
+          };
+        });
+        localStorage.setItem(OutboxQueue.STORAGE_KEY, JSON.stringify(sanitizedQueue));
       }
     } catch (e) {
-      console.error('[OutboxQueue] Save queue error:', e);
+      try {
+        var minimalQueue = (OutboxQueue.queue || []).slice(-5).map(function(i) {
+          return { id: i.id, title: i.title, timestamp: i.timestamp, priority: i.priority, lines: i.lines, estTokens: i.estTokens };
+        });
+        localStorage.setItem(OutboxQueue.STORAGE_KEY, JSON.stringify(minimalQueue));
+      } catch (e2) {}
     }
   }
 
@@ -64,10 +82,21 @@ class OutboxQueue {
     };
 
     OutboxQueue.queue.push(item);
-    if (OutboxQueue.queue.length > 20) OutboxQueue.queue.shift();
+    if (OutboxQueue.queue.length > 15) OutboxQueue.queue.shift();
 
     OutboxQueue.saveQueue();
     OutboxQueue.notifyTargetPage(item.title, payload);
+
+    var outboxCard = document.querySelector('.outbox-card');
+    if (outboxCard && typeof LunoAnimationEngine !== 'undefined') {
+      LunoAnimationEngine.pulseTarget(outboxCard, {
+        color: '#d2a8ff',
+        glowColor: 'rgba(130, 87, 229, 0.75)'
+      });
+      if (typeof LunoAnimationEngine.wavePulse === 'function') {
+        LunoAnimationEngine.wavePulse(outboxCard, '#8257e5');
+      }
+    }
 
     if (typeof ClientAppUI !== 'undefined') {
       ClientAppUI.outboxExpanded = true;
@@ -75,8 +104,8 @@ class OutboxQueue {
       if (content) content.style.display = 'block';
     }
 
-    if (typeof OutboxQueue.renderWidget === 'function') {
-      OutboxQueue.renderWidget();
+    if (typeof OutboxWidgetRenderer !== 'undefined' && OutboxWidgetRenderer.renderWidget) {
+      OutboxWidgetRenderer.renderWidget('outbox-queue-container');
     }
     return item;
   }
@@ -87,8 +116,8 @@ class OutboxQueue {
       item.priority = item.priority === 'high' ? 'normal' : 'high';
       OutboxQueue.queue.sort(function(a, b) { return (b.priority === 'high' ? 1 : 0) - (a.priority === 'high' ? 1 : 0); });
       OutboxQueue.saveQueue();
-      if (typeof OutboxQueue.renderWidget === 'function') {
-        OutboxQueue.renderWidget();
+      if (typeof OutboxWidgetRenderer !== 'undefined' && OutboxWidgetRenderer.renderWidget) {
+        OutboxWidgetRenderer.renderWidget('outbox-queue-container');
       }
     }
   }
@@ -96,8 +125,8 @@ class OutboxQueue {
   static removeItem(id) {
     OutboxQueue.queue = OutboxQueue.queue.filter(function(i) { return i && i.id !== id; });
     OutboxQueue.saveQueue();
-    if (typeof OutboxQueue.renderWidget === 'function') {
-      OutboxQueue.renderWidget();
+    if (typeof OutboxWidgetRenderer !== 'undefined' && OutboxWidgetRenderer.renderWidget) {
+      OutboxWidgetRenderer.renderWidget('outbox-queue-container');
     }
   }
 
@@ -109,8 +138,8 @@ class OutboxQueue {
       item.lines = newPayload.split('\n').length;
       item.estTokens = Math.ceil(newPayload.length / 4);
       OutboxQueue.saveQueue();
-      if (typeof OutboxQueue.renderWidget === 'function') {
-        OutboxQueue.renderWidget();
+      if (typeof OutboxWidgetRenderer !== 'undefined' && OutboxWidgetRenderer.renderWidget) {
+        OutboxWidgetRenderer.renderWidget('outbox-queue-container');
       }
     }
   }
@@ -120,19 +149,6 @@ class OutboxQueue {
     var pName = projName || 'Project';
     var maxBytes = 500000;
     var includeInstructions = opts.includeInstructions !== false;
-
-    try {
-      if (typeof LunoSettings !== 'undefined') {
-        if (typeof LunoSettings.maxPackageSize === 'function') {
-          maxBytes = LunoSettings.maxPackageSize();
-        } else if (typeof LunoSettings.getItem === 'function') {
-          var val = LunoSettings.getItem('luno_max_pkg_size');
-          if (val) maxBytes = parseInt(val, 10) || 500000;
-        }
-      }
-    } catch (e) {
-      maxBytes = 500000;
-    }
 
     var SCRIPT_WORD = 'scr' + 'ipt';
     var STYLE_WORD = 'sty' + 'le';
@@ -155,7 +171,6 @@ class OutboxQueue {
     }
 
     var baseHeader = instructionPreamble;
-
     var parts = [];
     var currentPartText = baseHeader;
     var currentPartFiles = 0;
@@ -204,7 +219,6 @@ class OutboxQueue {
       parts.push(currentPartText.trim() + '\n\n');
     }
 
-    // Only replace existing packages that belong to this specific project
     OutboxQueue.queue = OutboxQueue.queue.filter(function(i) {
       if (!i || !i.title) return false;
       var isThisProjectPackage = i.title.startsWith('Codebase Package: ' + pName) || i.title.startsWith('Smart Bundle: ' + pName);
@@ -215,8 +229,6 @@ class OutboxQueue {
       var partTitle = 'Codebase Package: ' + pName + (parts.length > 1 ? (' (Part ' + (i + 1) + '/' + parts.length + ')') : '');
       OutboxQueue.addBundle(partTitle, parts[i], { priority: 'high' });
     }
-
-    OutboxQueue.saveQueue();
 
     return {
       fileCount: totalFiles,
@@ -234,12 +246,9 @@ class OutboxQueue {
     }
 
     var packageText = '';
-
     OutboxQueue.queue.forEach(function(item) {
       if (item && item.payload) {
-        if (packageText) {
-          packageText += '\n';
-        }
+        if (packageText) packageText += '\n';
         packageText += item.payload.trim() + '\n\n';
       }
     });
@@ -247,62 +256,61 @@ class OutboxQueue {
     return packageText.trim() + '\n\n';
   }
 
-    static copyPackageToClipboard() {
-    == 0) {
-        if (typeof ClientApp !== 'undefined') ClientApp.showToast('Outbox is empty!', 'info');
-        return;
+  static copyPackageToClipboard(itemId) {
+    if (!OutboxQueue.queue || OutboxQueue.queue.length === 0) {
+      if (typeof ClientApp !== 'undefined') ClientApp.showToast('Outbox is empty!', 'info');
+      return;
+    }
+
+    var packageText = '';
+    var toastMsg = 'Copied Outbox Package to clipboard!';
+
+    if (itemId) {
+      var item = OutboxQueue.queue.find(function(i) { return i && i.id === itemId; });
+      if (item) {
+        packageText = item.payload.trim();
+        toastMsg = 'Copied ' + item.title + ' to clipboard!';
       }
-  
-      var packageText = '';
-      var toastMsg = 'Copied Outbox Package to clipboard!';
-  
-      if (itemId) {
-        var item = OutboxQueue.queue.find(function(i) { return i && i.id === itemId; });
-        if (item) {
-          packageText = item.payload.trim();
-          toastMsg = 'Copied ' + item.title + ' to clipboard!';
-        }
+    }
+
+    if (!packageText) {
+      packageText = OutboxQueue.getCombinedPackageText();
+      toastMsg = 'Copied Outbox Package (' + OutboxQueue.queue.length + ' items) to clipboard!';
+    }
+
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(packageText);
       }
-  
-      if (!packageText) {
-        packageText = OutboxQueue.getCombinedPackageText();
-        toastMsg = 'Copied Outbox Package (' + OutboxQueue.queue.length + ' items) to clipboard!';
+    } catch (e) {}
+
+    var outboxCard = document.querySelector('.outbox-card');
+    if (outboxCard && typeof LunoAnimationEngine !== 'undefined') {
+      var rect = outboxCard.getBoundingClientRect();
+      LunoAnimationEngine.burstSparks(rect.left + (rect.width / 2), rect.top + 30, '#3fb950', 20);
+      LunoAnimationEngine.pulseTarget(outboxCard, { color: '#3fb950', glowColor: 'rgba(63, 185, 80, 0.85)' });
+      if (typeof LunoAnimationEngine.wavePulse === 'function') {
+        LunoAnimationEngine.wavePulse(outboxCard, '#3fb950');
       }
-  
-      try {
-        if (navigator.clipboard && navigator.clipboard.writeText) {
-          navigator.clipboard.writeText(packageText);
-        }
-      } catch (e) {}
-  
-      var outboxCard = document.querySelector('.outbox-card');
-      if (outboxCard && typeof LunoAnimationEngine !== 'undefined') {
-        var rect = outboxCard.getBoundingClientRect();
-        LunoAnimationEngine.burstSparks(rect.left + (rect.width / 2), rect.top + 30, '#3fb950', 20);
-        LunoAnimationEngine.pulseTarget(outboxCard, { color: '#3fb950', glowColor: 'rgba(63, 185, 80, 0.85)' });
-        if (typeof LunoAnimationEngine.wavePulse === 'function') {
-          LunoAnimationEngine.wavePulse(outboxCard, '#3fb950');
-        }
-      }
-  
-      if (typeof OutboxQueue.notifyTargetPage === 'function') {
-        OutboxQueue.notifyTargetPage(itemId ? 'Single Item' : 'Outbox Package', packageText);
-      }
-  
-      if (typeof ClientApp !== 'undefined' && ClientApp.showToast) {
-        ClientApp.showToast(toastMsg, 'success', '📋');
-      }
-  
-      if (typeof OutboxQueue.showClearCountdownBanner === 'function') {
-        OutboxQueue.showClearCountdownBanner(10000, itemId);
-      }
+    }
+
+    if (typeof OutboxQueue.notifyTargetPage === 'function') {
+      OutboxQueue.notifyTargetPage(itemId ? 'Single Item' : 'Outbox Package', packageText);
+    }
+
+    if (typeof ClientApp !== 'undefined' && ClientApp.showToast) {
+      ClientApp.showToast(toastMsg, 'success', '📋');
+    }
+
+    if (typeof OutboxQueue.showClearCountdownBanner === 'function') {
+      OutboxQueue.showClearCountdownBanner(10000, itemId);
     }
   }
 
   static async executeSmartBundle(bundleOptions) {
     try {
       var opts = (typeof bundleOptions === 'object' && bundleOptions !== null) ? bundleOptions : { includeInstructions: true, includeLibrary: false };
-      var targetProj = (typeof ClientApp !== 'undefined' && ClientApp.getTargetProject) ? ClientApp.getTargetProject() : '';
+      var targetProj = (typeof ClientApp !== 'undefined' && ClientApp.getTargetProject) ? ClientApp.getTargetProject() : 'Luno';
       var lunoMeta = {};
       try {
         var resMeta = await fetch('/api/fs/read?path=luno.json' + (targetProj ? '&project=' + encodeURIComponent(targetProj) : ''));
@@ -310,8 +318,7 @@ class OutboxQueue {
         if (dataMeta && dataMeta.content) lunoMeta = JSON.parse(dataMeta.content);
       } catch (e) {}
 
-      var projName = lunoMeta.name || targetProj || (typeof ClientApp !== 'undefined' && ClientApp.activeRootDir ? ClientApp.activeRootDir.split('/').filter(Boolean).pop() : 'Project');
-
+      var projName = lunoMeta.name || targetProj || 'Project';
       var pParams = [];
       if (targetProj) pParams.push('project=' + encodeURIComponent(targetProj));
       if (opts.includeLibrary) pParams.push('includeLibrary=true');
@@ -319,92 +326,25 @@ class OutboxQueue {
 
       var resCode = await fetch('/api/all-code' + queryString);
       var dataCode = await resCode.json();
-      if (!resCode.ok) throw new Error('Failed to fetch codebase from server');
+      if (!resCode.ok || !dataCode || !dataCode.filesMap) {
+        throw new Error((dataCode && dataCode.error) || 'Failed to fetch codebase from server');
+      }
 
       var filesMap = dataCode.filesMap || {};
+      var result = OutboxQueue.bundleAndQueueCodebase(filesMap, lunoMeta, projName, opts);
 
-      if (typeof OutboxQueue.bundleAndQueueCodebase === 'function') {
-        var result = OutboxQueue.bundleAndQueueCodebase(filesMap, lunoMeta, projName, opts);
-        if (typeof ClientApp !== 'undefined' && ClientApp.showToast) {
-          ClientApp.showToast('Bundled ' + result.fileCount + ' file(s) for [' + projName + '] into ' + result.totalParts + ' package part(s)!', 'success', '⚡');
-        }
-      }
-    } catch (err) {
-      if (typeof ClientApp !== 'undefined' && ClientApp.reportError) {
-        ClientApp.reportError('Smart Bundle Error', err);
-      }
-    }
-  }
-
-    static renderWidget(containerId, retryCount) {
       if (typeof OutboxWidgetRenderer !== 'undefined' && OutboxWidgetRenderer.renderWidget) {
-        return OutboxWidgetRenderer.renderWidget(containerId, retryCount);
+        OutboxWidgetRenderer.renderWidget('outbox-queue-container');
       }
-    }
-}
 
-if (typeof OutboxPromptBox !== 'undefined') {
-  OutboxQueue.promptWriteNoteModal = OutboxPromptBox.promptWriteNoteModal;
-  OutboxQueue.setupFloatingPromptDrag = OutboxPromptBox.setupFloatingPromptDrag;
-}
-if (typeof OutboxClearBanner !== 'undefined') {
-  OutboxQueue.showClearCountdownBanner = OutboxClearBanner.showClearCountdownBanner;
-}
-if (typeof OutboxOptionsModal !== 'undefined') {
-  OutboxQueue.promptBundleOptionsModal = OutboxOptionsModal.promptBundleOptionsModal;
-}
-if (typeof OutboxWidgetRenderer !== 'undefined') {
-  OutboxQueue.renderWidget = OutboxWidgetRenderer.renderWidget;
-  OutboxQueue.renderQueueItemRow = OutboxWidgetRenderer.renderQueueItemRow;
-
-  static copyPackageToClipboard() {
-    == 0) {
-        if (typeof ClientApp !== 'undefined') ClientApp.showToast('Outbox is empty!', 'info');
-        return;
-      }
-  
-      var packageText = '';
-      var toastMsg = 'Copied Outbox Package to clipboard!';
-  
-      if (itemId) {
-        var item = OutboxQueue.queue.find(function(i) { return i && i.id === itemId; });
-        if (item) {
-          packageText = item.payload.trim();
-          toastMsg = 'Copied ' + item.title + ' to clipboard!';
-        }
-      }
-  
-      if (!packageText) {
-        packageText = OutboxQueue.getCombinedPackageText();
-        toastMsg = 'Copied Outbox Package (' + OutboxQueue.queue.length + ' items) to clipboard!';
-      }
-  
-      try {
-        if (navigator.clipboard && navigator.clipboard.writeText) {
-          navigator.clipboard.writeText(packageText);
-        }
-      } catch (e) {}
-  
-      var outboxCard = document.querySelector('.outbox-card');
-      if (outboxCard && typeof LunoAnimationEngine !== 'undefined') {
-        var rect = outboxCard.getBoundingClientRect();
-        LunoAnimationEngine.burstSparks(rect.left + (rect.width / 2), rect.top + 30, '#3fb950', 20);
-        LunoAnimationEngine.pulseTarget(outboxCard, { color: '#3fb950', glowColor: 'rgba(63, 185, 80, 0.85)' });
-        if (typeof LunoAnimationEngine.wavePulse === 'function') {
-          LunoAnimationEngine.wavePulse(outboxCard, '#3fb950');
-        }
-      }
-  
-      if (typeof OutboxQueue.notifyTargetPage === 'function') {
-        OutboxQueue.notifyTargetPage(itemId ? 'Single Item' : 'Outbox Package', packageText);
-      }
-  
       if (typeof ClientApp !== 'undefined' && ClientApp.showToast) {
-        ClientApp.showToast(toastMsg, 'success', '📋');
+        ClientApp.showToast('Bundled ' + result.fileCount + ' file(s) for [' + projName + '] into Outbox!', 'success', '⚡');
       }
-  
-      if (typeof OutboxQueue.showClearCountdownBanner === 'function') {
-        OutboxQueue.showClearCountdownBanner(10000, itemId);
+      return result;
+    } catch (err) {
+      console.error('[OutboxQueue] Smart Bundle Exception:', err);
+      if (typeof ClientApp !== 'undefined' && ClientApp.showToast) {
+        ClientApp.showToast('Bundle Error: ' + err.message, 'error', '❌');
       }
     }
   }

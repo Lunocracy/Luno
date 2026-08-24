@@ -2,9 +2,7 @@ class LunoSpaHeaderNav {
   /**
    * ⚙️ CONSTRUCTOR: LunoSpaHeaderNav()
    */
-  constructor() {
-
-  }
+  constructor() {}
 
   /**
    * ⚙️ METHOD: getOpenProjectTabs()
@@ -12,35 +10,32 @@ class LunoSpaHeaderNav {
    * - Modifier: sync
    */
   static getOpenProjectTabs() {
-
     try {
       var raw = localStorage.getItem('luno_open_project_tabs');
       if (raw) return JSON.parse(raw);
     } catch(e) {}
     return [];
-
   }
+
   /**
    * ⚙️ METHOD: saveOpenProjectTabs(tabs)
    * - Type: Static Method
    * - Modifier: sync
    */
   static saveOpenProjectTabs(tabs) {
-
     try {
       localStorage.setItem('luno_open_project_tabs', JSON.stringify(tabs));
     } catch(e) {}
-
   }
+
   /**
    * ⚙️ METHOD: openProjectTab(projName)
    * - Type: Static Method
    * - Modifier: sync
    */
   static openProjectTab(projName) {
-
     if (!projName) return;
-    var invalidNames = (typeof LunoSettings !== 'undefined' && LunoSettings.INVALID_PROJECT_NAMES) ? LunoSettings.INVALID_PROJECT_NAMES : ['web', 'Luno', 'storage', 'emulated', 'LunoWeb', '0'];
+    var invalidNames = (typeof LunoSettings !== 'undefined' && LunoSettings.INVALID_PROJECT_NAMES) ? LunoSettings.INVALID_PROJECT_NAMES : ['web', 'storage', 'emulated', 'LunoWeb', '0'];
     if (invalidNames.includes(projName)) return;
 
     var tabs = LunoSpaHeaderNav.getOpenProjectTabs();
@@ -48,15 +43,14 @@ class LunoSpaHeaderNav {
       tabs.push(projName);
       LunoSpaHeaderNav.saveOpenProjectTabs(tabs);
     }
-
   }
+
   /**
    * ⚙️ METHOD: closeProjectTab(projName, e)
    * - Type: Static Method
    * - Modifier: sync
    */
   static closeProjectTab(projName, e) {
-
     if (e && e.stopPropagation) e.stopPropagation();
     var tabs = LunoSpaHeaderNav.getOpenProjectTabs();
     tabs = tabs.filter(function(t) { return t !== projName; });
@@ -88,15 +82,14 @@ class LunoSpaHeaderNav {
         }
       }
     }
-
   }
+
   /**
    * ⚙️ METHOD: render(activeViewKey)
    * - Type: Static Method
    * - Modifier: sync
    */
   static render(activeViewKey) {
-
     var activeKey = activeViewKey || 'workspace';
     var m = function(tag, attrs) {
       var children = Array.prototype.slice.call(arguments, 2);
@@ -126,7 +119,7 @@ class LunoSpaHeaderNav {
       { key: 'projects', label: '🚀 Projects' }
     ];
 
-    var invalidNames = (typeof LunoSettings !== 'undefined' && LunoSettings.INVALID_PROJECT_NAMES) ? LunoSettings.INVALID_PROJECT_NAMES : ['web', 'Luno', 'storage', 'emulated', 'LunoWeb', '0'];
+    var invalidNames = (typeof LunoSettings !== 'undefined' && LunoSettings.INVALID_PROJECT_NAMES) ? LunoSettings.INVALID_PROJECT_NAMES : ['web', 'storage', 'emulated', 'LunoWeb', '0'];
     var activeAppProj = (typeof localStorage !== 'undefined' && localStorage.getItem('luno_active_app_proj')) || '';
 
     if (invalidNames.includes(activeAppProj)) {
@@ -205,6 +198,52 @@ class LunoSpaHeaderNav {
       }, ...btnContent);
     });
 
+    var currentTarget = (typeof ClientApp !== 'undefined' && ClientApp.getTargetProject) ? ClientApp.getTargetProject() : 'Luno';
+
+    // Elevated Global Target Project Selector in the Top Header
+    var projectSelect = m('select', {
+      id: 'global-target-project-select',
+      style: {
+        background: '#0d1117',
+        color: '#00f2fe',
+        border: '1px solid #00f2fe',
+        padding: '0.25rem 0.55rem',
+        borderRadius: '6px',
+        fontSize: '0.75rem',
+        fontFamily: 'monospace',
+        fontWeight: 'bold',
+        cursor: 'pointer',
+        outline: 'none',
+        maxWidth: '180px'
+      },
+      onchange: function(e) {
+        var val = e.target.value;
+        if (typeof ClientApp !== 'undefined' && ClientApp.setTargetProject) {
+          ClientApp.setTargetProject(val);
+        }
+      }
+    }, m('option', { value: currentTarget }, '📁 ' + currentTarget));
+
+    setTimeout(async function() {
+      try {
+        if (typeof LunoApiClient !== 'undefined' && LunoApiClient.fetchProjectsList) {
+          var data = await LunoApiClient.fetchProjectsList();
+          if (data && Array.isArray(data.projects)) {
+            var activeTarget = (typeof ClientApp !== 'undefined' && ClientApp.getTargetProject) ? ClientApp.getTargetProject() : '';
+            projectSelect.innerHTML = '';
+            data.projects.forEach(function(p) {
+              if (p.isLibrary || p.name === 'Library') return;
+              var opt = document.createElement('option');
+              opt.value = p.name;
+              opt.textContent = '📁 ' + p.name + (p.name === 'Luno' ? ' (Core)' : '');
+              if (p.name === activeTarget) opt.selected = true;
+              projectSelect.appendChild(opt);
+            });
+          }
+        }
+      } catch (e) {}
+    }, 40);
+
     var btnSettings = m('button', {
       style: {
         padding: '0.35rem 0.55rem',
@@ -226,34 +265,10 @@ class LunoSpaHeaderNav {
       }
     }, '⚙️');
 
-    var activeRoot = (typeof ClientApp !== 'undefined' && ClientApp.activeRootDir) ? ClientApp.activeRootDir : '';
-    var activeProjName = activeRoot ? activeRoot.split('/').filter(Boolean).pop() : 'Luno';
-    var isSelfImprovement = activeProjName === 'Luno';
-
-    var activeBadge = m('span', {
-      style: {
-        fontSize: '0.72rem',
-        fontWeight: 'bold',
-        padding: '0.2rem 0.55rem',
-        borderRadius: '12px',
-        background: isSelfImprovement ? '#271052' : '#0d2d4a',
-        color: isSelfImprovement ? '#d2a8ff' : '#58a6ff',
-        border: '1px solid ' + (isSelfImprovement ? '#8257e5' : '#0088cc'),
-        cursor: 'pointer',
-        fontFamily: 'monospace'
-      },
-      title: 'Click to switch active project root',
-      onclick: function() {
-        if (typeof ClientApp !== 'undefined' && ClientApp.openProjectSelectorModal) {
-          ClientApp.openProjectSelectorModal();
-        }
-      }
-    }, isSelfImprovement ? '⚡ Luno Core' : ('📁 ' + activeProjName));
-
     return m('header', {
       style: {
         display: 'flex',
-        justify: 'space-between',
+        justifyContent: 'space-between',
         alignItems: 'center',
         paddingBottom: '0.55rem',
         marginBottom: '0.65rem',
@@ -262,9 +277,12 @@ class LunoSpaHeaderNav {
         flexWrap: 'wrap'
       }
     },
-      m('div', { style: { display: 'flex', alignItems: 'center', gap: '0.5rem' } },
+      m('div', { style: { display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' } },
         m('span', { style: { fontSize: '1rem', fontWeight: 'bold', color: '#00f2fe' } }, '🌙 Luno'),
-        activeBadge
+        m('div', { style: { display: 'flex', alignItems: 'center', gap: '0.3rem' } },
+          m('span', { style: { fontSize: '0.72rem', color: '#8b949e', fontWeight: 'bold' } }, 'Project:'),
+          projectSelect
+        )
       ),
       m('div', {
         style: {
@@ -280,7 +298,6 @@ class LunoSpaHeaderNav {
         btnSettings
       )
     );
-
   }
 }
 

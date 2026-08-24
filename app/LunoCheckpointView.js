@@ -4,9 +4,6 @@ class LunoCheckpointView {
   static lastGitOutput = '';
   static lastConsolidationOutput = '';
 
-  /**
-   * ⚙️ METHOD: mountUI(container)
-   */
   static async mountUI(container) {
     if (!container) return;
     container.innerHTML = '';
@@ -28,19 +25,22 @@ class LunoCheckpointView {
     var uncommittedCount = (typeof ClientApp !== 'undefined' && ClientApp.uncommittedCount) || 0;
 
     var pendingPatchesCount = 0;
-    var patchLogContent = '';
     try {
       var plRes = await fetch('/api/fs/read?path=LunoPatchLog.html' + pParam);
       var plData = await plRes.json();
       if (plRes.ok && plData && plData.content) {
-        patchLogContent = plData.content;
         var parser = globalThis.LunoPayloadParser || globalThis.LunoContainerParser;
         if (parser && typeof parser.parsePatchLog === 'function') {
-          var parsedPl = parser.parsePatchLog(patchLogContent);
-          pendingPatchesCount = (parsedPl.files || []).length;
-        } else if (parser && typeof parser.parse === 'function') {
-          var parsedPl = parser.parse(patchLogContent);
-          pendingPatchesCount = (parsedPl.files || []).length;
+          var parsedPl = parser.parsePatchLog(plData.content);
+          var allFiles = parsedPl.files || [];
+          pendingPatchesCount = allFiles.filter(function(f) {
+            if (!f || !f.filePath) return false;
+            var norm = f.filePath.replace(/\\/g, '/');
+            if (targetProj === 'Luno') {
+              return norm.startsWith('Luno/') || norm.startsWith('app/') || norm.startsWith('core/') || norm.startsWith('browser/') || norm.startsWith('docs/') || norm.startsWith('test/');
+            }
+            return norm.startsWith(targetProj + '/') || !norm.includes('/') || norm.startsWith('Library/');
+          }).length;
         }
       }
     } catch(e) {}
@@ -57,29 +57,6 @@ class LunoCheckpointView {
         if (!pendingNote && meta.pendingCheckpointDescription && !meta.pendingCheckpointDescription.startsWith('Clean')) {
           pendingNote = meta.pendingCheckpointDescription;
         }
-      }
-    } catch(e) {}
-
-    var recentLogText = '';
-    try {
-      var logScriptObj = {
-        files: [],
-        serverScript: [
-          'const { execSync } = require("child_process");',
-          'const root = LunoServer.resolveProjectBaseDir("' + targetProj + '");',
-          'try { return execSync("git log -n 5 --oneline", { cwd: root, encoding: "utf8" }); }',
-          'catch(e) { return "No recent git log available for " + root; }'
-        ].join('\n'),
-        project: targetProj
-      };
-      var logRes = await fetch('/api/save' + (targetProj ? ('?project=' + encodeURIComponent(targetProj)) : ''), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(logScriptObj)
-      });
-      var logData = await logRes.json();
-      if (logData && logData.llmFeedback) {
-        recentLogText = logData.llmFeedback.replace(/^⚡ SERVER SCRIPT OUTPUT:[\r\n]+(?:--- Return Value ---\s*)?/i, '').trim();
       }
     } catch(e) {}
 
@@ -136,10 +113,10 @@ class LunoCheckpointView {
             color: pendingPatchesCount > 0 ? '#d2a8ff' : '#8b949e',
             border: '1px solid ' + (pendingPatchesCount > 0 ? '#8257e5' : '#30363d')
           }
-        }, pendingPatchesCount + ' patch(es) pending for [' + targetProj + ']')
+        }, pendingPatchesCount + ' patch(es) for [' + targetProj + ']')
       ),
       m('p', { style: { color: '#8b949e', margin: 0, fontSize: '0.78rem', lineHeight: '1.4' } },
-        'Client-side consolidation validates ES6 AST syntax, creates .bak sidecar backups, merges methods into ES6 class bodies, and resets LunoPatchLog.html for [' + targetProj + '].'
+        'Client-side consolidation validates ES6 AST syntax, creates .bak sidecar backups, merges methods into ES6 class bodies, and updates LunoPatchLog.html.'
       ),
       m('button', {
         id: 'btn-consolidate-patches',
@@ -158,32 +135,16 @@ class LunoCheckpointView {
         onclick: async function() {
           if (pendingPatchesCount === 0) {
             if (typeof ClientApp !== 'undefined' && ClientApp.showToast) {
-              ClientApp.showToast('LunoPatchLog.html is already clean for [' + targetProj + ']!', 'info', 'ℹ️');
+              ClientApp.showToast('No pending patches for [' + targetProj + ']!', 'info', 'ℹ️');
             }
             return;
           }
 
-          if (typeof ClientApp !== 'undefined' && ClientApp.showToast) {
-            ClientApp.showToast('Validating AST syntax & consolidating patches for ' + targetProj + '...', 'info', '🧩');
-          }
-
           try {
-            var data = null;
-            if (typeof LunoPatchConsolidator !== 'undefined' && LunoPatchConsolidator.consolidate) {
-              data = await LunoPatchConsolidator.consolidate(targetProj);
-            } else {
-              throw new Error('LunoPatchConsolidator module is not loaded on client.');
-            }
-
+            var data = await LunoPatchConsolidator.consolidate(targetProj);
             if (data && data.success) {
-              LunoCheckpointView.lastConsolidationOutput = '✅ Safely Consolidated ' + (data.consolidatedCount || 0) + ' patch(es) for [' + targetProj + '] across ' + (data.modifiedFiles ? data.modifiedFiles.length : 0) + ' file(s)!\nSidecar backups (.bak) created.\nModified Base Files:\n- ' + (data.modifiedFiles || []).join('\n- ');
-
-              if (typeof ClientApp !== 'undefined' && ClientApp.showToast) {
-                ClientApp.showToast('Consolidated ' + data.consolidatedCount + ' patch(es) into [' + targetProj + '] base files with .bak backups!', 'success', '✨');
-              }
+              LunoCheckpointView.lastConsolidationOutput = '✅ Consolidated ' + (data.consolidatedCount || 0) + ' patch(es) for [' + targetProj + ']!\nBackups created (.bak).\nModified Files:\n- ' + (data.modifiedFiles || []).join('\n- ');
               LunoCheckpointView.mountUI(container);
-            } else {
-              alert('Consolidation Aborted: ' + (data ? data.error : 'Unknown error'));
             }
           } catch(e) {
             alert('Consolidation Error: ' + e.message);
@@ -232,7 +193,7 @@ class LunoCheckpointView {
       m('div', { style: { background: '#0d1117', border: '1px solid #238636', padding: '0.85rem', borderRadius: '8px', fontSize: '0.82rem' } },
         m('strong', { style: { color: '#3fb950', display: 'block', marginBottom: '0.35rem' } }, '📊 Uncommitted Modifications for [' + targetProj + ']: ' + uncommittedCount + ' file(s)'),
         m('p', { style: { color: '#8b949e', margin: 0, lineHeight: '1.4' } },
-          'Recording a Checkpoint creates a Git commit snapshot of the active [' + targetProj + '] directory.'
+          'Creates a scoped Git commit snapshot tagged for [' + targetProj + '].'
         )
       ),
 
@@ -242,7 +203,7 @@ class LunoCheckpointView {
           id: 'checkpoint-note-input',
           type: 'text',
           value: pendingNote,
-          placeholder: 'e.g. Updated project files and verified tests',
+          placeholder: 'e.g. [' + targetProj + '] Updated modules and verified tests',
           style: { width: '100%', padding: '0.65rem', background: '#0d1117', color: '#00f2fe', border: '1px solid #30363d', borderRadius: '6px', fontFamily: 'monospace', fontSize: '0.82rem', outline: 'none', boxSizing: 'border-box' }
         })
       ),
@@ -252,18 +213,14 @@ class LunoCheckpointView {
         onclick: async function() {
           var inp = document.getElementById('checkpoint-note-input');
           var note = inp ? inp.value.trim() : '';
-          var desc = note || ('Checkpoint ' + new Date().toLocaleString());
+          var desc = note || ('[' + targetProj + '] Checkpoint ' + new Date().toLocaleString());
 
           var outputCard = document.getElementById('checkpoint-output-card');
           var outputPre = document.getElementById('checkpoint-output-text');
           if (outputCard) outputCard.style.display = 'block';
           if (outputPre) {
             outputPre.style.color = '#00f2fe';
-            outputPre.textContent = '⚡ Executing Git Commit for [' + targetProj + ']...';
-          }
-
-          if (typeof ClientApp !== 'undefined' && ClientApp.showToast) {
-            ClientApp.showToast('Recording Git Checkpoint for ' + targetProj + '...', 'info', '📸');
+            outputPre.textContent = '⚡ Recording Git Checkpoint for [' + targetProj + ']...';
           }
 
           try {
@@ -300,13 +257,12 @@ class LunoCheckpointView {
               project: targetProj
             };
 
-            var res = await fetch('/api/save' + (targetProj ? ('?project=' + encodeURIComponent(targetProj)) : ''), {
+            var res = await fetch('/api/save?project=' + encodeURIComponent(targetProj), {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify(serverScriptObj)
             });
             var data = await res.json();
-
             var rawGitText = (data && data.llmFeedback)
               ? data.llmFeedback.replace(/^⚡ SERVER SCRIPT OUTPUT:[\r\n]+(?:--- Return Value ---\s*)?/i, '').trim()
               : 'Checkpoint created cleanly.';
@@ -318,10 +274,6 @@ class LunoCheckpointView {
               outputPre.textContent = rawGitText;
             }
 
-            if (typeof localStorage !== 'undefined') {
-              localStorage.removeItem('luno_pending_checkpoint_desc');
-            }
-
             if (typeof ClientApp !== 'undefined') {
               ClientApp.showToast('Snapshot Recorded for ' + targetProj + '!', 'success', '📸');
               ClientApp.uncommittedCount = 0;
@@ -331,7 +283,7 @@ class LunoCheckpointView {
           } catch(e) {
             if (outputPre) {
               outputPre.style.color = '#ff7b72';
-              outputPre.textContent = '❌ Network Error: ' + e.message;
+              outputPre.textContent = '❌ Error: ' + e.message;
             }
           }
         }
@@ -348,13 +300,13 @@ class LunoCheckpointView {
         }
       },
         m('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.45rem', borderBottom: '1px solid #30363d', paddingBottom: '0.3rem' } },
-          m('span', { style: { fontWeight: 'bold', color: '#00f2fe', fontSize: '0.78rem' } }, '⚡ Git Terminal Output:'),
+          m('span', { style: { fontWeight: 'bold', color: '#00f2fe', fontSize: '0.78rem' } }, '⚡ Git Output:'),
           m('button', {
             style: { padding: '0.3rem 0.65rem', background: '#271052', color: '#d2a8ff', border: '1px solid #8257e5', borderRadius: '4px', fontSize: '0.72rem', fontWeight: 'bold', cursor: 'pointer', fontFamily: 'monospace' },
             onclick: function() {
               var text = LunoCheckpointView.lastGitOutput || (document.getElementById('checkpoint-output-text') ? document.getElementById('checkpoint-output-text').textContent : '');
               if (text && typeof OutboxQueue !== 'undefined') {
-                OutboxQueue.addBundle('Git Checkpoint Response', text, { priority: 'high' });
+                OutboxQueue.addBundle('Git Checkpoint Output', text, { priority: 'high' });
                 if (typeof ClientApp !== 'undefined' && ClientApp.showToast) {
                   ClientApp.showToast('Sent Git Response to Outbox!', 'success', '📤');
                 }
@@ -366,25 +318,6 @@ class LunoCheckpointView {
           id: 'checkpoint-output-text',
           style: { background: '#070a13', border: '1px solid #1e293b', borderRadius: '6px', padding: '0.65rem', color: '#7ee787', fontSize: '0.75rem', fontFamily: 'monospace', whiteSpace: 'pre-wrap', wordBreak: 'break-all', maxHeight: '200px', overflowY: 'auto', margin: 0 },
           textContent: LunoCheckpointView.lastGitOutput || ''
-        })
-      ),
-
-      m('div', { style: { background: '#0d1117', border: '1px solid #30363d', borderRadius: '8px', padding: '0.85rem', display: 'flex', flexDirection: 'column', gap: '0.45rem' } },
-        m('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center' } },
-          m('strong', { style: { color: '#d2a8ff', fontSize: '0.82rem' } }, '📜 Recent Git Checkpoint History:'),
-          m('button', {
-            style: { padding: '0.2rem 0.5rem', background: '#161b22', color: '#d2a8ff', border: '1px solid #8257e5', borderRadius: '4px', fontSize: '0.68rem', cursor: 'pointer', fontFamily: 'monospace', fontWeight: 'bold' },
-            onclick: function() {
-              if (recentLogText && typeof OutboxQueue !== 'undefined') {
-                OutboxQueue.addBundle('Git Commit History Log', recentLogText);
-                if (typeof ClientApp !== 'undefined' && ClientApp.showToast) ClientApp.showToast('Sent Commit Log to Outbox!', 'success', '📤');
-              }
-            }
-          }, '📤 Send Log to Outbox')
-        ),
-        m('pre', {
-          style: { background: '#070a13', border: '1px solid #1e293b', borderRadius: '6px', padding: '0.55rem', color: '#8b949e', fontSize: '0.72rem', fontFamily: 'monospace', whiteSpace: 'pre-wrap', margin: 0 },
-          textContent: recentLogText || 'No git commit history found.'
         })
       )
     );

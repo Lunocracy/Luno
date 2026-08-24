@@ -5,24 +5,23 @@ class LunoProjectTemplates {
     {
       id: 'blank',
       name: '🌱 Blank Starter Web App',
-      desc: 'Single-page web application template with Luno protocol & files.json support.',
+      desc: 'Single-page web application template with standalone vanilla JS architecture.',
       files: {
-        'luno.json': '{\n  "name": "Starter Web App",\n  "version": "1.0.0",\n  "description": "Custom Luno web application",\n  "type": "luno-web-app",\n  "mainClass": "App",\n  "main": ["src/App.js"],\n  "library": ["DomBasics.js", "UITools.js"]\n}',
-        'files.json': '{\n  "main": ["src/App.js"],\n  "local": [],\n  "library": ["DomBasics.js", "UITools.js"],\n  "thirdParty": []\n}',
-        'index.html': '<!DOCTYPE html>\n<html>\n<head>\n  <meta charset="UTF-8">\n  <title>Starter App</title>\n  <style>\n    * { box-sizing: border-box; margin: 0; padding: 0; }\n    body { background: #0d1117; color: #c9d1d9; font-family: system-ui, sans-serif; min-height: 100vh; }\n    #app-container { width: 100%; min-height: 100vh; }\n  </style>\n</head>\n<body>\n  <div id="app-container"></div>\n  <script src="/app/acorn.js"><\/script>\n  <script src="/app/LunoLoader.js"><\/script>\n  <script>\n    document.addEventListener("DOMContentLoaded", function() {\n      if (typeof LunoLoader !== "undefined") {\n        LunoLoader.loadApp("app-container");\n      }\n    });\n  <\/script>\n</body>\n</html>',
-        'src/App.js': 'class App {\n  async run(env) {\n    const target = env.container || document.body;\n    target.innerHTML = "";\n    const card = makeElement("div", { style: { padding: "2rem", color: "#00f2fe", textAlign: "center" } },\n      makeElement("h1", "🚀 Welcome to Starter App"),\n      makeElement("p", { style: { color: "#8b949e", marginTop: "0.5rem" } }, "Interactive Luno app initialized successfully!")\n    );\n    target.appendChild(card);\n  }\n}'
+        'luno.json': '{\n  "name": "Starter Web App",\n  "version": "1.0.0",\n  "description": "Custom Luno web application",\n  "type": "luno-web-app",\n  "mainClass": "App",\n  "main": ["src/App.js"],\n  "library": [],\n  "styles": ["css/style.css"]\n}',
+        'index.html': '<!DOCTYPE html>\n<html>\n<head>\n  <meta charset="UTF-8">\n  <title>Starter App</title>\n  <link rel="stylesheet" href="css/style.css">\n</head>\n<body>\n  <div id="app-container"></div>\n  <script src="/app/acorn.js"><\/script>\n  <script src="/app/LunoLoader.js"><\/script>\n  <script>\n    document.addEventListener("DOMContentLoaded", function() {\n      if (typeof LunoLoader !== "undefined") {\n        LunoLoader.loadApp("app-container");\n      }\n    });\n  <\/script>\n</body>\n</html>',
+        'css/style.css': '* { box-sizing: border-box; margin: 0; padding: 0; }\nbody { background: #0d1117; color: #c9d1d9; font-family: monospace; min-height: 100vh; padding: 1.5rem; }',
+        'src/App.js': 'class App {\n  async run(env) {\n    const target = (env && env.container) || document.getElementById("app-container") || document.body;\n    target.innerHTML = "";\n    const card = document.createElement("div");\n    card.style.cssText = "padding: 2rem; background: #161b22; border: 2px solid #00f2fe; border-radius: 10px; text-align: center; font-family: monospace; color: #00f2fe; max-width: 600px; margin: 2rem auto; box-shadow: 0 4px 16px rgba(0,242,254,0.2);";\n    card.innerHTML = "<h2>🚀 Welcome to Your New Project</h2><p style=\'color: #8b949e; margin-top: 0.5rem; font-size: 0.85rem;\'>Initialized cleanly. Ready for rapid development in Luno!</p>";\n    target.appendChild(card);\n  }\n}\n\nglobalThis.App = App;\nif (typeof module !== "undefined" && module.exports) module.exports = App;'
       }
     },
     {
       id: '3d_app',
-      name: '🎲 Three.js 3D Viewport App',
-      desc: 'Interactive 3D Three.js viewport template using ThreeJSLoader & OrbitControls.',
+      name: '🎲 3D Canvas App',
+      desc: 'Interactive 3D WebGL viewport starter with self-contained rotation animation.',
       files: {
-        'luno.json': '{\n  "name": "3D Viewport App",\n  "version": "1.0.0",\n  "description": "Three.js 3D viewport application",\n  "type": "luno-web-app",\n  "mainClass": "App3D",\n  "main": ["src/App3D.js"],\n  "library": ["DomBasics.js", "UITools.js", "ThreeJSLoader.js"],\n  "styles": ["css/app3d.css"]\n}',
-        'files.json': '{\n  "main": ["src/App3D.js"],\n  "local": [],\n  "library": ["DomBasics.js", "UITools.js", "ThreeJSLoader.js"],\n  "thirdParty": []\n}',
-        'index.html': '<!DOCTYPE html>\n<html>\n<head>\n  <meta charset="UTF-8">\n  <title>3D Viewport App</title>\n  <style>\n    * { box-sizing: border-box; margin: 0; padding: 0; }\n    body { background: #0d1117; color: #c9d1d9; font-family: system-ui, sans-serif; min-height: 100vh; overflow: hidden; }\n    #app-container { width: 100vw; height: 100vh; }\n  </style>\n</head>\n<body>\n  <div id="app-container"></div>\n  <script src="/app/acorn.js"><\/script>\n  <script src="/app/LunoLoader.js"><\/script>\n  <script>\n    document.addEventListener("DOMContentLoaded", function() {\n      if (typeof LunoLoader !== "undefined") {\n        LunoLoader.loadApp("app-container");\n      }\n    });\n  <\/script>\n</body>\n</html>',
-        'css/app3d.css': 'body { margin: 0; overflow: hidden; background: #000; }',
-        'src/App3D.js': 'class App3D {\n  async run(env) {\n    const target = env.container || document.body;\n    target.innerHTML = "<div style=\'padding:2rem; color:#00f2fe; text-align:center;\'><h2>🎲 3D Viewport App Initialized</h2><p style=\'color:#8b949e; margin-top:0.5rem;\'>ThreeJSLoader & OrbitControls active.</p></div>";\n  }\n}'
+        'luno.json': '{\n  "name": "3D Canvas App",\n  "version": "1.0.0",\n  "description": "3D Canvas Viewport",\n  "type": "luno-web-app",\n  "mainClass": "App3D",\n  "main": ["src/App3D.js"],\n  "library": [],\n  "styles": ["css/app3d.css"]\n}',
+        'index.html': '<!DOCTYPE html>\n<html>\n<head>\n  <meta charset="UTF-8">\n  <title>3D Canvas App</title>\n  <link rel="stylesheet" href="css/app3d.css">\n</head>\n<body>\n  <div id="app-container"></div>\n  <script src="/app/acorn.js"><\/script>\n  <script src="/app/LunoLoader.js"><\/script>\n  <script>\n    document.addEventListener("DOMContentLoaded", function() {\n      if (typeof LunoLoader !== "undefined") {\n        LunoLoader.loadApp("app-container");\n      }\n    });\n  <\/script>\n</body>\n</html>',
+        'css/app3d.css': '* { box-sizing: border-box; margin: 0; padding: 0; }\nbody { background: #000; color: #00f2fe; font-family: monospace; overflow: hidden; height: 100vh; }',
+        'src/App3D.js': 'class App3D {\n  async run(env) {\n    const target = (env && env.container) || document.getElementById("app-container") || document.body;\n    target.innerHTML = "";\n    const canvas = document.createElement("canvas");\n    canvas.width = window.innerWidth;\n    canvas.height = window.innerHeight;\n    target.appendChild(canvas);\n    const ctx = canvas.getContext("2d");\n    let angle = 0;\n    function render() {\n      ctx.fillStyle = "#070a13";\n      ctx.fillRect(0, 0, canvas.width, canvas.height);\n      ctx.save();\n      ctx.translate(canvas.width / 2, canvas.height / 2);\n      ctx.rotate(angle);\n      ctx.strokeStyle = "#00f2fe";\n      ctx.lineWidth = 3;\n      ctx.strokeRect(-60, -60, 120, 120);\n      ctx.restore();\n      angle += 0.02;\n      requestAnimationFrame(render);\n    }\n    render();\n  }\n}\n\nglobalThis.App3D = App3D;\nif (typeof module !== "undefined" && module.exports) module.exports = App3D;'
       }
     }
   ];
@@ -235,8 +234,14 @@ class LunoProjectTemplates {
     const tpl = LunoProjectTemplates.TEMPLATES.find(t => t.id === templateId);
     if (!tpl) return;
 
-    const projName = prompt('Enter new project directory name:', 'my_new_project');
-    if (!projName || !projName.trim()) return;
+    const rawName = prompt('Enter new project directory name (letters, numbers, dashes, underscores):', 'my_new_project');
+    if (!rawName) return;
+
+    const cleanName = rawName.trim().replace(/[^a-zA-Z0-9_\-]/g, '');
+    if (!cleanName) {
+      alert('Invalid project name. Please use alphanumeric characters, dashes, or underscores.');
+      return;
+    }
 
     let filesList = [];
     for (const [relFile, content] of Object.entries(tpl.files)) {
@@ -249,12 +254,12 @@ class LunoProjectTemplates {
 
     try {
       if (typeof ClientApp !== 'undefined' && ClientApp.setTargetProject) {
-        ClientApp.setTargetProject(projName.trim(), { openTab: true });
+        ClientApp.setTargetProject(cleanName, { openTab: true });
       }
-      await fetch('/api/save?project=' + encodeURIComponent(projName.trim()), {
+      await fetch('/api/save?project=' + encodeURIComponent(cleanName), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ files: filesList, serverScript: '', project: projName.trim() })
+        body: JSON.stringify({ files: filesList, serverScript: '', project: cleanName })
       });
       if (typeof LunoSpaDock !== 'undefined') {
         LunoSpaDock.mountView('projects');
