@@ -68,94 +68,98 @@ class LunoManifestDecisionEngine {
     return false;
   }
 
-      static async processPayload(payloadObj, manifestObj, projectName = '') {
-      if (!payloadObj || !Array.isArray(payloadObj.files)) {
-        return payloadObj;
+        static async processPayload(payloadObj, manifestObj, projectName = '') {
+    if (!payloadObj || !Array.isArray(payloadObj.files)) {
+      return payloadObj;
+    }
+  
+    const targetProj = projectName || (typeof ClientApp !== 'undefined' && ClientApp.getTargetProject ? ClientApp.getTargetProject() : 'Luno');
+    const processedFiles = [];
+  
+    const KNOWN_PROJECTS = ['MySituation', 'Basic3D', 'VideoEditor', 'guessTheNoteGame', 'VideoPrepper', 'BasicsWithDialogBox', 'SimpleTest', 'Library', 'images', 'Luno'];
+  
+    for (let i = 0; i < payloadObj.files.length; i++) {
+      const f = payloadObj.files[i];
+      if (!f || !f.filePath) continue;
+  
+      let normPath = f.filePath.replace(/\\/g, '/').replace(/^\/+/, '').trim();
+  
+      if (normPath.startsWith('Luno Workspace/')) {
+        normPath = normPath.slice(15).trim();
+      } else if (normPath.startsWith('./')) {
+        normPath = normPath.slice(2).trim();
       }
   
-      const targetProj = projectName || (typeof ClientApp !== 'undefined' && ClientApp.getTargetProject ? ClientApp.getTargetProject() : 'Luno');
-      const processedFiles = [];
+      const firstSegment = normPath.split('/')[0];
+      const startsWithKnownProject = KNOWN_PROJECTS.includes(firstSegment);
   
-      for (let i = 0; i < payloadObj.files.length; i++) {
-        const f = payloadObj.files[i];
-        if (!f || !f.filePath) continue;
+      if (
+        normPath !== 'LunoPatchLog.html' &&
+        !normPath.startsWith('Library/') &&
+        !startsWithKnownProject &&
+        !normPath.startsWith(targetProj + '/')
+      ) {
+        normPath = targetProj + '/' + normPath;
+      }
   
-        let normPath = f.filePath.replace(/\\/g, '/').replace(/^\/+/, '').trim();
+      const isExplicitDirect = (f.action === 'direct');
+      const isExplicitMerge = (f.action === 'merge');
+      const isClientAsset = !isExplicitDirect && !isExplicitMerge && LunoManifestDecisionEngine.isStartupClientFile(normPath, manifestObj);
   
-        // 1. Strip redundant outer workspace labels if present in prompt headers
-        if (normPath.startsWith('Luno Workspace/')) {
-          normPath = normPath.slice(15).trim();
-        } else if (normPath.startsWith('./')) {
-          normPath = normPath.slice(2).trim();
-        }
+      if (isClientAsset) {
+        processedFiles.push({
+          tagName: 'script',
+          filePath: normPath,
+          methodSpec: f.methodSpec || '',
+          action: f.action || 'write',
+          content: f.content || ''
+        });
+      } else {
+        if (f.methodSpec || f.action === 'patch') {
+          let baseContent = '';
+          if (typeof LunoApiClient !== 'undefined' && LunoApiClient.fetchFsRead) {
+            let res = await LunoApiClient.fetchFsRead(normPath, targetProj);
+            if (res && res.content) {
+              baseContent = res.content;
+            }
+          }
   
-        // 2. Deterministic canonicalization: Prefix with target project if not already qualified
-        if (
-          normPath !== 'LunoPatchLog.html' &&
-          !normPath.startsWith('Library/') &&
-          !normPath.startsWith(targetProj + '/')
-        ) {
-          normPath = targetProj + '/' + normPath;
-        }
+          if (!baseContent || !baseContent.trim()) {
+            throw new Error(`[Luno AST Guard] Cannot apply surgical method patch to "${normPath}": Target file could not be read at strict path.`);
+          }
   
-        const isExplicitDirect = (f.action === 'direct');
-        const isExplicitMerge = (f.action === 'merge');
-        const isClientAsset = !isExplicitDirect && !isExplicitMerge && LunoManifestDecisionEngine.isStartupClientFile(normPath, manifestObj);
+          let classPatcher = globalThis.LunoClassPatcher;
+          if (!classPatcher || typeof classPatcher.patchMethodInSource !== 'function') {
+            throw new Error(`[Luno AST Guard] LunoClassPatcher is not loaded in memory to patch "${normPath}".`);
+          }
   
-        if (isClientAsset) {
+          const consolidatedContent = classPatcher.patchMethodInSource(baseContent, f.methodSpec || normPath, f.content);
+  
           processedFiles.push({
-            tagName: 'script',
+            tagName: f.tagName || 'script',
             filePath: normPath,
-            methodSpec: f.methodSpec || '',
-            action: f.action || 'write',
-            content: f.content || ''
+            action: 'direct',
+            content: consolidatedContent
           });
         } else {
-          if (f.methodSpec || f.action === 'patch') {
-            let baseContent = '';
-            if (typeof LunoApiClient !== 'undefined' && LunoApiClient.fetchFsRead) {
-              let res = await LunoApiClient.fetchFsRead(normPath, targetProj);
-              if (res && res.content) {
-                baseContent = res.content;
-              }
-            }
-  
-            if (!baseContent || !baseContent.trim()) {
-              throw new Error(`[Luno AST Guard] Cannot apply surgical method patch to "${normPath}": Target file could not be read at strict path.`);
-            }
-  
-            let classPatcher = globalThis.LunoClassPatcher;
-            if (!classPatcher || typeof classPatcher.patchMethodInSource !== 'function') {
-              throw new Error(`[Luno AST Guard] LunoClassPatcher is not loaded in memory to patch "${normPath}".`);
-            }
-  
-            const consolidatedContent = classPatcher.patchMethodInSource(baseContent, f.methodSpec || normPath, f.content);
-  
-            processedFiles.push({
-              tagName: f.tagName || 'script',
-              filePath: normPath,
-              action: 'direct',
-              content: consolidatedContent
-            });
-          } else {
-            processedFiles.push({
-              tagName: f.tagName || 'script',
-              filePath: normPath,
-              action: (f.action === 'delete' || f.action === 'merge') ? f.action : 'direct',
-              content: f.content
-            });
-          }
+          processedFiles.push({
+            tagName: f.tagName || 'script',
+            filePath: normPath,
+            action: (f.action === 'delete' || f.action === 'merge') ? f.action : 'direct',
+            content: f.content
+          });
         }
       }
-  
-      return {
-        files: processedFiles,
-        serverScript: payloadObj.serverScript || '',
-        requests: payloadObj.requests || [],
-        debugLogs: payloadObj.debugLogs || [],
-        project: targetProj
-      };
     }
+  
+    return {
+      files: processedFiles,
+      serverScript: payloadObj.serverScript || '',
+      requests: payloadObj.requests || [],
+      debugLogs: payloadObj.debugLogs || [],
+      project: targetProj
+    };
+  }
 }
 
 globalThis.LunoManifestDecisionEngine = LunoManifestDecisionEngine;
