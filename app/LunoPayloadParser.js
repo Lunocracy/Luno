@@ -95,61 +95,46 @@ LunoPayloadParser.parse = function(text) {
       continue;
     }
 
-    debugLogs.push("▶ Found start tag '<" + tagWord + "' at index " + openIdx);
-
     var headerEndIdx = cleaned.indexOf(">", openIdx);
     if (headerEndIdx === -1) {
-      debugLogs.push("  ❌ ERR: Unclosed opening header tag at index " + openIdx);
       break;
     }
 
     var headerStr = cleaned.substring(openIdx + 1 + tagWord.length, headerEndIdx);
-    debugLogs.push("  • Header Attributes: [" + headerStr + "]");
-
     var closeTag = "</" + tagWord;
     var closeSearchIdx = cleaned.indexOf(closeTag, headerEndIdx);
     if (closeSearchIdx === -1) {
-      debugLogs.push("  ❌ ERR: No matching '" + closeTag + "' found after index " + headerEndIdx);
       pos = headerEndIdx + 1;
       continue;
     }
 
     var closeEndIdx = cleaned.indexOf(">", closeSearchIdx);
     if (closeEndIdx === -1) {
-      debugLogs.push("  ❌ ERR: Unclosed end tag '" + closeTag + "' at index " + closeSearchIdx);
       pos = headerEndIdx + 1;
       continue;
     }
 
     var innerContent = cleaned.substring(headerEndIdx + 1, closeSearchIdx).trim();
 
-    var filePath = LunoPayloadParser.getAttrValue(headerStr, "data-file");
+    var rawFilePath = LunoPayloadParser.getAttrValue(headerStr, "data-file");
+    var filePath = rawFilePath ? rawFilePath.replace(/\\/g, '/').replace(/^\/+/, '').trim() : '';
     var methodSpec = LunoPayloadParser.getAttrValue(headerStr, "data-method");
     var action = LunoPayloadParser.getAttrValue(headerStr, "data-action") || "write";
     var typeAttr = LunoPayloadParser.getAttrValue(headerStr, "type");
-
-    debugLogs.push("  • Parsed Attrs -> filePath: '" + filePath + "' | method: '" + methodSpec + "' | action: '" + action + "' | contentLen: " + innerContent.length + " bytes");
 
     action = action.toLowerCase();
     typeAttr = typeAttr.toLowerCase();
 
     if (typeAttr === "application/luno-request" || action === "request") {
       requests.push({ tagName: tagWord, filePath: filePath, methodSpec: methodSpec, content: innerContent });
-      debugLogs.push("  ✅ Action: Queued LLM Context Request");
     } else if (action === "run-server" || filePath === "RUN: SERVER") {
       serverScript += (serverScript ? "\n\n" : "") + innerContent;
-      debugLogs.push("  ✅ Action: Queued Server Script (" + innerContent.length + " bytes)");
     } else if (filePath && filePath !== "...") {
       files.push({ tagName: tagWord, filePath: filePath, methodSpec: methodSpec, action: action, content: innerContent });
-      debugLogs.push("  ✅ Action: Queued File Target '" + filePath + "'");
-    } else {
-      debugLogs.push("  ⚠️ Ignored: filePath is empty or '...'");
     }
 
     pos = closeEndIdx + 1;
   }
-
-  debugLogs.push("SUMMARY: " + files.length + " file(s), " + requests.length + " request(s), serverScript: " + (serverScript ? "YES" : "NO"));
 
   return { files: files, serverScript: serverScript, requests: requests, debugLogs: debugLogs };
 };

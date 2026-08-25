@@ -1,14 +1,18 @@
 class LunoClassPatcher {
   constructor() {}
 
-  /**
-   * ⚙️ METHOD: parseAST(sourceText)
-   * Client-side AST parsing with Acorn.
-   */
   static parseAST(sourceText) {
-    const acornObj = (typeof window !== 'undefined' && window.acorn) || (typeof globalThis !== 'undefined' && globalThis.acorn);
+    if (!sourceText || typeof sourceText !== 'string' || !sourceText.trim()) {
+      throw new Error('[Luno AST Guard] parseAST received empty source text.');
+    }
+
+    var acornObj = (typeof window !== 'undefined' && window.acorn) || (typeof globalThis !== 'undefined' && globalThis.acorn);
+    if (!acornObj && typeof require !== 'undefined') {
+      try { acornObj = require('acorn'); } catch (e) {}
+    }
+
     if (!acornObj || typeof acornObj.parse !== 'function') {
-      return null;
+      throw new Error('[Luno AST Guard] Acorn AST parser is not loaded in memory.');
     }
 
     try {
@@ -31,192 +35,127 @@ class LunoClassPatcher {
           ranges: true
         });
       } catch (e2) {
-        return null;
+        throw new Error('[Luno AST Guard] Acorn failed to parse source AST: ' + e2.message);
       }
     }
   }
 
-  /**
-   * ⚙️ METHOD: parseSpec(targetSpec)
-   */
   static parseSpec(targetSpec) {
-    if (!targetSpec || typeof targetSpec !== 'string') {
-      return { className: '', memberName: '', isStatic: false };
+    if (!targetSpec || typeof targetSpec !== 'string' || !targetSpec.trim()) {
+      throw new Error('[Luno AST Guard] Cannot parse targetSpec: targetSpec is empty.');
     }
-    let clean = targetSpec.trim();
+    var clean = targetSpec.trim();
     if (clean.includes('@')) clean = clean.split('@').pop().trim();
     clean = clean.replace(/^(?:globalThis|window)\./, '');
 
-    let className = '';
-    let memberName = '';
-    let isStatic = false;
+    var className = '';
+    var memberName = '';
+    var isStatic = false;
 
     if (clean.includes('.prototype.')) {
-      const parts = clean.split('.prototype.');
+      var parts = clean.split('.prototype.');
       className = parts[0].trim();
       memberName = parts[1].trim();
       isStatic = false;
     } else if (clean.includes('.')) {
-      const parts = clean.split('.');
-      memberName = parts.pop().trim();
-      className = parts.join('.').trim();
+      var parts2 = clean.split('.');
+      memberName = parts2.pop().trim();
+      className = parts2.join('.').trim();
       isStatic = true;
     } else {
       memberName = clean;
     }
 
-    return { className, memberName, isStatic };
+    if (!memberName) {
+      throw new Error('[Luno AST Guard] Invalid targetSpec "' + targetSpec + '": Could not extract member name.');
+    }
+
+    return { className: className, memberName: memberName, isStatic: isStatic };
   }
 
   /**
    * ⚙️ METHOD: normalizeMethodCode(memberName, methodCode, isStatic)
+   * Robust header parsing that never corrupts method signatures with body parenthesis.
    */
   static normalizeMethodCode(memberName, methodCode, isStatic) {
-    if (!methodCode || typeof methodCode !== 'string') return '';
-    let clean = methodCode.trim();
-
+    if (!methodCode || typeof methodCode !== 'string' || !methodCode.trim()) {
+      throw new Error('[Luno AST Guard] Cannot normalize method code: methodCode is empty for "' + memberName + '".');
+    }
+    var clean = methodCode.trim();
     if (clean.endsWith(';')) clean = clean.slice(0, -1).trim();
 
+    // If it's a property assignment like: ClassName.member = function(...) { ... }
     if (clean.includes('=')) {
-      const equalsIdx = clean.indexOf('=');
-      const leftPart = clean.slice(0, equalsIdx).trim();
+      var equalsIdx = clean.indexOf('=');
+      var leftPart = clean.slice(0, equalsIdx).trim();
       if (leftPart.includes('.prototype.') || leftPart.includes('.')) {
         clean = clean.slice(equalsIdx + 1).trim();
+        if (clean.endsWith(';')) clean = clean.slice(0, -1).trim();
       }
     }
 
-    if (/^(?:async\s+)?function\s*\b/.test(clean)) {
-      const isAsync = clean.startsWith('async ');
-      const paramStart = clean.indexOf('(');
-      clean = (isAsync ? 'async ' : '') + (isStatic ? 'static ' : '') + memberName + clean.slice(paramStart);
-      return clean;
+    // If it starts with `function` or `async function`
+    if (/^(?:async\s+)?function\s*\(/.test(clean)) {
+      var isAsyncFn = clean.startsWith('async ');
+      var fnKeywordIdx = clean.indexOf('function');
+      var rest = clean.slice(fnKeywordIdx + 8).trim();
+      return (isStatic ? 'static ' : '') + (isAsyncFn ? 'async ' : '') + memberName + rest;
     }
 
-    if (/^(?:static\s+)?(?:async\s+)?([A-Za-z0-9_$]+)\s*\(/.test(clean)) {
-      const hasStatic = clean.startsWith('static ');
-      const isAsync = hasStatic ? clean.startsWith('static async ') : clean.startsWith('async ');
+    // Match method header: [static] [async] methodName(...)
+    var headerMatch = clean.match(/^(?:(static)\s+)?(?:(async)\s+)?([A-Za-z0-9_$]+)\s*\(/);
+    if (headerMatch) {
+      var hasStatic = Boolean(headerMatch[1]) || Boolean(isStatic);
+      var hasAsync = Boolean(headerMatch[2]) || clean.includes('await ');
+      var matchedName = headerMatch[3];
 
-      let stripped = clean;
-      if (hasStatic) stripped = stripped.slice(7).trim();
-      if (isAsync) stripped = stripped.slice(6).trim();
+      // Strip existing leading static / async
+      var body = clean.replace(/^(?:static\s+)?(?:async\s+)?/, '');
 
-      clean = (isStatic ? 'static ' : '') + (isAsync ? 'async ' : '') + stripped;
-      return clean;
+      if (matchedName !== memberName) {
+        body = memberName + body.slice(matchedName.length);
+      }
+
+      var prefix = (hasStatic ? 'static ' : '') + (hasAsync ? 'async ' : '');
+      return prefix + body;
     }
 
-    return (isStatic ? 'static ' : '') + memberName + '() {\n  ' + clean + '\n}';
+    return (isStatic ? 'static ' : '') + memberName + '() ' + clean;
   }
 
-  /**
-   * ⚙️ METHOD: patchMethodInSource(existingSource, targetSpec, methodCode)
-   * Pure client-side ES6 class body AST method patcher with fallback support.
-   */
   static patchMethodInSource(existingSource, targetSpec, methodCode) {
-    const source = existingSource || '';
-    if (!targetSpec) throw new Error('Cannot patch method: targetSpec is empty.');
-    if (!methodCode) throw new Error(`Cannot patch method "${targetSpec}": methodCode is empty.`);
-
-    const { className, memberName, isStatic } = LunoClassPatcher.parseSpec(targetSpec);
-    const cleanMethod = LunoClassPatcher.normalizeMethodCode(memberName, methodCode, isStatic);
-
-    const ast = LunoClassPatcher.parseAST(source);
-
-    if (ast) {
-      // AST-guided precise replacement
-      let targetClassNode = null;
-      const walk = (node) => {
-        if (!node || typeof node !== 'object' || targetClassNode) return;
-        if (node.type === 'ClassDeclaration' || node.type === 'ClassExpression') {
-          if (!className || (node.id && node.id.name === className)) {
-            targetClassNode = node;
-            return;
-          }
-        }
-        for (const k in node) {
-          if (k === 'parent') continue;
-          const child = node[k];
-          if (Array.isArray(child)) {
-            for (const c of child) if (c && typeof c.type === 'string') walk(c);
-          } else if (child && typeof child.type === 'string') {
-            walk(child);
-          }
-        }
-      };
-      walk(ast);
-
-      if (targetClassNode && targetClassNode.body && Array.isArray(targetClassNode.body.body)) {
-        const classBody = targetClassNode.body;
-        let existingMethodNode = null;
-
-        for (const member of classBody.body) {
-          if (member.type === 'MethodDefinition' || member.type === 'PropertyDefinition') {
-            let keyName = member.key ? (member.key.name || member.key.value) : null;
-            if (keyName === memberName) {
-              existingMethodNode = member;
-              break;
-            }
-          }
-        }
-
-        if (existingMethodNode && existingMethodNode.range) {
-          const startIdx = existingMethodNode.range[0];
-          const endIdx = existingMethodNode.range[1];
-          const indentedMethod = '  ' + cleanMethod.split('\n').join('\n  ');
-          return source.slice(0, startIdx) + indentedMethod + source.slice(endIdx);
-        }
-
-        const closeBraceIdx = classBody.range[1] - 1;
-        const indentedMethod = '\n  ' + cleanMethod.split('\n').join('\n  ') + '\n';
-        return source.slice(0, closeBraceIdx) + indentedMethod + source.slice(closeBraceIdx);
-      }
+    if (!existingSource || typeof existingSource !== 'string' || !existingSource.trim()) {
+      throw new Error('[Luno AST Guard] Cannot patch method: existingSource is empty.');
     }
 
-    // Deterministic string-scanning fallback if AST node not matched
-    const classDeclStr = 'class ' + className;
-    const classIdx = source.indexOf(classDeclStr);
-    if (classIdx !== -1) {
-      const openBraceIdx = source.indexOf('{', classIdx);
-      const closeBraceIdx = source.lastIndexOf('}');
-      if (openBraceIdx !== -1 && closeBraceIdx !== -1 && closeBraceIdx > openBraceIdx) {
-        const indentedMethod = '\n  ' + cleanMethod.split('\n').join('\n  ') + '\n';
-        return source.slice(0, closeBraceIdx) + indentedMethod + source.slice(closeBraceIdx);
-      }
-    }
+    var parsed = LunoClassPatcher.parseSpec(targetSpec);
+    var className = parsed.className;
+    var memberName = parsed.memberName;
+    var isStatic = parsed.isStatic;
+    var cleanMethod = LunoClassPatcher.normalizeMethodCode(memberName, methodCode, isStatic);
 
-    return source.trimEnd() + '\n\n' + cleanMethod + '\n';
-  }
+    var ast = LunoClassPatcher.parseAST(existingSource);
 
-  /**
-   * ⚙️ METHOD: findMethodBounds(sourceText, targetSpec)
-   */
-  static findMethodBounds(sourceText, targetSpec) {
-    if (!sourceText || !targetSpec) return null;
-    const { className, memberName } = LunoClassPatcher.parseSpec(targetSpec);
+    var targetClassNode = null;
+    var foundClasses = [];
 
-    const ast = LunoClassPatcher.parseAST(sourceText);
-    if (!ast) return null;
-
-    let methodRange = null;
-    const walk = (node) => {
-      if (!node || typeof node !== 'object' || methodRange) return;
+    var walk = function(node) {
+      if (!node || typeof node !== 'object') return;
       if (node.type === 'ClassDeclaration' || node.type === 'ClassExpression') {
-        if (!className || (node.id && node.id.name === className)) {
-          if (node.body && Array.isArray(node.body.body)) {
-            for (const member of node.body.body) {
-              let keyName = member.key ? (member.key.name || member.key.value) : null;
-              if (keyName === memberName && member.range) {
-                methodRange = { startIdx: member.range[0], endIdx: member.range[1] };
-                return;
-              }
-            }
-          }
+        var clsName = node.id ? node.id.name : null;
+        if (clsName) foundClasses.push(clsName);
+        if (!className || clsName === className) {
+          targetClassNode = node;
+          return;
         }
       }
-      for (const k in node) {
+      for (var k in node) {
         if (k === 'parent') continue;
-        const child = node[k];
+        var child = node[k];
         if (Array.isArray(child)) {
-          for (const c of child) if (c && typeof c.type === 'string') walk(c);
+          for (var i = 0; i < child.length; i++) {
+            if (child[i] && typeof child[i].type === 'string') walk(child[i]);
+          }
         } else if (child && typeof child.type === 'string') {
           walk(child);
         }
@@ -224,7 +163,40 @@ class LunoClassPatcher {
     };
     walk(ast);
 
-    return methodRange;
+    if (!targetClassNode) {
+      throw new Error('[Luno AST Guard] Target class "' + (className || 'target') + '" not found in source AST. Available classes: [' + foundClasses.join(', ') + '].');
+    }
+
+    if (!targetClassNode.body || !Array.isArray(targetClassNode.body.body) || !targetClassNode.body.range) {
+      throw new Error('[Luno AST Guard] Target class "' + className + '" has an invalid class body in AST.');
+    }
+
+    var classBody = targetClassNode.body;
+    var existingMethodNode = null;
+
+    for (var i = 0; i < classBody.body.length; i++) {
+      var member = classBody.body[i];
+      if (member.type === 'MethodDefinition' || member.type === 'PropertyDefinition') {
+        var keyName = member.key ? (member.key.name || member.key.value) : null;
+        if (keyName === memberName) {
+          existingMethodNode = member;
+          break;
+        }
+      }
+    }
+
+    // Replace existing method node
+    if (existingMethodNode && existingMethodNode.range) {
+      var startIdx = existingMethodNode.range[0];
+      var endIdx = existingMethodNode.range[1];
+      var indentedMethod = '  ' + cleanMethod.split('\n').join('\n  ');
+      return existingSource.slice(0, startIdx) + indentedMethod + existingSource.slice(endIdx);
+    }
+
+    // Insert new method strictly before the closing class bracket
+    var closeBraceIdx = classBody.range[1] - 1;
+    var indentedNewMethod = '\n  ' + cleanMethod.split('\n').join('\n  ') + '\n';
+    return existingSource.slice(0, closeBraceIdx) + indentedNewMethod + existingSource.slice(closeBraceIdx);
   }
 }
 

@@ -1,11 +1,9 @@
 const fs = require("fs");
 const path = require("path");
+const vm = require("vm");
 const { execSync } = require("child_process");
 
 class LunoServer {
-  /**
-   * ⚙️ METHOD: getRootDir()
-   */
   static getRootDir() {
     if (!LunoServer._rootDir) {
       const envRoot = process.env.LUNO_ROOT || process.env.WORKSPACE_ROOT;
@@ -25,9 +23,6 @@ class LunoServer {
     }
   }
 
-  /**
-   * ⚙️ METHOD: getWebRootDir()
-   */
   static getWebRootDir() {
     const currentRoot = LunoServer.getRootDir();
     const parent = path.dirname(currentRoot);
@@ -37,17 +32,11 @@ class LunoServer {
     return currentRoot;
   }
 
-  /**
-   * ⚙️ METHOD: getPatchLogPath(projectName)
-   */
   static getPatchLogPath(projectName) {
     const webRoot = LunoServer.getWebRootDir();
     return path.join(webRoot, 'LunoPatchLog.html');
   }
 
-  /**
-   * ⚙️ METHOD: resolveProjectBaseDir(projectName)
-   */
   static resolveProjectBaseDir(projectName) {
     if (!projectName || typeof projectName !== 'string' || !projectName.trim()) {
       return LunoServer.getRootDir();
@@ -56,9 +45,6 @@ class LunoServer {
     return path.resolve(webRoot, projectName.trim());
   }
 
-  /**
-   * ⚙️ METHOD: getGitRootDir()
-   */
   static getGitRootDir() {
     let curr = LunoServer.getRootDir();
     while (curr && curr !== path.parse(curr).root) {
@@ -123,7 +109,8 @@ class LunoServer {
     } catch (e) {}
   }
 
-  static getAllFiles(dir, fileList = [], ignoreDirs = ["node_modules", ".git", "dist", "build", ".checkpoints", "_claude_salvage", "simpleVersion"], maxDepth = 5, currentDepth = 0) {
+  static getAllFiles(dir, fileList = [], ignoreDirs = ["node_modules", ".git", "dist", "build", ".checkpoints", "_claude_salvage", "simpleVersion"], maxDepth = 5, currentDepth = 0, rootScanDir = null) {
+    const baseScanDir = rootScanDir || dir;
     if (currentDepth > maxDepth || !fs.existsSync(dir)) return fileList;
     try {
       const items = fs.readdirSync(dir);
@@ -134,9 +121,9 @@ class LunoServer {
           const stat = fs.statSync(fullPath);
           if (stat.isDirectory()) {
             if (ignoreDirs.includes(name) || name.startsWith('.') || name.startsWith('_')) continue;
-            LunoServer.getAllFiles(fullPath, fileList, ignoreDirs, maxDepth, currentDepth + 1);
+            LunoServer.getAllFiles(fullPath, fileList, ignoreDirs, maxDepth, currentDepth + 1, baseScanDir);
           } else if (stat.isFile()) {
-            const relPath = path.relative(dir, fullPath).replace(/\\/g, "/");
+            const relPath = path.relative(baseScanDir, fullPath).replace(/\\/g, "/");
             fileList.push({ fullPath, relPath, name, size: stat.size });
           }
         } catch (statErr) {}
@@ -145,53 +132,45 @@ class LunoServer {
     return fileList;
   }
 
-        static sanitizeAndResolvePath(relPath, baseDir) {
-      const webRoot = LunoServer.getWebRootDir();
-      if (!relPath || typeof relPath !== 'string' || !relPath.trim()) {
-        return baseDir || LunoServer.getRootDir();
-      }
-  
-      let normalized = relPath.replace(/\\/g, '/').replace(/^\/+/, '').trim();
-  
-      // 1. Strip redundant outer labels if passed in headers
-      if (normalized.startsWith('Luno Workspace/')) {
-        normalized = normalized.slice(15).trim();
-      } else if (normalized.startsWith('./')) {
-        normalized = normalized.slice(2).trim();
-      }
-  
-      // 2. Special root-level files anchored directly to webRoot
-      if (normalized === 'LunoPatchLog.html') {
-        return path.join(webRoot, 'LunoPatchLog.html');
-      }
-  
-      // 3. Explicit Library paths anchored directly to web/Library/
-      if (normalized.startsWith('Library/')) {
-        return path.join(webRoot, normalized);
-      }
-  
-      // 4. Absolute path boundary validation
-      if (path.isAbsolute(normalized)) {
-        const resolvedAbs = path.resolve(normalized);
-        if (resolvedAbs.startsWith(webRoot)) {
-          return resolvedAbs;
-        }
-        throw new Error(`[LunoServer Guard] Path boundary violation: "${normalized}" is outside workspace root.`);
-      }
-  
-      // 5. If path starts with an existing project folder in webRoot (e.g. Luno/..., Basic3D/..., MySituation/...)
-      const segments = normalized.split('/');
-      const firstSegment = segments[0];
-      const candidateDir = path.join(webRoot, firstSegment);
-      if (fs.existsSync(candidateDir) && fs.statSync(candidateDir).isDirectory()) {
-        return path.join(webRoot, normalized);
-      }
-  
-      // 6. Otherwise resolve strictly inside baseDir (no multi-directory hunting)
-      const targetDir = baseDir || LunoServer.getRootDir();
-      return path.resolve(targetDir, normalized);
+  static sanitizeAndResolvePath(relPath, baseDir) {
+    const webRoot = LunoServer.getWebRootDir();
+    if (!relPath || typeof relPath !== 'string' || !relPath.trim()) {
+      return baseDir || LunoServer.getRootDir();
     }
 
+    let normalized = relPath.replace(/\\/g, '/').replace(/^\/+/, '').trim();
+
+    if (normalized === 'LunoPatchLog.html') {
+      return path.join(webRoot, 'LunoPatchLog.html');
+    }
+
+    if (normalized.startsWith('Library/')) {
+      return path.join(webRoot, normalized);
+    }
+
+    if (path.isAbsolute(normalized)) {
+      const resolvedAbs = path.resolve(normalized);
+      if (resolvedAbs.startsWith(webRoot)) {
+        return resolvedAbs;
+      }
+      throw new Error(`[LunoServer Guard] Path boundary violation: "${normalized}" is outside workspace root.`);
+    }
+
+    const segments = normalized.split('/');
+    const firstSegment = segments[0];
+    const candidateDir = path.join(webRoot, firstSegment);
+    if (fs.existsSync(candidateDir) && fs.statSync(candidateDir).isDirectory()) {
+      return path.join(webRoot, normalized);
+    }
+
+    const targetDir = baseDir || LunoServer.getRootDir();
+    return path.resolve(targetDir, normalized);
+  }
+
+  /**
+   * ⚙️ METHOD: parseAndSaveFiles
+   * Hardened with in-memory Node.js syntax checks on direct JS writes.
+   */
   static async parseAndSaveFiles(bodyText, projectOverride) {
     let filesToWrite = [];
     let serverScript = "";
@@ -265,6 +244,19 @@ class LunoServer {
       if (!isJs || canonicalPath.endsWith('luno.json') || canonicalPath.endsWith('files.json') || canonicalPath.endsWith('LunoPatchLog.html') || action === 'direct') {
         const fullPath = LunoServer.sanitizeAndResolvePath(canonicalPath, baseDir);
         if (fullPath && LunoServer.isWritableWorkspacePath(fullPath)) {
+          // Pre-write JS syntax check in Node.js memory
+          if (isJs && !canonicalPath.endsWith('.json') && !canonicalPath.endsWith('.html')) {
+            try {
+              new vm.Script(f.content);
+            } catch(vmErr) {
+              return {
+                success: false,
+                error: `[Server Guard] Rejected malformed JavaScript for "${canonicalPath}": ${vmErr.message}`,
+                llmFeedback: `❌ DIRECT WRITE REJECTED: Syntax error in "${canonicalPath}": ${vmErr.message}`
+              };
+            }
+          }
+
           fs.mkdirSync(path.dirname(fullPath), { recursive: true });
           fs.writeFileSync(fullPath, f.content, "utf8");
           savedFiles.push(canonicalPath);
@@ -727,7 +719,6 @@ class LunoServer {
           const parsed = JSON.parse(body || '{}');
           if (Array.isArray(parsed.requests)) reqList = parsed.requests;
         } catch(e) {
-          // Plaintext header parsing fallback
           const parser = require('../app/LunoPayloadParser.js');
           const parsed = parser.parse(body);
           reqList = parsed.requests || [];

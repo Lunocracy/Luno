@@ -34,37 +34,43 @@ class LunoTestRunner {
       LunoTestRunner.assert('LunoClassPatcher: ES6 Class Body AST Method Replacement', false, e.message);
     }
 
-    // Test 2: Deterministic Context Extraction (Zero Loose Guessing)
+    // Test 2: DiskBrowser Tail-Anchored Path Formatting
     try {
-      if (typeof LunoContextExtractor !== 'undefined') {
-        var missingRes = LunoContextExtractor.extractFileContext('NonExistentFolder/GhostFile.js');
+      if (typeof DiskBrowser !== 'undefined' && typeof DiskBrowser.formatTailPath === 'function') {
+        var longPath = 'Luno/very/deep/nested/directory/subfolder/MyComponent.js';
+        var formatted = DiskBrowser.formatTailPath(longPath, 24);
+        var startsWithEllipsis = formatted.startsWith('...');
+        var rootFile = DiskBrowser.formatTailPath('index.html');
         LunoTestRunner.assert(
-          'LunoContextExtractor: Deterministic Missing File Guard',
-          !missingRes.success && missingRes.error.includes('[Luno Context Guard]'),
-          'Fails loudly and cleanly with strict diagnostic error on missing files'
+          'DiskBrowser: Tail-Anchored Path Formatting & Root File Handling',
+          startsWithEllipsis && rootFile === '',
+          'Truncates deep paths from the start ("' + formatted + '") and omits root file paths'
         );
       } else {
-        LunoTestRunner.assert('LunoContextExtractor: Guard Test', false, 'Extractor unavailable');
+        LunoTestRunner.assert('DiskBrowser: Path Formatting Test', false, 'DiskBrowser.formatTailPath unavailable');
       }
     } catch (e) {
-      LunoTestRunner.assert('LunoContextExtractor: Guard Test', false, e.message);
+      LunoTestRunner.assert('DiskBrowser: Path Formatting Test', false, e.message);
     }
 
-    // Test 3: Interactive AI Mentor Teacher Prompt Generator
+    // Test 3: DiskBrowser Size Sorting
     try {
-      if (typeof LunoGuideEngine !== 'undefined' && typeof LunoGuideEngine.buildInteractiveMentorPrompt === 'function') {
-        var prompt = await LunoGuideEngine.buildInteractiveMentorPrompt('Build a Timer', 'A countdown stopwatch widget', 'Basic3D');
-        var hasProtocol = prompt.includes('PROACTIVE INTERACTIVE AI MENTOR INSTRUCTIONS') && prompt.includes('TARGET PROJECT: [Basic3D]');
+      if (typeof DiskBrowser !== 'undefined' && typeof DiskBrowser.sortItems === 'function') {
+        var sampleItems = [{ name: 'small.js', size: 100 }, { name: 'huge.js', size: 50000 }, { name: 'medium.js', size: 2000 }];
+        var sortedDesc = DiskBrowser.sortItems(sampleItems, 'size', 'desc');
+        var sortedAsc = DiskBrowser.sortItems(sampleItems, 'size', 'asc');
+        var isDescCorrect = sortedDesc[0].size === 50000 && sortedDesc[2].size === 100;
+        var isAscCorrect = sortedAsc[0].size === 100 && sortedAsc[2].size === 50000;
         LunoTestRunner.assert(
-          'LunoGuideEngine: Interactive AI Mentor Prompt Synthesis',
-          Boolean(hasProtocol),
-          'Synthesizes full-context teacher prompt with project metadata'
+          'DiskBrowser: Size Sorting Algorithm (Desc & Asc)',
+          isDescCorrect && isAscCorrect,
+          'Correctly sorts flat files by file size ascending and descending'
         );
       } else {
-        LunoTestRunner.assert('LunoGuideEngine: Mentor Prompt Synthesis', false, 'LunoGuideEngine unavailable');
+        LunoTestRunner.assert('DiskBrowser: Size Sorting Test', false, 'DiskBrowser.sortItems unavailable');
       }
     } catch (e) {
-      LunoTestRunner.assert('LunoGuideEngine: Mentor Prompt Synthesis', false, e.message);
+      LunoTestRunner.assert('DiskBrowser: Size Sorting Test', false, e.message);
     }
 
     // Test 4: Container Parser HTML Extraction
@@ -136,17 +142,17 @@ class LunoTestRunner {
       LunoTestRunner.assert('LunoDeployEngine: GitHub Pages Parity', false, e.message);
     }
 
-    // Test 8: Deterministic Multi-Project File Listing
+    // Test 8: Deterministic Multi-Project Recursive File Listing
     try {
-      var resList = await fetch('/api/fs/ls?project=Basic3D');
+      var resList = await fetch('/api/fs/ls?recursive=true&project=Basic3D');
       var dataList = await resList.json();
       LunoTestRunner.assert(
-        'LunoServer: Deterministic Multi-Project File Listing',
+        'LunoServer: Deterministic Multi-Project Recursive Listing',
         resList.ok && dataList && dataList.success && Array.isArray(dataList.items),
-        'Scoped /api/fs/ls successfully across sibling projects'
+        'Scoped /api/fs/ls?recursive=true successfully across sibling projects'
       );
     } catch (e) {
-      LunoTestRunner.assert('LunoServer: Multi-Project File Listing', false, e.message);
+      LunoTestRunner.assert('LunoServer: Multi-Project Recursive Listing', false, e.message);
     }
 
     return {
@@ -157,7 +163,7 @@ class LunoTestRunner {
     };
   }
 
-  static async mountUI(container) {
+  static mountUI(container) {
     if (!container || typeof document === 'undefined') return;
     container.innerHTML = '';
     var m = (typeof LunoUIComponents !== 'undefined' && LunoUIComponents.makeElement)
@@ -172,28 +178,33 @@ class LunoTestRunner {
           return el;
         };
 
+    var resultsContainer = m('div', { id: 'test-results-list', style: { display: 'flex', flexDirection: 'column', gap: '0.5rem' } });
+
     var card = m('div', {
       style: { background: '#161b22', border: '2px solid #00f2fe', borderRadius: '10px', padding: '1rem', color: '#c9d1d9', fontFamily: 'monospace', maxWidth: '680px', margin: '1rem auto' }
     },
       m('h2', { style: { color: '#00f2fe', fontSize: '1.1rem', margin: '0 0 0.8rem 0' } }, '🧪 Luno Diagnostic Test Suite'),
       m('button', {
         style: { padding: '0.65rem 1.2rem', background: '#238636', color: '#fff', border: 'none', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer', fontFamily: 'monospace', marginBottom: '1rem' },
-        onclick: async function() {
-          await LunoTestRunner.runTestSuite();
-          await LunoTestRunner.mountUI(container);
+        onclick: function() {
+          LunoTestRunner.runTestSuite().then(function() {
+            LunoTestRunner.mountUI(container);
+          });
         }
       }, '▶ Run Diagnostic Suite'),
-      m('div', { id: 'test-results-list', style: { display: 'flex', flexDirection: 'column', gap: '0.5rem' } },
-        ...LunoTestRunner.results.map(function(r) {
-          return m('div', {
-            style: { background: '#0d1117', border: '1px solid ' + (r.success ? '#238636' : '#da3633'), borderRadius: '6px', padding: '0.6rem', fontSize: '0.8rem', color: r.success ? '#7ee787' : '#ff7b72' }
-          }, (r.success ? '✅ ' : '❌ ') + r.title + (r.detail ? (' - ' + r.detail) : ''));
-        })
-      )
+      resultsContainer
     );
 
     container.appendChild(card);
-    await LunoTestRunner.runTestSuite();
+
+    LunoTestRunner.runTestSuite().then(function() {
+      resultsContainer.innerHTML = '';
+      LunoTestRunner.results.forEach(function(r) {
+        resultsContainer.appendChild(m('div', {
+          style: { background: '#0d1117', border: '1px solid ' + (r.success ? '#238636' : '#da3633'), borderRadius: '6px', padding: '0.6rem', fontSize: '0.8rem', color: r.success ? '#7ee787' : '#ff7b72' }
+        }, (r.success ? '✅ ' : '❌ ') + r.title + (r.detail ? (' - ' + r.detail) : '')));
+      });
+    });
   }
 }
 

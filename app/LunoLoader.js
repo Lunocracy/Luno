@@ -14,16 +14,11 @@ class LunoLoader {
     return false;
   }
 
-  /**
-   * ⚙️ METHOD: getLibraryRoot()
-   * Localhost ALWAYS loads directly from central master /Library/
-   * GitHub Pages falls back to self-contained ./Library/ or sibling ../Library/
-   */
   static getLibraryRoot() {
     if (LunoLoader.isStaticHosting()) {
-      return './Library/'; // Uses fresh deploy snapshot on GitHub Pages
+      return './Library/';
     }
-    return '/Library/'; // Always live master on localhost!
+    return '/Library/';
   }
 
   static loadStyle(cssPath) {
@@ -62,6 +57,102 @@ class LunoLoader {
     });
   }
 
+  /**
+   * ⚙️ METHOD: applyPatchLog(projectName)
+   * Plays back LunoPatchLog.html on refresh with visible telemetry reporting.
+   */
+  static async applyPatchLog(projectName) {
+    try {
+      var targetProj = projectName || 'Luno';
+      var res = await fetch('/api/fs/read?path=LunoPatchLog.html&project=' + encodeURIComponent(targetProj) + '&v=' + Date.now());
+      var data = await res.json();
+      if (!res.ok || !data || !data.content || !data.content.trim()) return;
+
+      var parser = globalThis.LunoPayloadParser || globalThis.LunoContainerParser;
+      if (!parser || typeof parser.parsePatchLog !== 'function') return;
+
+      var parsed = parser.parsePatchLog(data.content);
+      var files = parsed.files || [];
+
+      for (var i = 0; i < files.length; i++) {
+        var f = files[i];
+        if (!f || !f.filePath) continue;
+
+        var norm = f.filePath.replace(/\\/g, '/').replace(/^\/+/, '');
+        var isForTarget = (targetProj === 'Luno') 
+          ? (norm.startsWith('Luno/') || !norm.includes('/') || norm.startsWith('app/') || norm.startsWith('browser/') || norm.startsWith('core/') || norm.startsWith('docs/') || norm.startsWith('test/'))
+          : (norm.startsWith(targetProj + '/') || norm.startsWith('Library/'));
+
+        if (!isForTarget) continue;
+
+        // 1. Class Method Patch Playback
+        if (f.methodSpec && f.content) {
+          var spec = f.methodSpec.replace(/^(?:globalThis|window)\./, '').trim();
+          var isProto = spec.includes('.prototype.');
+          var className = '';
+          var memberName = '';
+
+          if (isProto) {
+            var pParts = spec.split('.prototype.');
+            className = pParts[0].trim();
+            memberName = pParts[1].trim();
+          } else if (spec.includes('.')) {
+            var dParts = spec.split('.');
+            memberName = dParts.pop().trim();
+            className = dParts.join('.').trim();
+          } else {
+            memberName = spec;
+          }
+
+          var fnCode = f.content.trim();
+          if (fnCode.endsWith(';')) fnCode = fnCode.slice(0, -1).trim();
+
+          var braceIdx = fnCode.indexOf('{');
+          var headerSig = braceIdx !== -1 ? fnCode.slice(0, braceIdx) : fnCode;
+          var isAsync = /\basync\b/.test(headerSig) || fnCode.includes('await ');
+
+          var cleanBody = fnCode.replace(/^(?:static\s+)?(?:async\s+)?/, '');
+          var parenIdx = cleanBody.indexOf('(');
+          var paramsAndBody = (parenIdx !== -1) ? cleanBody.slice(parenIdx) : ('() ' + cleanBody);
+
+          var fnExpr = (isAsync ? 'async function' : 'function') + paramsAndBody;
+
+          var targetObj = isProto ? (globalThis[className] && globalThis[className].prototype) : globalThis[className];
+          if (targetObj) {
+            try {
+              var evalFn = new Function('return (' + fnExpr + ');')();
+              targetObj[memberName] = evalFn;
+            } catch(evalErr) {
+              if (typeof LunoPlaybackLogger !== 'undefined') {
+                LunoPlaybackLogger.error('Patch Playback Error', spec + ': ' + evalErr.message);
+              }
+            }
+          }
+        } 
+        // 2. Full Script Patch Playback
+        else if (f.tagName === 'script' && f.content) {
+          try {
+            var s = document.createElement('script');
+            s.textContent = f.content;
+            document.head.appendChild(s);
+          } catch(e) {}
+        }
+        // 3. Style Patch Playback
+        else if (f.tagName === 'style' && f.content) {
+          try {
+            var st = document.createElement('style');
+            st.textContent = f.content;
+            document.head.appendChild(st);
+          } catch(e) {}
+        }
+      }
+    } catch(err) {
+      if (typeof LunoPlaybackLogger !== 'undefined') {
+        LunoPlaybackLogger.error('Patch Log Ingestion Error', err.message);
+      }
+    }
+  }
+
   static async loadApp(containerId) {
     var targetContainer = typeof containerId === 'string'
       ? document.getElementById(containerId)
@@ -87,6 +178,11 @@ class LunoLoader {
     for (var m = 0; m < main.length; m++) {
       try { await LunoLoader.loadScript(main[m]); } catch(e){}
     }
+
+    // Play back all patches from LunoPatchLog.html before running the entrypoint!
+    try {
+      await LunoLoader.applyPatchLog(lunoMeta.name || 'Luno');
+    } catch(e){}
 
     var entryClass = (lunoMeta.entrypoint && lunoMeta.entrypoint.class) || lunoMeta.mainClass;
     var entryMethod = (lunoMeta.entrypoint && lunoMeta.entrypoint.method) || 'run';
