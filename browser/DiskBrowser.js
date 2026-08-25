@@ -264,3 +264,276 @@ window.DiskBrowser.pushSingleFileToOutbox = async function(relPath) {
 
 if (typeof window !== 'undefined') window.DiskBrowser = DiskBrowser;
 if (typeof module !== 'undefined' && module.exports) module.exports = DiskBrowser;
+
+static initProperties() {
+  "";
+  window.DiskBrowser.parentPath = "";
+  window.DiskBrowser.browserMode = "project"; // 'project' | 'library'
+  window.DiskBrowser.viewMode = "flat"; // 'flat' layout
+  window.DiskBrowser.sortBy = "size"; // 'size' | 'name' | 'ext'
+  window.DiskBrowser.sortDirection = "desc"; // 'asc' | 'desc'
+  window.DiskBrowser.searchQuery = "";
+  window.DiskBrowser.flatFilesList = [];
+  window.DiskBrowser.directoriesList = [];
+  window.DiskBrowser.selectedFiles = new Set();
+  window.DiskBrowser.fileContentCache = {};
+  window.DiskBrowser.activeManifest = { main: [], local: [], library: [] };
+  window.DiskBrowser.projectsList = [];
+}
+}
+
+static formatTailPath(fullPath, maxChars) {
+  if (!fullPath || typeof fullPath !== 'string') return '';
+  var limit = maxChars || 30;
+  var norm = fullPath.replace(/\\/g, '/').replace(/^\/+/, '');
+  var parts = norm.split('/');
+  
+  // If it is just a top-level file in project root
+  if (parts.length <= 1) return '';
+  
+  var dirPart = parts.slice(0, -1).join('/');
+  if (dirPart.length <= limit) {
+    return dirPart;
+  }
+  
+  // Cut from the end so the tail of the path is always preserved
+  var tail = dirPart.slice(-limit + 3);
+  var slashIdx = tail.indexOf('/');
+  if (slashIdx !== -1 && slashIdx < 10) {
+    tail = tail.slice(slashIdx);
+  }
+  return '...' + tail;
+}
+
+static sortItems(itemsList, sortBy, sortDirection) {
+  var mode = sortBy || window.DiskBrowser.sortBy || 'size';
+  var dir = sortDirection || window.DiskBrowser.sortDirection || 'desc';
+  var mult = dir === 'asc' ? 1 : -1;
+
+  return itemsList.slice().sort(function(a, b) {
+    if (mode === 'size') {
+      var sizeA = a.size || 0;
+      var sizeB = b.size || 0;
+      if (sizeA !== sizeB) return (sizeA - sizeB) * mult;
+      return a.name.localeCompare(b.name);
+    } else if (mode === 'ext') {
+      var extA = (a.name.split('.').pop() || '').toLowerCase();
+      var extB = (b.name.split('.').pop() || '').toLowerCase();
+      if (extA !== extB) return extA.localeCompare(extB) * mult;
+      return a.name.localeCompare(b.name);
+    } else {
+      return a.name.localeCompare(b.name) * mult;
+    }
+  });
+}
+
+static async loadDirectory() {
+  var container = document.getElementById('item-list-container');
+  if (!container) return;
+
+  var isLibMode = (window.DiskBrowser.browserMode === 'library');
+  var queryTarget = isLibMode ? 'Library' : ((typeof ClientApp !== 'undefined' && ClientApp.getTargetProject) ? ClientApp.getTargetProject() : '');
+
+  try {
+    container.innerHTML = '<div style="padding:1rem; text-align:center; color:#00f2fe; font-family:monospace;">⚡ Indexing project files for flat view...</div>';
+
+    // Fetch recursive tree of all files in project
+    var data = await LunoApiClient.fetchFsListRecursive('', queryTarget);
+    var rawItems = (data && data.items) || [];
+
+    var files = [];
+    var dirsMap = new Map();
+
+    for (var i = 0; i < rawItems.length; i++) {
+      var it = rawItems[i];
+      var rel = it.relativePath || it.name;
+      var norm = rel.replace(/\\/g, '/').replace(/^\/+/, '');
+
+      if (it.isDirectory) {
+        dirsMap.set(norm, { name: it.name, relativePath: norm, size: it.size || 0 });
+      } else {
+        var parts = norm.split('/');
+        var fileName = parts.pop();
+        var dirPath = parts.join('/');
+        
+        files.push({
+          name: fileName,
+          relativePath: norm,
+          dirPath: dirPath,
+          size: it.size || 0,
+          mtimeMs: it.mtimeMs || 0
+        });
+
+        // Record parent directories
+        if (dirPath && !dirsMap.has(dirPath)) {
+          dirsMap.set(dirPath, { name: parts[parts.length - 1], relativePath: dirPath, size: 0 });
+        }
+      }
+    }
+
+    window.DiskBrowser.flatFilesList = files;
+    window.DiskBrowser.directoriesList = Array.from(dirsMap.values()).sort(function(a, b) {
+      return a.relativePath.localeCompare(b.relativePath);
+    });
+
+    window.DiskBrowser.renderFlatLayout(container, queryTarget);
+  } catch (err) {
+    container.innerHTML = '<div style="padding:0.75rem; color:#ff7b72; background:#3c1418; border-radius:6px; font-family:monospace;">❌ Load Error: ' + err.message + '</div>';
+    window.DiskBrowser.showToast('Load error: ' + err.message, 'error', '❌');
+  }
+}
+
+static renderFlatLayout() {
+  '';
+  var m = window.DiskBrowser.makeElement;
+  var isLibMode = (window.DiskBrowser.browserMode === 'library');
+
+  var files = window.DiskBrowser.flatFilesList || [];
+  var dirs = window.DiskBrowser.directoriesList || [];
+  var query = (window.DiskBrowser.searchQuery || '').toLowerCase().trim();
+
+  if (query) {
+    files = files.filter(function(f) {
+      return f.name.toLowerCase().includes(query) || f.relativePath.toLowerCase().includes(query);
+    });
+    dirs = dirs.filter(function(d) {
+      return d.relativePath.toLowerCase().includes(query);
+    });
+  }
+
+  var sortedFiles = window.DiskBrowser.sortItems(files, window.DiskBrowser.sortBy, window.DiskBrowser.sortDirection);
+
+  // Sorting Control Bar
+  var sortControls = m('div', {
+    style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#161b22', border: '1px solid #30363d', borderRadius: '6px', padding: '0.45rem 0.65rem', marginBottom: '0.5rem', flexWrap: 'wrap', gap: '0.4rem' }
+  },
+    m('div', { style: { display: 'flex', gap: '0.35rem', alignItems: 'center' } },
+      m('span', { style: { fontSize: '0.72rem', color: '#8b949e', fontWeight: 'bold' } }, 'Sort:'),
+      m('button', {
+        style: {
+          padding: '0.2rem 0.5rem',
+          fontSize: '0.72rem',
+          fontFamily: 'monospace',
+          fontWeight: 'bold',
+          borderRadius: '4px',
+          cursor: 'pointer',
+          background: window.DiskBrowser.sortBy === 'size' ? '#238636' : '#0d1117',
+          color: window.DiskBrowser.sortBy === 'size' ? '#fff' : '#8b949e',
+          border: '1px solid ' + (window.DiskBrowser.sortBy === 'size' ? '#3fb950' : '#30363d')
+        },
+        onclick: function() {
+          if (window.DiskBrowser.sortBy === 'size') {
+            window.DiskBrowser.sortDirection = window.DiskBrowser.sortDirection === 'asc' ? 'desc' : 'asc';
+          } else {
+            window.DiskBrowser.sortBy = 'size';
+            window.DiskBrowser.sortDirection = 'desc';
+          }
+          window.DiskBrowser.renderFlatLayout(container, queryTarget);
+        }
+      }, '📦 Size ' + (window.DiskBrowser.sortBy === 'size' ? (window.DiskBrowser.sortDirection === 'desc' ? '▼' : '▲') : '')),
+      m('button', {
+        style: {
+          padding: '0.2rem 0.5rem',
+          fontSize: '0.72rem',
+          fontFamily: 'monospace',
+          fontWeight: 'bold',
+          borderRadius: '4px',
+          cursor: 'pointer',
+          background: window.DiskBrowser.sortBy === 'name' ? '#238636' : '#0d1117',
+          color: window.DiskBrowser.sortBy === 'name' ? '#fff' : '#8b949e',
+          border: '1px solid ' + (window.DiskBrowser.sortBy === 'name' ? '#3fb950' : '#30363d')
+        },
+        onclick: function() {
+          if (window.DiskBrowser.sortBy === 'name') {
+            window.DiskBrowser.sortDirection = window.DiskBrowser.sortDirection === 'asc' ? 'desc' : 'asc';
+          } else {
+            window.DiskBrowser.sortBy = 'name';
+            window.DiskBrowser.sortDirection = 'asc';
+          }
+          window.DiskBrowser.renderFlatLayout(container, queryTarget);
+        }
+      }, '🔤 Name ' + (window.DiskBrowser.sortBy === 'name' ? (window.DiskBrowser.sortDirection === 'desc' ? '▼' : '▲') : ''))
+    ),
+    m('span', { style: { fontSize: '0.72rem', color: '#00f2fe', fontWeight: 'bold' } },
+      sortedFiles.length + ' file(s) | ' + dirs.length + ' folder(s)'
+    )
+  );
+
+  // Files Flat List Section
+  var filesHeader = m('div', {
+    style: { fontSize: '0.78rem', fontWeight: 'bold', color: '#00f2fe', margin: '0.4rem 0 0.25rem 0', display: 'flex', alignItems: 'center', gap: '0.35rem' }
+  }, '📄 Flat Files in [' + (queryTarget || 'Project') + ']:');
+
+  var fileRows = sortedFiles.map(function(file) {
+    var tailPath = window.DiskBrowser.formatTailPath(file.relativePath, 26);
+
+    return m('div', {
+      style: {
+        background: '#0d1117',
+        border: '1px solid #21262d',
+        borderRadius: '6px',
+        padding: '0.45rem 0.65rem',
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        gap: '0.4rem',
+        cursor: 'pointer',
+        transition: 'border-color 0.15s ease'
+      },
+      onclick: function() {
+        window.DiskBrowser.openFileEditorModal(file.relativePath);
+      }
+    },
+      m('div', { style: { display: 'flex', alignItems: 'center', gap: '0.45rem', overflow: 'hidden', flex: 1, minWidth: 0 } },
+        m('strong', { style: { color: isLibMode ? '#d2a8ff' : '#f0f6fc', fontSize: '0.8rem', whiteSpace: 'nowrap' } }, file.name),
+        tailPath ? m('span', {
+          style: { color: '#6e7681', fontSize: '0.7rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', opacity: 0.8 },
+          title: file.relativePath
+        }, tailPath) : null
+      ),
+      m('div', { style: { display: 'flex', gap: '0.4rem', alignItems: 'center', flexShrink: 0 } },
+        m('span', { style: { color: '#8b949e', fontSize: '0.7rem', fontFamily: 'monospace' } }, window.DiskBrowser.formatBytes(file.size)),
+        m('button', {
+          style: { padding: '0.2rem 0.45rem', background: '#271052', color: '#d2a8ff', border: '1px solid #8257e5', borderRadius: '4px', fontSize: '0.75rem', cursor: 'pointer', fontWeight: 'bold' },
+          title: 'Send file to Outbox',
+          onclick: function(e) {
+            e.stopPropagation();
+            window.DiskBrowser.pushSingleFileToOutbox(file.relativePath);
+          }
+        }, '📤')
+      )
+    );
+  });
+
+  var filesContainer = m('div', {
+    style: { display: 'flex', flexDirection: 'column', gap: '0.35rem', maxHeight: '360px', overflowY: 'auto', marginBottom: '0.75rem' }
+  }, fileRows.length > 0 ? fileRows : m('div', { style: { padding: '0.8rem', color: '#8b949e', fontSize: '0.75rem', textAlign: 'center' } }, 'No files matched your filter.'));
+
+  // Directories Section (Underneath)
+  var dirsHeader = m('div', {
+    style: { fontSize: '0.78rem', fontWeight: 'bold', color: '#d2a8ff', margin: '0.5rem 0 0.25rem 0', display: 'flex', alignItems: 'center', gap: '0.35rem' }
+  }, '📁 Project Directories:');
+
+  var dirRows = dirs.map(function(d) {
+    return m('div', {
+      style: { background: '#0d1117', border: '1px solid #21262d', borderRadius: '6px', padding: '0.35rem 0.65rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.75rem' }
+    },
+      m('span', { style: { color: '#00f2fe', fontWeight: 'bold' } }, '📁 ' + d.relativePath)
+    );
+  });
+
+  var dirsContainer = m('div', {
+    style: { display: 'flex', flexDirection: 'column', gap: '0.25rem', maxHeight: '160px', overflowY: 'auto' }
+  }, dirRows.length > 0 ? dirRows : m('div', { style: { padding: '0.5rem', color: '#8b949e', fontSize: '0.72rem', textAlign: 'center' } }, 'Root project folder only.'));
+
+  container.appendChild(sortControls);
+  container.appendChild(filesHeader);
+  container.appendChild(filesContainer);
+  container.appendChild(dirsHeader);
+  container.appendChild(dirsContainer);
+}
+}
+
+static openFileEditorModal(filePath) {
+  window.DiskBrowser.showToast('Opening ' + filePath + ' in dialog editor...', 'info', '📝');
+}
