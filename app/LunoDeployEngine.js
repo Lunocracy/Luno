@@ -129,9 +129,9 @@ class LunoDeployEngine {
     }
   }
 
-  static async ensureGitHubPagesParity(projectName) {
+    static ensureGitHubPagesParity(projectName) {
     var pName = projectName || (typeof ClientApp !== 'undefined' && ClientApp.getTargetProject ? ClientApp.getTargetProject() : 'Luno');
-
+  
     try {
       var serverScript = [
         'const fs = require("fs");',
@@ -148,18 +148,29 @@ class LunoDeployEngine {
         '  actions.push("Created .nojekyll in " + path.basename(projRoot));',
         '}',
         '',
-        '// 2. Self-Contained Library Copy',
+        '// 2. Ensure Library/ in central workspace root has LunoLoader.js',
+        'const centralLunoLoader = path.join(libraryRoot, "LunoLoader.js");',
+        'const coreLunoLoader = path.join(webRoot, "Luno", "app", "LunoLoader.js");',
+        'if (fs.existsSync(coreLunoLoader) && fs.existsSync(libraryRoot)) {',
+        '  fs.copyFileSync(coreLunoLoader, centralLunoLoader);',
+        '}',
+        '',
+        '// 3. Self-Contained Library Copy into Target Sibling Project',
         'const lunoJsonPath = path.join(projRoot, "luno.json");',
         'if (fs.existsSync(lunoJsonPath) && pName !== "Library") {',
         '  try {',
         '    const meta = JSON.parse(fs.readFileSync(lunoJsonPath, "utf8"));',
-        '    const libs = Array.isArray(meta.library) ? meta.library : [];',
-        '    if (libs.length > 0 && fs.existsSync(libraryRoot)) {',
+        '    const libs = Array.isArray(meta.library) ? meta.library.slice() : [];',
+        '    if (!libs.includes("LunoLoader.js")) libs.push("LunoLoader.js");',
+        '    if (fs.existsSync(libraryRoot)) {',
         '      const localLibDir = path.join(projRoot, "Library");',
         '      fs.mkdirSync(localLibDir, { recursive: true });',
         '      for (const lib of libs) {',
         '        const cleanLib = lib.replace(/^Library\\//i, "");',
-        '        const srcFile = path.join(libraryRoot, cleanLib);',
+        '        let srcFile = path.join(libraryRoot, cleanLib);',
+        '        if (!fs.existsSync(srcFile) && cleanLib === "LunoLoader.js") {',
+        '          srcFile = coreLunoLoader;',
+        '        }',
         '        const destFile = path.join(localLibDir, cleanLib);',
         '        if (fs.existsSync(srcFile)) {',
         '          fs.mkdirSync(path.dirname(destFile), { recursive: true });',
@@ -173,15 +184,14 @@ class LunoDeployEngine {
         '',
         'return actions.length > 0 ? actions.join("\\n") : "GitHub Pages assets verified cleanly.";'
       ].join('\n');
-
-      var res = await fetch('/api/save?project=' + encodeURIComponent(pName), {
+  
+      return fetch('/api/save?project=' + encodeURIComponent(pName), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ files: [], serverScript: serverScript, project: pName })
-      });
-      return await res.json();
+      }).then(function(r) { return r.json(); });
     } catch (e) {
-      return { success: false, error: e.message };
+      return Promise.resolve({ success: false, error: e.message });
     }
   }
 
