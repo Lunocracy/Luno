@@ -155,6 +155,79 @@ class LunoTestRunner {
       LunoTestRunner.assert('LunoServer: Multi-Project Recursive Listing', false, e.message);
     }
 
+    // Test 9: LunoClassPatcher Getters, Setters & Generator AST Patching
+    try {
+      if (typeof LunoClassPatcher !== 'undefined') {
+        var baseSrc = 'class ItemState {\n  constructor() {\n    this._val = 10;\n  }\n}';
+        var withGetter = LunoClassPatcher.patchMethodInSource(baseSrc, 'ItemState.get val', 'get val() {\n  return this._val * 2;\n}');
+        var withSetter = LunoClassPatcher.patchMethodInSource(withGetter, 'ItemState.set val', 'set val(v) {\n  this._val = v;\n}');
+        var hasGetter = withSetter.includes('get val()') && withSetter.includes('return this._val * 2');
+        var hasSetter = withSetter.includes('set val(v)') && withSetter.includes('this._val = v');
+        LunoTestRunner.assert(
+          'LunoClassPatcher: Accessor Get/Set AST Integration',
+          hasGetter && hasSetter,
+          'Successfully inserted getters and setters into class body'
+        );
+      } else {
+        LunoTestRunner.assert('LunoClassPatcher: Accessor Get/Set AST Integration', false, 'LunoClassPatcher missing');
+      }
+    } catch (e) {
+      LunoTestRunner.assert('LunoClassPatcher: Accessor Get/Set AST Integration', false, e.message);
+    }
+
+    // Test 10: LunoClassPatcher Method Deletion (deleteMethodInSource)
+    try {
+      if (typeof LunoClassPatcher !== 'undefined' && typeof LunoClassPatcher.deleteMethodInSource === 'function') {
+        var classWithOldMethod = 'class Widget {\n  constructor() {}\n  deprecatedMethod() {\n    return false;\n  }\n  activeMethod() {\n    return true;\n  }\n}';
+        var deletedSource = LunoClassPatcher.deleteMethodInSource(classWithOldMethod, 'Widget.deprecatedMethod');
+        var isRemoved = !deletedSource.includes('deprecatedMethod');
+        var isRetained = deletedSource.includes('activeMethod');
+        LunoTestRunner.assert(
+          'LunoClassPatcher: AST Member Deletion (deleteMethodInSource)',
+          isRemoved && isRetained,
+          'Surgically removed deprecatedMethod while preserving activeMethod'
+        );
+      } else {
+        LunoTestRunner.assert('LunoClassPatcher: AST Member Deletion', false, 'deleteMethodInSource missing');
+      }
+    } catch (e) {
+      LunoTestRunner.assert('LunoClassPatcher: AST Member Deletion', false, e.message);
+    }
+
+    // Test 11: LunoLinePatcher Accessor Property Descriptors & Live Hot-Patching
+    try {
+      if (typeof LunoLinePatcher !== 'undefined' && typeof LunoLinePatcher.appendPatch === 'function') {
+        var patchResult = LunoLinePatcher.appendPatch('', 'SampleClass.get title', 'get title() { return "dynamic"; }', { hotPatch: false });
+        var hasDefineProperty = patchResult.patchAssignmentStatement.includes('Object.defineProperty') && patchResult.patchAssignmentStatement.includes('get:');
+        LunoTestRunner.assert(
+          'LunoLinePatcher: Accessor Property Descriptors Evaluation',
+          hasDefineProperty,
+          'Constructed valid Object.defineProperty accessor statement for live memory binding'
+        );
+      } else {
+        LunoTestRunner.assert('LunoLinePatcher: Accessor Property Descriptors', false, 'LunoLinePatcher missing');
+      }
+    } catch (e) {
+      LunoTestRunner.assert('LunoLinePatcher: Accessor Property Descriptors', false, e.message);
+    }
+
+    // Test 12: ES6 Module Syntax Verification & Validation
+    try {
+      var sampleEs6Module = 'import { useState } from "react";\nexport class ModuleApp {\n  static run() { return "active"; }\n}';
+      if (typeof LunoClassPatcher !== 'undefined' && LunoClassPatcher.parseAST) {
+        var parsedAst = LunoClassPatcher.parseAST(sampleEs6Module);
+        LunoTestRunner.assert(
+          'LunoServer / AST: ES6 Module import/export Syntax Tolerance',
+          parsedAst && Array.isArray(parsedAst.body),
+          'Parsed modern ES6 module imports/exports without throwing syntax errors'
+        );
+      } else {
+        LunoTestRunner.assert('LunoServer / AST: ES6 Module Tolerance', false, 'AST parser missing');
+      }
+    } catch (e) {
+      LunoTestRunner.assert('LunoServer / AST: ES6 Module Tolerance', false, e.message);
+    }
+
     return {
       total: LunoTestRunner.results.length,
       passed: LunoTestRunner.results.filter(function(r) { return r.success; }).length,
@@ -183,7 +256,7 @@ class LunoTestRunner {
     var card = m('div', {
       style: { background: '#161b22', border: '2px solid #00f2fe', borderRadius: '10px', padding: '1rem', color: '#c9d1d9', fontFamily: 'monospace', maxWidth: '680px', margin: '1rem auto' }
     },
-      m('h2', { style: { color: '#00f2fe', fontSize: '1.1rem', margin: '0 0 0.8rem 0' } }, '🧪 Luno Diagnostic Test Suite'),
+      m('h2', { style: { color: '#00f2fe', fontSize: '1.1rem', margin: '0 0 0.8rem 0' } }, '🧪 Luno Diagnostic Test Suite (12 Tests)'),
       m('button', {
         style: { padding: '0.65rem 1.2rem', background: '#238636', color: '#fff', border: 'none', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer', fontFamily: 'monospace', marginBottom: '1rem' },
         onclick: function() {
