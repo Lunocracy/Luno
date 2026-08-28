@@ -1,6 +1,3 @@
-// ⚠️ ARCHITECTURAL MANDATE: LEGACY COMMENT HEADERS ARE DEAD!
-// LunoContextExtractor formats extracted context into HTML Container directives.
-
 const fs = require('fs');
 const path = require('path');
 
@@ -9,25 +6,24 @@ var LunoContextExtractor = globalThis.LunoContextExtractor = function LunoContex
 LunoContextExtractor.sanitizePath = function(relPath, rootDir) {
   if (!relPath || typeof relPath !== 'string') return null;
   let normalized = relPath.replace(/\\/g, '/').trim();
-  const root = rootDir || (typeof LunoServer !== 'undefined' ? LunoServer.getRootDir() : process.cwd());
 
-  const resolvedDirect = path.resolve(root, normalized);
-  if (fs.existsSync(resolvedDirect) && fs.statSync(resolvedDirect).isFile()) {
-    return { fullPath: resolvedDirect, relPath: normalized };
+  if (normalized.startsWith('Luno Workspace/')) {
+    normalized = normalized.slice(15).trim();
+  } else if (normalized.startsWith('./')) {
+    normalized = normalized.slice(2).trim();
   }
 
-  const candidates = [
-    path.resolve(root, 'Luno', normalized),
-    path.resolve('/storage/emulated/0/Luno/web', normalized),
-    path.resolve('/storage/emulated/0/Luno/web/Luno', normalized),
-    path.resolve(process.cwd(), normalized)
-  ];
+  const root = rootDir || (typeof LunoServer !== 'undefined' ? LunoServer.getRootDir() : process.cwd());
+  const webRoot = (typeof LunoServer !== 'undefined' ? LunoServer.getWebRootDir() : path.dirname(root));
 
-  for (const cand of candidates) {
-    if (fs.existsSync(cand) && fs.statSync(cand).isFile()) {
-      const relativeToRoot = path.relative(root, cand).replace(/\\/g, '/');
-      return { fullPath: cand, relPath: relativeToRoot };
-    }
+  const directPath = path.resolve(root, normalized);
+  if (fs.existsSync(directPath) && fs.statSync(directPath).isFile()) {
+    return { fullPath: directPath, relPath: path.relative(webRoot, directPath).replace(/\\/g, '/') };
+  }
+
+  const webRootPath = path.resolve(webRoot, normalized);
+  if (fs.existsSync(webRootPath) && fs.statSync(webRootPath).isFile()) {
+    return { fullPath: webRootPath, relPath: normalized };
   }
 
   return null;
@@ -217,31 +213,3 @@ LunoContextExtractor.processRequestList = function(requests, rootDir) {
 
 if (typeof window !== 'undefined') window.LunoContextExtractor = LunoContextExtractor;
 if (typeof module !== 'undefined' && module.exports) module.exports = LunoContextExtractor;
-
-static sanitizePath(relPath, rootDir) {
-  if (!relPath || typeof relPath !== 'string') return null;
-  let normalized = relPath.replace(/\\/g, '/').replace(/^\/+/, '').trim();
-
-  if (normalized.startsWith('Luno Workspace/')) {
-    normalized = normalized.slice(15).trim();
-  } else if (normalized.startsWith('./')) {
-    normalized = normalized.slice(2).trim();
-  }
-
-  const root = rootDir || (typeof LunoServer !== 'undefined' ? LunoServer.getRootDir() : process.cwd());
-  const webRoot = (typeof LunoServer !== 'undefined' ? LunoServer.getWebRootDir() : path.dirname(root));
-
-  // 1. Direct check in target project directory
-  const directPath = path.resolve(root, normalized);
-  if (fs.existsSync(directPath) && fs.statSync(directPath).isFile()) {
-    return { fullPath: directPath, relPath: path.relative(webRoot, directPath).replace(/\\/g, '/') };
-  }
-
-  // 2. Direct check in workspace web root (e.g. ProjectName/src/App.js)
-  const webRootPath = path.resolve(webRoot, normalized);
-  if (fs.existsSync(webRootPath) && fs.statSync(webRootPath).isFile()) {
-    return { fullPath: webRootPath, relPath: normalized };
-  }
-
-  return null;
-}

@@ -59,26 +59,22 @@ class LunoDeployEngine {
     return mappings[projectName] || projectName;
   }
 
-  /**
-   * ⚙️ METHOD: createRemoteRepoOnGitHub(repoName)
-   * Calls GitHub REST API with user's PAT to create the remote repository under Lunocracy.
-   */
   static async createRemoteRepoOnGitHub(repoName) {
     var token = LunoDeployEngine.getGithubToken();
     if (!token) return { success: false, noToken: true };
 
     try {
-      var res = await fetch(`https://api.github.com/orgs/${LunoDeployEngine.GITHUB_ORG}/repos`, {
+      var res = await fetch('https://api.github.com/orgs/' + LunoDeployEngine.GITHUB_ORG + '/repos', {
         method: 'POST',
         headers: {
-          'Authorization': `token ${token}`,
+          'Authorization': 'token ' + token,
           'Accept': 'application/vnd.github.v3+json',
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
           name: repoName,
-          description: `Standalone repository for ${repoName} - deployed via Luno Workspace`,
-          homepage: `https://${LunoDeployEngine.GITHUB_ORG.toLowerCase()}.github.io/${repoName}/`,
+          description: 'Standalone repository for ' + repoName + ' - deployed via Luno Workspace',
+          homepage: 'https://' + LunoDeployEngine.GITHUB_ORG.toLowerCase() + '.github.io/' + repoName + '/',
           private: false,
           has_issues: true,
           has_projects: false,
@@ -90,7 +86,7 @@ class LunoDeployEngine {
       if (res.ok) {
         return { success: true, repoUrl: data.html_url, sshUrl: data.ssh_url };
       } else {
-        if (data.errors && data.errors.some(e => e.message && e.message.includes('already exists'))) {
+        if (data.errors && data.errors.some(function(e) { return e.message && e.message.includes('already exists'); })) {
           return { success: true, alreadyExists: true, message: 'Repository already exists on GitHub.' };
         }
         return { success: false, error: data.message || 'GitHub API error' };
@@ -100,19 +96,15 @@ class LunoDeployEngine {
     }
   }
 
-  /**
-   * ⚙️ METHOD: enableGitHubPages(repoName)
-   * Activates GitHub Pages on the main branch via REST API.
-   */
   static async enableGitHubPages(repoName) {
     var token = LunoDeployEngine.getGithubToken();
     if (!token) return { success: false };
 
     try {
-      var res = await fetch(`https://api.github.com/repos/${LunoDeployEngine.GITHUB_ORG}/${repoName}/pages`, {
+      var res = await fetch('https://api.github.com/repos/' + LunoDeployEngine.GITHUB_ORG + '/' + repoName + '/pages', {
         method: 'POST',
         headers: {
-          'Authorization': `token ${token}`,
+          'Authorization': 'token ' + token,
           'Accept': 'application/vnd.github.v3+json',
           'Content-Type': 'application/json'
         },
@@ -129,9 +121,9 @@ class LunoDeployEngine {
     }
   }
 
-      static ensureGitHubPagesParity(projectName) {
+  static ensureGitHubPagesParity(projectName) {
     var pName = projectName || (typeof ClientApp !== 'undefined' && ClientApp.getTargetProject ? ClientApp.getTargetProject() : 'Luno');
-  
+
     try {
       var serverScript = [
         'const fs = require("fs");',
@@ -200,7 +192,7 @@ class LunoDeployEngine {
         '',
         'return actions.length > 0 ? actions.join("\\n") : "GitHub Pages assets verified cleanly.";'
       ].join('\n');
-  
+
       return fetch('/api/save?project=' + encodeURIComponent(pName), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -312,24 +304,20 @@ class LunoDeployEngine {
   static async deployProjectToGitHub(projectName, commitMsg, customRemoteUrl) {
     var pName = projectName || (typeof ClientApp !== 'undefined' && ClientApp.getTargetProject ? ClientApp.getTargetProject() : 'Luno');
     var remoteName = LunoDeployEngine.getRemoteRepoName(pName);
-    var msg = commitMsg || `[${pName}] Automated deployment via Luno Workspace`;
+    var msg = commitMsg || ('[' + pName + '] Automated deployment via Luno Workspace');
 
     try {
-      // 1. Auto-create remote repo on GitHub if token is present
       if (LunoDeployEngine.getGithubToken()) {
         try {
           await LunoDeployEngine.createRemoteRepoOnGitHub(remoteName);
         } catch(e) {}
       }
 
-      // 2. Ensure .nojekyll and bundle latest library dependencies
       await LunoDeployEngine.ensureGitHubPagesParity(pName);
 
-      // 3. Ensure local git repo & remote URL are initialized
-      var targetRemote = customRemoteUrl || `git@github.com:${LunoDeployEngine.GITHUB_ORG}/${remoteName}.git`;
+      var targetRemote = customRemoteUrl || ('git@github.com:' + LunoDeployEngine.GITHUB_ORG + '/' + remoteName + '.git');
       await LunoDeployEngine.initializeGitRepo(pName, targetRemote);
 
-      // 4. Stage, commit, and push to GitHub main
       var res = await fetch('/api/deploy?project=' + encodeURIComponent(pName), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -337,7 +325,6 @@ class LunoDeployEngine {
       });
       var deployData = await res.json();
 
-      // 5. Try enabling GitHub Pages automatically via API
       if (deployData && deployData.success && LunoDeployEngine.getGithubToken()) {
         try {
           await LunoDeployEngine.enableGitHubPages(remoteName);
@@ -449,20 +436,20 @@ class LunoDeployEngine {
     var gitInfo = await LunoDeployEngine.checkProjectGitStatus(pName);
 
     var hasGit = Boolean(gitInfo && gitInfo.hasGit);
-    var remoteUrl = (gitInfo && gitInfo.remoteUrl) || `git@github.com:${LunoDeployEngine.GITHUB_ORG}/${remoteName}.git`;
+    var remoteUrl = (gitInfo && gitInfo.remoteUrl) || ('git@github.com:' + LunoDeployEngine.GITHUB_ORG + '/' + remoteName + '.git');
     var statusText = (gitInfo && gitInfo.statusText) || '';
     var uncommitted = statusText ? statusText.split('\n').filter(Boolean).length : 0;
 
     var remoteInput = m('input', {
       type: 'text',
       value: remoteUrl,
-      placeholder: `git@github.com:${LunoDeployEngine.GITHUB_ORG}/${remoteName}.git`,
+      placeholder: 'git@github.com:' + LunoDeployEngine.GITHUB_ORG + '/' + remoteName + '.git',
       style: { flex: 1, minWidth: '220px', background: '#0d1117', color: '#7ee787', border: '1px solid #30363d', padding: '0.45rem', borderRadius: '6px', fontSize: '0.75rem', fontFamily: 'monospace', outline: 'none' }
     });
 
     var commitInput = m('input', {
       type: 'text',
-      value: `[${pName}] Deploy to GitHub Pages`,
+      value: '[' + pName + '] Deploy to GitHub Pages',
       placeholder: 'Commit message...',
       style: { width: '100%', background: '#0d1117', color: '#00f2fe', border: '1px solid #30363d', padding: '0.45rem', borderRadius: '6px', fontSize: '0.75rem', fontFamily: 'monospace', outline: 'none', boxSizing: 'border-box' }
     });
@@ -471,7 +458,7 @@ class LunoDeployEngine {
       style: { display: 'none', background: '#070a13', border: '1px solid #1e293b', padding: '0.55rem', borderRadius: '6px', color: '#7ee787', fontSize: '0.72rem', fontFamily: 'monospace', whiteSpace: 'pre-wrap', margin: 0, maxHeight: '140px', overflowY: 'auto' }
     });
 
-    var newRepoWebUrl = `https://github.com/organizations/${LunoDeployEngine.GITHUB_ORG}/repositories/new?name=${encodeURIComponent(remoteName)}`;
+    var newRepoWebUrl = 'https://github.com/organizations/' + LunoDeployEngine.GITHUB_ORG + '/repositories/new?name=' + encodeURIComponent(remoteName);
 
     var btnCreateRemote = m('button', {
       style: { padding: '0.45rem 0.75rem', background: '#271052', color: '#d2a8ff', border: '1px solid #8257e5', borderRadius: '6px', fontSize: '0.75rem', fontWeight: 'bold', cursor: 'pointer', fontFamily: 'monospace' },
@@ -483,22 +470,22 @@ class LunoDeployEngine {
 
         var token = LunoDeployEngine.getGithubToken();
         if (token) {
-          outputBox.textContent = `⚡ Calling GitHub REST API to create repository [${remoteName}] under ${LunoDeployEngine.GITHUB_ORG}...`;
+          outputBox.textContent = '⚡ Calling GitHub REST API to create repository [' + remoteName + '] under ' + LunoDeployEngine.GITHUB_ORG + '...';
           var res = await LunoDeployEngine.createRemoteRepoOnGitHub(remoteName);
           if (res.success) {
             outputBox.style.color = '#7ee787';
-            outputBox.textContent = `✅ Created repository on GitHub: ${res.repoUrl || remoteName}\nReady to push!`;
+            outputBox.textContent = '✅ Created repository on GitHub: ' + (res.repoUrl || remoteName) + '\nReady to push!';
             if (typeof ClientApp !== 'undefined' && ClientApp.showToast) {
-              ClientApp.showToast(`Created repo [${remoteName}] on GitHub!`, 'success', '✨');
+              ClientApp.showToast('Created repo [' + remoteName + '] on GitHub!', 'success', '✨');
             }
           } else {
             outputBox.style.color = '#ff7b72';
-            outputBox.textContent = `❌ Could not create repo via API: ${res.error}\nOpening GitHub manual create page...`;
+            outputBox.textContent = '❌ Could not create repo via API: ' + res.error + '\nOpening GitHub manual create page...';
             window.open(newRepoWebUrl, '_blank');
           }
         } else {
           outputBox.style.color = '#d2a8ff';
-          outputBox.textContent = `Opening GitHub create page for [${remoteName}] in new tab... (Or enter your Personal Access Token in the box above to create automatically)`;
+          outputBox.textContent = 'Opening GitHub create page for [' + remoteName + '] in new tab... (Or enter your Personal Access Token in the box above to create automatically)';
           window.open(newRepoWebUrl, '_blank');
         }
 
@@ -521,15 +508,15 @@ class LunoDeployEngine {
           var res = await LunoDeployEngine.deployProjectToGitHub(pName, commitInput.value.trim(), targetRemote);
           if (res && res.success) {
             outputBox.style.color = '#7ee787';
-            outputBox.textContent = (res.output || 'Deployment pushed cleanly to GitHub!') + `\n\n🌐 Live at: https://${LunoDeployEngine.GITHUB_ORG.toLowerCase()}.github.io/${remoteName}/`;
+            outputBox.textContent = (res.output || 'Deployment pushed cleanly to GitHub!') + '\n\n🌐 Live at: https://' + LunoDeployEngine.GITHUB_ORG.toLowerCase() + '.github.io/' + remoteName + '/';
             if (typeof ClientApp !== 'undefined' && ClientApp.showToast) {
-              ClientApp.showToast(`Deployed [${pName}] to GitHub Pages!`, 'success', '🚀');
+              ClientApp.showToast('Deployed [' + pName + '] to GitHub Pages!', 'success', '🚀');
             }
           } else {
             outputBox.style.color = '#ff7b72';
             var errMsg = (res && res.error) || 'Failed to push to remote.';
             if (errMsg.includes('Repository not found') || errMsg.includes('does not exist')) {
-              outputBox.textContent = `⚠️ Repository [${remoteName}] does not exist on GitHub yet.\nOpening creation page in a new tab...`;
+              outputBox.textContent = '⚠️ Repository [' + remoteName + '] does not exist on GitHub yet.\nOpening creation page in a new tab...';
               window.open(newRepoWebUrl, '_blank');
             } else {
               outputBox.textContent = '❌ Deployment Error:\n' + errMsg;
@@ -545,7 +532,7 @@ class LunoDeployEngine {
       }
     }, '🚀 1-Tap Deploy to GitHub Pages');
 
-    var liveUrl = `https://${LunoDeployEngine.GITHUB_ORG.toLowerCase()}.github.io/${remoteName}/`;
+    var liveUrl = 'https://' + LunoDeployEngine.GITHUB_ORG.toLowerCase() + '.github.io/' + remoteName + '/';
 
     var card = m('div', {
       style: { background: '#161b22', border: '1px solid ' + (hasGit ? '#30363d' : '#8257e5'), borderRadius: '10px', padding: '0.85rem', display: 'flex', flexDirection: 'column', gap: '0.55rem', fontFamily: 'monospace' }
