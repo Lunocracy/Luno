@@ -70,7 +70,6 @@ class LunoManifestDecisionEngine {
 
   /**
    * ⚙️ METHOD: processPayload(payloadObj, manifestObj, projectName)
-   * Resolves incoming containers into direct writes, surgical AST patches, or patch journal entries.
    */
   static async processPayload(payloadObj, manifestObj, projectName = '') {
     if (!payloadObj || !Array.isArray(payloadObj.files)) {
@@ -78,8 +77,7 @@ class LunoManifestDecisionEngine {
     }
 
     const targetProj = projectName || (typeof ClientApp !== 'undefined' && ClientApp.getTargetProject ? ClientApp.getTargetProject() : 'Luno');
-    const processedFiles = [];
-    const KNOWN_PROJECTS = ['MySituation', 'Basic3D', 'VideoEditor', 'guessTheNoteGame', 'VideoPrepper', 'BasicsWithDialogBox', 'SimpleTest', 'Library', 'images', 'Luno'];
+    const processedFilesMap = new Map();
 
     for (let i = 0; i < payloadObj.files.length; i++) {
       const f = payloadObj.files[i];
@@ -93,15 +91,7 @@ class LunoManifestDecisionEngine {
         normPath = normPath.slice(2).trim();
       }
 
-      const firstSegment = normPath.split('/')[0];
-      const startsWithKnownProject = KNOWN_PROJECTS.includes(firstSegment);
-
-      if (
-        normPath !== 'LunoPatchLog.html' &&
-        !normPath.startsWith('Library/') &&
-        !startsWithKnownProject &&
-        !normPath.startsWith(targetProj + '/')
-      ) {
+      if (!normPath.includes('/') && normPath !== 'LunoPatchLog.html') {
         normPath = targetProj + '/' + normPath;
       }
 
@@ -110,7 +100,7 @@ class LunoManifestDecisionEngine {
       const isClientAsset = !isExplicitDirect && !isExplicitMerge && LunoManifestDecisionEngine.isStartupClientFile(normPath, manifestObj);
 
       if (isClientAsset) {
-        processedFiles.push({
+        processedFilesMap.set(normPath, {
           tagName: 'script',
           filePath: normPath,
           methodSpec: f.methodSpec || '',
@@ -120,7 +110,9 @@ class LunoManifestDecisionEngine {
       } else {
         if (f.methodSpec || f.action === 'patch' || f.action === 'delete') {
           let baseContent = '';
-          if (typeof LunoApiClient !== 'undefined' && LunoApiClient.fetchFsRead) {
+          if (processedFilesMap.has(normPath) && processedFilesMap.get(normPath).content) {
+            baseContent = processedFilesMap.get(normPath).content;
+          } else if (typeof LunoApiClient !== 'undefined' && LunoApiClient.fetchFsRead) {
             let res = await LunoApiClient.fetchFsRead(normPath, targetProj);
             if (res && res.content !== undefined) {
               baseContent = res.content;
@@ -143,14 +135,14 @@ class LunoManifestDecisionEngine {
             consolidatedContent = classPatcher.patchMethodInSource(baseContent, f.methodSpec || normPath, f.content);
           }
 
-          processedFiles.push({
+          processedFilesMap.set(normPath, {
             tagName: f.tagName || 'script',
             filePath: normPath,
             action: 'direct',
             content: consolidatedContent
           });
         } else {
-          processedFiles.push({
+          processedFilesMap.set(normPath, {
             tagName: f.tagName || 'script',
             filePath: normPath,
             action: (f.action === 'delete' || f.action === 'merge') ? f.action : 'direct',
@@ -161,7 +153,7 @@ class LunoManifestDecisionEngine {
     }
 
     return {
-      files: processedFiles,
+      files: Array.from(processedFilesMap.values()),
       serverScript: payloadObj.serverScript || '',
       requests: payloadObj.requests || [],
       debugLogs: payloadObj.debugLogs || [],

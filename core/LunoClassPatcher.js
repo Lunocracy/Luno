@@ -3,7 +3,6 @@ class LunoClassPatcher {
 
   /**
    * ⚙️ METHOD: parseAST(sourceText)
-   * Safely parses JavaScript into an Acorn AST with source ranges enabled.
    */
   static parseAST(sourceText) {
     if (!sourceText || typeof sourceText !== 'string' || !sourceText.trim()) {
@@ -13,6 +12,13 @@ class LunoClassPatcher {
     var acornObj = (typeof window !== 'undefined' && window.acorn) || (typeof globalThis !== 'undefined' && globalThis.acorn);
     if (!acornObj && typeof require !== 'undefined') {
       try { acornObj = require('acorn'); } catch (e) {}
+      if (!acornObj) {
+        try {
+          var p = require('path');
+          var root = (typeof LunoServer !== 'undefined' && LunoServer.getRootDir) ? LunoServer.getRootDir() : process.cwd();
+          acornObj = require(p.join(root, 'node_modules', 'acorn'));
+        } catch (e2) {}
+      }
     }
 
     if (!acornObj || typeof acornObj.parse !== 'function') {
@@ -43,7 +49,6 @@ class LunoClassPatcher {
 
   /**
    * ⚙️ METHOD: parseSpec(targetSpec)
-   * Deconstructs target specifiers (e.g. "App.run", "App.prototype.render", "App.get size") into structured metadata.
    */
   static parseSpec(targetSpec) {
     if (!targetSpec || typeof targetSpec !== 'string' || !targetSpec.trim()) {
@@ -54,7 +59,7 @@ class LunoClassPatcher {
     if (clean.includes('@')) clean = clean.split('@').pop().trim();
     clean = clean.replace(/^(?:globalThis|window)\./, '');
 
-    var kind = 'method'; // 'method', 'get', 'set'
+    var kind = 'method';
     if (clean.startsWith('get ') || clean.includes('.get ')) {
       kind = 'get';
       clean = clean.replace(/\bget\s+/, '');
@@ -65,7 +70,7 @@ class LunoClassPatcher {
 
     var className = '';
     var memberName = '';
-    var isStatic = false;
+    var isStatic = null;
 
     if (clean.includes('.prototype.')) {
       var parts = clean.split('.prototype.');
@@ -76,10 +81,10 @@ class LunoClassPatcher {
       var parts2 = clean.split('.');
       memberName = parts2.pop().trim();
       className = parts2.join('.').trim();
-      isStatic = true;
+      isStatic = null;
     } else {
       memberName = clean;
-      isStatic = false;
+      isStatic = null;
     }
 
     if (memberName === 'constructor') {
@@ -96,7 +101,6 @@ class LunoClassPatcher {
 
   /**
    * ⚙️ METHOD: normalizeMethodCode(memberName, methodCode, isStatic, targetKind)
-   * Normalizes incoming method/property source code for seamless class body insertion.
    */
   static normalizeMethodCode(memberName, methodCode, isStatic, targetKind) {
     if (!methodCode || typeof methodCode !== 'string' || !methodCode.trim()) {
@@ -106,7 +110,6 @@ class LunoClassPatcher {
     var clean = methodCode.trim();
     if (clean.endsWith(';')) clean = clean.slice(0, -1).trim();
 
-    // Strip standalone assignment prefix (e.g., ClassName.method = ...)
     if (clean.includes('=')) {
       var equalsIdx = clean.indexOf('=');
       var leftPart = clean.slice(0, equalsIdx).trim();
@@ -116,21 +119,19 @@ class LunoClassPatcher {
       }
     }
 
-    // Check for standalone function expression
     if (/^(?:async\s+)?function\s*\(/.test(clean)) {
       var isAsyncFn = clean.startsWith('async ');
       var fnKeywordIdx = clean.indexOf('function');
       var rest = clean.slice(fnKeywordIdx + 8).trim();
-      var prefix = (isStatic ? 'static ' : '') + (isAsyncFn ? 'async ' : '');
+      var prefix = (isStatic === true ? 'static ' : '') + (isAsyncFn ? 'async ' : '');
       return prefix + memberName + rest;
     }
 
-    // Comprehensive header matcher: [static] [async] [*] [get|set] name(...)
     var headerRegex = /^(?:(static)\s+)?(?:(async)\s+)?(\*)?\s*(?:(get|set)\s+)?([A-Za-z0-9_$#]+)\s*(\([\s\S]*?\))?\s*(\{[\s\S]*\})$/;
     var match = clean.match(headerRegex);
 
     if (match) {
-      var hasStatic = Boolean(match[1]) || Boolean(isStatic);
+      var hasStatic = Boolean(match[1]) || (isStatic === true);
       var hasAsync = Boolean(match[2]) || clean.includes('await ');
       var isGenerator = Boolean(match[3]);
       var memberKind = match[4] || targetKind || 'method';
@@ -152,15 +153,13 @@ class LunoClassPatcher {
       return out.trim();
     }
 
-    // Standard method fallback
-    var prefixFallback = (isStatic ? 'static ' : '');
+    var prefixFallback = (isStatic === true ? 'static ' : '');
     if (memberName === 'constructor') return 'constructor() ' + clean;
     return prefixFallback + memberName + '() ' + clean;
   }
 
   /**
    * ⚙️ METHOD: findClassNodes(ast, targetClassName)
-   * Locates all ClassDeclaration or ClassExpression nodes in the AST matching targetClassName.
    */
   static findClassNodes(ast, targetClassName) {
     var results = [];
@@ -204,7 +203,6 @@ class LunoClassPatcher {
 
   /**
    * ⚙️ METHOD: findMethodBounds(sourceCode, rawTarget)
-   * Returns { startIdx, endIdx } for a specific method or property in the source code.
    */
   static findMethodBounds(sourceCode, rawTarget) {
     if (!sourceCode || !rawTarget) return null;
@@ -220,8 +218,8 @@ class LunoClassPatcher {
       var member = targetClass.bodyNode.body[i];
       if (member.type === 'MethodDefinition' || member.type === 'PropertyDefinition') {
         var keyName = member.key ? (member.key.name || member.key.value) : null;
-        var isStaticMatch = Boolean(member.static) === Boolean(parsed.isStatic);
-        if (keyName === parsed.memberName && isStaticMatch) {
+        var staticMatch = (parsed.isStatic === null) ? true : (Boolean(member.static) === Boolean(parsed.isStatic));
+        if (keyName === parsed.memberName && staticMatch) {
           if (member.range) {
             return { startIdx: member.range[0], endIdx: member.range[1] };
           }
@@ -233,7 +231,6 @@ class LunoClassPatcher {
 
   /**
    * ⚙️ METHOD: deleteMethodInSource(existingSource, targetSpec)
-   * Surgically removes a method, getter, setter, or static property from an ES6 class body.
    */
   static deleteMethodInSource(existingSource, targetSpec) {
     if (!existingSource || typeof existingSource !== 'string' || !existingSource.trim()) {
@@ -254,9 +251,9 @@ class LunoClassPatcher {
         var member = targetClass.bodyNode.body[i];
         if (member.type === 'MethodDefinition' || member.type === 'PropertyDefinition') {
           var keyName = member.key ? (member.key.name || member.key.value) : null;
-          var isStaticMatch = Boolean(member.static) === Boolean(parsed.isStatic);
+          var staticMatch = (parsed.isStatic === null) ? true : (Boolean(member.static) === Boolean(parsed.isStatic));
           var kindMatch = parsed.kind === 'method' || member.kind === parsed.kind;
-          if (keyName === parsed.memberName && isStaticMatch && kindMatch) {
+          if (keyName === parsed.memberName && staticMatch && kindMatch) {
             memberNode = member;
             break;
           }
@@ -267,7 +264,6 @@ class LunoClassPatcher {
         var start = memberNode.range[0];
         var end = memberNode.range[1];
 
-        // Clean up leading indent and newline
         while (start > 0 && (existingSource[start - 1] === ' ' || existingSource[start - 1] === '\t')) {
           start--;
         }
@@ -285,7 +281,6 @@ class LunoClassPatcher {
 
   /**
    * ⚙️ METHOD: patchMethodInSource(existingSource, targetSpec, methodCode)
-   * Surgically replaces or inserts a method inside an ES6 class body using Acorn AST ranges.
    */
   static patchMethodInSource(existingSource, targetSpec, methodCode) {
     if (!existingSource || typeof existingSource !== 'string' || !existingSource.trim()) {
@@ -319,9 +314,9 @@ class LunoClassPatcher {
       var member = classBody.body[i];
       if (member.type === 'MethodDefinition' || member.type === 'PropertyDefinition') {
         var keyName = member.key ? (member.key.name || member.key.value) : null;
-        var isStaticMatch = Boolean(member.static) === Boolean(isStatic);
+        var staticMatch = (isStatic === null) ? true : (Boolean(member.static) === Boolean(isStatic));
         var kindMatch = targetKind === 'method' || member.kind === targetKind;
-        if (keyName === memberName && isStaticMatch && kindMatch) {
+        if (keyName === memberName && staticMatch && kindMatch) {
           existingMemberNode = member;
           break;
         }
@@ -330,7 +325,6 @@ class LunoClassPatcher {
 
     var baseIndentation = '  ';
 
-    // Replace existing method node in place
     if (existingMemberNode && existingMemberNode.range) {
       var startIdx = existingMemberNode.range[0];
       var endIdx = existingMemberNode.range[1];
@@ -339,10 +333,9 @@ class LunoClassPatcher {
         return idx === 0 ? line : (baseIndentation + line);
       }).join('\n');
 
-      return existingSource.slice(0, startIdx) + indentedMethod + existingSource.slice(endIdx);
+      return existingSource.slice(0, startIdx) + indentedMethod.trimStart() + existingSource.slice(endIdx);
     }
 
-    // Insert new method cleanly before the closing bracket of the class body
     var closeBraceIdx = classBody.range[1] - 1;
     var indentedNewMethod = '\n' + baseIndentation + cleanMethod.split('\n').map(function(line, idx) {
       return idx === 0 ? line : (baseIndentation + line);

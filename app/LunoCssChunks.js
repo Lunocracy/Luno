@@ -57,15 +57,13 @@ class LunoCssChunks {
         '}'
       ].join('\n');
     }
-  static getLayoutCSS() {
-
-    return [
-      '* { box-sizing: border-box; margin: 0; padding: 0; }',
-      'body { background-color: var(--bg-primary, #070a13); color: var(--text-primary, #f8fafc); font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, monospace; font-size: var(--font-size-val, 13px); }',
-      'button, input, select, textarea { font-family: inherit; }'
-    ].join('\n');
-
-  }
+        static getLayoutCSS() {
+      return [
+        '* { box-sizing: border-box; margin: 0; padding: 0; }',
+        'body { background-color: var(--bg-primary, #070a13); color: var(--text-primary, #f8fafc); font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, monospace; font-size: var(--font-size-val, 13px); }',
+        'button, input, select, textarea { font-family: inherit; }'
+      ].join('\n');
+    }
   static getCardCSS() {
 
     return [

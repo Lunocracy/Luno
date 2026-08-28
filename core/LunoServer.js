@@ -34,7 +34,6 @@ class LunoServer {
 
   /**
    * ⚙️ METHOD: getPatchLogPath(projectName)
-   * Deterministically resolves the LunoPatchLog.html path for a given project.
    */
   static getPatchLogPath(projectName) {
     const baseDir = LunoServer.resolveProjectBaseDir(projectName);
@@ -144,16 +143,15 @@ class LunoServer {
 
   /**
    * ⚙️ METHOD: sanitizeAndResolvePath(relPath, baseDir)
-   * Resolves relative file paths to exact absolute paths inside workspace boundaries.
    */
   static sanitizeAndResolvePath(relPath, baseDir) {
     const webRoot = LunoServer.getWebRootDir();
     if (!relPath || typeof relPath !== 'string' || !relPath.trim()) {
       return baseDir || LunoServer.getRootDir();
     }
-
+  
     let normalized = relPath.replace(/\\/g, '/').replace(/^\/+/, '').trim();
-
+  
     if (normalized === 'LunoPatchLog.html') {
       const targetDir = baseDir || LunoServer.getRootDir();
       const projPatchLog = path.join(targetDir, 'LunoPatchLog.html');
@@ -162,11 +160,20 @@ class LunoServer {
       if (fs.existsSync(globalPatchLog)) return globalPatchLog;
       return projPatchLog;
     }
-
-    if (normalized.startsWith('Library/')) {
-      return path.join(webRoot, normalized);
+  
+    const targetDir = baseDir || LunoServer.getRootDir();
+  
+    // If path starts with Library/ or library/, check if targetDir has a local copy or if it's explicitly canonical root
+    if (normalized.startsWith('Library/') || normalized.startsWith('library/')) {
+      const localCandidate = path.join(targetDir, normalized);
+      if (targetDir !== webRoot && path.basename(targetDir).toLowerCase() !== 'library') {
+        if (fs.existsSync(localCandidate)) {
+          return localCandidate;
+        }
+      }
+      return path.join(webRoot, 'Library', normalized.replace(/^(?:Library|library)\//, ''));
     }
-
+  
     if (path.isAbsolute(normalized)) {
       const resolvedAbs = path.resolve(normalized);
       if (resolvedAbs.startsWith(webRoot)) {
@@ -174,65 +181,68 @@ class LunoServer {
       }
       throw new Error(`[LunoServer Guard] Path boundary violation: "${normalized}" is outside workspace root.`);
     }
-
+  
     const segments = normalized.split('/');
     const firstSegment = segments[0];
     const candidateDir = path.join(webRoot, firstSegment);
     if (fs.existsSync(candidateDir) && fs.statSync(candidateDir).isDirectory()) {
       return path.join(webRoot, normalized);
     }
-
-    const targetDir = baseDir || LunoServer.getRootDir();
+  
     return path.resolve(targetDir, normalized);
   }
 
   /**
    * ⚙️ METHOD: validateJsSyntax(content, canonicalPath)
-   * Validates ES6 scripts and modules using Acorn AST parsing or Node.js VM.
    */
   static validateJsSyntax(content, canonicalPath) {
-    if (!content || typeof content !== 'string') return { valid: true };
-
-    let acornObj = null;
-    try { acornObj = require('acorn'); } catch (e) {}
-
-    if (acornObj && typeof acornObj.parse === 'function') {
-      try {
-        acornObj.parse(content, {
-          ecmaVersion: 'latest',
-          sourceType: 'module',
-          allowReturnOutsideFunction: true,
-          allowImportExportEverywhere: true,
-          allowHashBang: true
-        });
-        return { valid: true };
-      } catch (e) {
+      if (!content || typeof content !== 'string') return { valid: true };
+  
+      let acornObj = null;
+      try { acornObj = require('acorn'); } catch (e) {}
+      if (!acornObj) {
+        try {
+          const root = LunoServer.getRootDir();
+          acornObj = require(path.join(root, 'node_modules', 'acorn'));
+        } catch (e2) {}
+      }
+  
+      if (acornObj && typeof acornObj.parse === 'function') {
         try {
           acornObj.parse(content, {
             ecmaVersion: 'latest',
-            sourceType: 'script',
+            sourceType: 'module',
             allowReturnOutsideFunction: true,
             allowImportExportEverywhere: true,
             allowHashBang: true
           });
           return { valid: true };
-        } catch (e2) {
-          return { valid: false, error: e2.message };
+        } catch (e) {
+          try {
+            acornObj.parse(content, {
+              ecmaVersion: 'latest',
+              sourceType: 'script',
+              allowReturnOutsideFunction: true,
+              allowImportExportEverywhere: true,
+              allowHashBang: true
+            });
+            return { valid: true };
+          } catch (e2) {
+            return { valid: false, error: e2.message };
+          }
         }
+      }
+  
+      try {
+        new vm.Script(content);
+        return { valid: true };
+      } catch (vmErr) {
+        return { valid: false, error: vmErr.message };
       }
     }
 
-    try {
-      new vm.Script(content);
-      return { valid: true };
-    } catch (vmErr) {
-      return { valid: false, error: vmErr.message };
-    }
-  }
-
   /**
    * ⚙️ METHOD: parseAndSaveFiles(bodyText, projectOverride)
-   * Processes incoming save payloads with strict syntax checks and deterministic patch journaling.
    */
   static async parseAndSaveFiles(bodyText, projectOverride) {
     let filesToWrite = [];

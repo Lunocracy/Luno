@@ -237,58 +237,58 @@ var LunoLoader = globalThis.LunoLoader = class LunoLoader {
     }
   }
 
-  static async loadApp(containerId) {
-    var targetContainer = typeof containerId === 'string'
-      ? document.getElementById(containerId)
-      : (containerId || document.getElementById('app-root') || document.body);
-
-    var lunoMeta = {};
-    try {
-      var res = await fetch('luno.json?v=' + Date.now());
-      if (res.ok) lunoMeta = await res.json();
-    } catch(e){}
-
-    var libRoot = LunoLoader.getLibraryRoot();
-    var libs = Array.isArray(lunoMeta.library) ? lunoMeta.library : [];
-    var main = Array.isArray(lunoMeta.main) ? lunoMeta.main : [];
-    var styles = Array.isArray(lunoMeta.styles) ? lunoMeta.styles : [];
-
-    for (var s = 0; s < styles.length; s++) {
-      try { await LunoLoader.loadStyle(styles[s]); } catch(e){}
-    }
-
-    for (var l = 0; l < libs.length; l++) {
-      var cleanLib = libs[l].replace(/^Library\//i, '').replace(/^library\//i, '').replace(/^\/+/, '');
-      try { await LunoLoader.loadScript(libRoot + cleanLib); } catch(e){}
-    }
-
-    if (typeof DomBasics !== 'undefined' && typeof DomBasics.run === 'function') {
-      DomBasics.run();
-    }
-
-    for (var m = 0; m < main.length; m++) {
-      try { await LunoLoader.loadScript(main[m]); } catch(e){}
-    }
-
-    try {
-      await LunoLoader.applyPatchLog(lunoMeta.name || 'Luno');
-    } catch(e){}
-
-    var entryClass = (lunoMeta.entrypoint && lunoMeta.entrypoint.class) || lunoMeta.mainClass;
-    var entryMethod = (lunoMeta.entrypoint && lunoMeta.entrypoint.method) || 'run';
-
-    if (entryClass && typeof window[entryClass] === 'function') {
-      var AppCls = window[entryClass];
-      var envCtx = { container: targetContainer, config: lunoMeta, isStatic: LunoLoader.isStaticHosting() };
-      if (typeof AppCls[entryMethod] === 'function') {
-        await AppCls[entryMethod](envCtx);
-      } else {
-        var inst = new AppCls();
-        if (typeof inst[entryMethod] === 'function') await inst[entryMethod](envCtx);
-        else if (typeof inst.run === 'function') await inst.run(envCtx);
+        static async loadApp(containerId) {
+      var targetContainer = typeof containerId === 'string'
+        ? document.getElementById(containerId)
+        : (containerId || document.getElementById('app-root') || document.body);
+  
+      var lunoMeta = {};
+      try {
+        var res = await fetch('luno.json?v=' + Date.now());
+        if (res.ok) lunoMeta = await res.json();
+      } catch(e){}
+  
+      var libRoot = LunoLoader.getLibraryRoot();
+      var libs = Array.isArray(lunoMeta.library) ? lunoMeta.library : [];
+      var main = Array.isArray(lunoMeta.main) ? lunoMeta.main : [];
+      var styles = Array.isArray(lunoMeta.styles) ? lunoMeta.styles : [];
+  
+      for (var s = 0; s < styles.length; s++) {
+        try { await LunoLoader.loadStyle(styles[s]); } catch(e){}
+      }
+  
+      for (var l = 0; l < libs.length; l++) {
+        var cleanLib = libs[l].replace(/^Library\//i, '').replace(/^library\//i, '').replace(/^\/+/, '');
+        try { await LunoLoader.loadScript(libRoot + cleanLib); } catch(e){}
+      }
+  
+      if (typeof DomBasics !== 'undefined' && typeof DomBasics.run === 'function') {
+        DomBasics.run();
+      }
+  
+      for (var m = 0; m < main.length; m++) {
+        try { await LunoLoader.loadScript(main[m]); } catch(e){}
+      }
+  
+      try {
+        await LunoLoader.applyPatchLog(lunoMeta.name || 'Luno');
+      } catch(e){}
+  
+      var entryClass = (lunoMeta.entrypoint && lunoMeta.entrypoint.class) || lunoMeta.mainClass;
+      var entryMethod = (lunoMeta.entrypoint && lunoMeta.entrypoint.method) || 'run';
+  
+      if (entryClass && typeof window[entryClass] === 'function') {
+        var AppCls = window[entryClass];
+        var envCtx = { container: targetContainer, config: lunoMeta, isStatic: LunoLoader.isStaticHosting() };
+        if (typeof AppCls[entryMethod] === 'function') {
+          await AppCls[entryMethod](envCtx);
+        } else {
+          var inst = new AppCls();
+          if (typeof inst[entryMethod] === 'function') await inst[entryMethod](envCtx);
+          else if (typeof inst.run === 'function') await inst.run(envCtx);
+        }
       }
     }
-  }
 };
 
 if (typeof module !== "undefined" && module.exports) module.exports = LunoLoader;
