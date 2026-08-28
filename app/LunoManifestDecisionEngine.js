@@ -68,16 +68,14 @@ class LunoManifestDecisionEngine {
     return false;
   }
 
-  /**
-   * ⚙️ METHOD: processPayload(payloadObj, manifestObj, projectName)
-   */
   static async processPayload(payloadObj, manifestObj, projectName = '') {
     if (!payloadObj || !Array.isArray(payloadObj.files)) {
       return payloadObj;
     }
 
     const targetProj = projectName || (typeof ClientApp !== 'undefined' && ClientApp.getTargetProject ? ClientApp.getTargetProject() : 'Luno');
-    const processedFilesMap = new Map();
+    const processedFilesList = [];
+    const fullFilesMap = new Map();
 
     for (let i = 0; i < payloadObj.files.length; i++) {
       const f = payloadObj.files[i];
@@ -100,7 +98,7 @@ class LunoManifestDecisionEngine {
       const isClientAsset = !isExplicitDirect && !isExplicitMerge && LunoManifestDecisionEngine.isStartupClientFile(normPath, manifestObj);
 
       if (isClientAsset) {
-        processedFilesMap.set(normPath, {
+        processedFilesList.push({
           tagName: 'script',
           filePath: normPath,
           methodSpec: f.methodSpec || '',
@@ -110,8 +108,8 @@ class LunoManifestDecisionEngine {
       } else {
         if (f.methodSpec || f.action === 'patch' || f.action === 'delete') {
           let baseContent = '';
-          if (processedFilesMap.has(normPath) && processedFilesMap.get(normPath).content) {
-            baseContent = processedFilesMap.get(normPath).content;
+          if (fullFilesMap.has(normPath)) {
+            baseContent = fullFilesMap.get(normPath);
           } else if (typeof LunoApiClient !== 'undefined' && LunoApiClient.fetchFsRead) {
             let res = await LunoApiClient.fetchFsRead(normPath, targetProj);
             if (res && res.content !== undefined) {
@@ -135,25 +133,24 @@ class LunoManifestDecisionEngine {
             consolidatedContent = classPatcher.patchMethodInSource(baseContent, f.methodSpec || normPath, f.content);
           }
 
-          processedFilesMap.set(normPath, {
-            tagName: f.tagName || 'script',
-            filePath: normPath,
-            action: 'direct',
-            content: consolidatedContent
-          });
+          fullFilesMap.set(normPath, consolidatedContent);
         } else {
-          processedFilesMap.set(normPath, {
-            tagName: f.tagName || 'script',
-            filePath: normPath,
-            action: (f.action === 'delete' || f.action === 'merge') ? f.action : 'direct',
-            content: f.content
-          });
+          fullFilesMap.set(normPath, f.content);
         }
       }
     }
 
+    fullFilesMap.forEach((content, filePath) => {
+      processedFilesList.push({
+        tagName: 'script',
+        filePath: filePath,
+        action: 'direct',
+        content: content
+      });
+    });
+
     return {
-      files: Array.from(processedFilesMap.values()),
+      files: processedFilesList,
       serverScript: payloadObj.serverScript || '',
       requests: payloadObj.requests || [],
       debugLogs: payloadObj.debugLogs || [],
