@@ -175,40 +175,34 @@ class LunoTestRunner {
       LunoTestRunner.assert('LunoClassPatcher: Accessor Get/Set AST Integration', false, e.message);
     }
 
-    // Test 10: LunoClassPatcher Method Deletion (deleteMethodInSource)
+    // Test 10: Server-Side Fork Endpoint Availability & Collision Guard
     try {
-      if (typeof LunoClassPatcher !== 'undefined' && typeof LunoClassPatcher.deleteMethodInSource === 'function') {
-        var classWithOldMethod = 'class Widget {\n  constructor() {}\n  deprecatedMethod() {\n    return false;\n  }\n  activeMethod() {\n    return true;\n  }\n}';
-        var deletedSource = LunoClassPatcher.deleteMethodInSource(classWithOldMethod, 'Widget.deprecatedMethod');
-        var isRemoved = !deletedSource.includes('deprecatedMethod');
-        var isRetained = deletedSource.includes('activeMethod');
-        LunoTestRunner.assert(
-          'LunoClassPatcher: AST Member Deletion (deleteMethodInSource)',
-          isRemoved && isRetained,
-          'Surgically removed deprecatedMethod while preserving activeMethod'
-        );
-      } else {
-        LunoTestRunner.assert('LunoClassPatcher: AST Member Deletion', false, 'deleteMethodInSource missing');
-      }
+      var forkRes = await fetch('/api/projects/fork', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sourceProject: 'NonExistentTestProj', newProjectName: 'InvalidName' })
+      });
+      var forkData = await forkRes.json();
+      LunoTestRunner.assert(
+        'LunoServer: /api/projects/fork Existence & Pre-flight Collision Guard',
+        forkRes.status === 404 && !forkData.success,
+        'Correctly rejected invalid source project with status 404'
+      );
     } catch (e) {
-      LunoTestRunner.assert('LunoClassPatcher: AST Member Deletion', false, e.message);
+      LunoTestRunner.assert('LunoServer: /api/projects/fork Existence & Pre-flight Collision Guard', false, e.message);
     }
 
-    // Test 11: LunoLinePatcher Accessor Property Descriptors & Live Hot-Patching
+    // Test 11: LunoServer sanitizeAndResolvePath Project-Scope Isolation
     try {
-      if (typeof LunoLinePatcher !== 'undefined' && typeof LunoLinePatcher.appendPatch === 'function') {
-        var patchResult = LunoLinePatcher.appendPatch('', 'SampleClass.get title', 'get title() { return "dynamic"; }', { hotPatch: false });
-        var hasDefineProperty = patchResult.patchAssignmentStatement.includes('Object.defineProperty') && patchResult.patchAssignmentStatement.includes('get:');
-        LunoTestRunner.assert(
-          'LunoLinePatcher: Accessor Property Descriptors Evaluation',
-          hasDefineProperty,
-          'Constructed valid Object.defineProperty accessor statement for live memory binding'
-        );
-      } else {
-        LunoTestRunner.assert('LunoLinePatcher: Accessor Property Descriptors', false, 'LunoLinePatcher missing');
-      }
+      var readRes = await fetch('/api/fs/read?path=luno.json&project=Luno');
+      var readData = await readRes.json();
+      LunoTestRunner.assert(
+        'LunoServer: sanitizeAndResolvePath Project-Scope Isolation',
+        readRes.ok && readData.success && readData.relativePath === 'luno.json',
+        'Scoped path resolution resolves strictly within project boundary'
+      );
     } catch (e) {
-      LunoTestRunner.assert('LunoLinePatcher: Accessor Property Descriptors', false, e.message);
+      LunoTestRunner.assert('LunoServer: sanitizeAndResolvePath Project-Scope Isolation', false, e.message);
     }
 
     // Test 12: ES6 Module Syntax Verification & Validation

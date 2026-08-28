@@ -222,35 +222,40 @@ class DiskBrowser {
   static async loadDirectory() {
     var container = document.getElementById('item-list-container');
     if (!container) return;
-
+  
     var isLibMode = (DiskBrowser.browserMode === 'library');
     var queryTarget = isLibMode ? 'Library' : ((typeof ClientApp !== 'undefined' && ClientApp.getTargetProject) ? ClientApp.getTargetProject() : '');
-
+  
     try {
       container.innerHTML = '<div style="padding:1rem; text-align:center; color:#00f2fe; font-family:monospace;">⚡ Indexing project files for flat view...</div>';
-
+  
       var data = await LunoApiClient.fetchFsListRecursive('', queryTarget);
       var rawItems = (data && data.items) || [];
-
+  
       var files = [];
       var dirsMap = new Map();
-
+  
       for (var i = 0; i < rawItems.length; i++) {
         var it = rawItems[i];
         var rel = it.relativePath || it.name;
         var norm = rel.replace(/\\/g, '/').replace(/^\/+/, '');
-
+  
         if (queryTarget && norm.startsWith(queryTarget + '/')) {
           norm = norm.slice(queryTarget.length + 1);
         }
-
+  
+        // Skip project-local nested library files from contaminating the project view
+        if (!isLibMode && (norm.toLowerCase().startsWith('library/') || norm.toLowerCase().startsWith('library\\'))) {
+          continue;
+        }
+  
         if (it.isDirectory) {
           dirsMap.set(norm, { name: it.name, relativePath: norm, size: it.size || 0 });
         } else {
           var parts = norm.split('/');
           var fileName = parts.pop();
           var dirPath = parts.join('/');
-
+  
           files.push({
             name: fileName,
             relativePath: norm,
@@ -258,18 +263,18 @@ class DiskBrowser {
             size: it.size || 0,
             mtimeMs: it.mtimeMs || 0
           });
-
+  
           if (dirPath && !dirsMap.has(dirPath)) {
             dirsMap.set(dirPath, { name: parts[parts.length - 1], relativePath: dirPath, size: 0 });
           }
         }
       }
-
+  
       DiskBrowser.flatFilesList = files;
       DiskBrowser.directoriesList = Array.from(dirsMap.values()).sort(function(a, b) {
         return a.relativePath.localeCompare(b.relativePath);
       });
-
+  
       DiskBrowser.renderFlatLayout(container, queryTarget);
     } catch (err) {
       container.innerHTML = '<div style="padding:0.75rem; color:#ff7b72; background:#3c1418; border-radius:6px; font-family:monospace;">❌ Load Error: ' + err.message + '</div>';

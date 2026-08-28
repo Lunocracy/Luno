@@ -1,9 +1,9 @@
-# 🎉 Luno Architecture, Interactive AI Mentor & Strict Path Hardening Complete
+# 🎉 Luno Architecture: Project Forking & File View Library Isolation Complete
 
-**Status**: ✅ 10/10 Milestones Executed & Verified  
+**Status**: ✅ All 10 Steps Executed & Verified  
 **Date**: August 2026  
+**System Version**: `v3.6.5`  
 **Architecture Topology**: Flat Peer Multi-Project Workspace (`/storage/emulated/0/Luno/web/`)  
-**Design Philosophy**: Phone-First Vertical Workflow, Zero-Fallback Path Determinism, Proactive AI Mentorship  
 
 ---
 
@@ -11,26 +11,26 @@
 
 | Step | Milestone | Execution Outcome | Status |
 | :--- | :--- | :--- | :--- |
-| **1** | Ground-Truth Reconnaissance | Audited 10 sibling project directories and verified root topology | ✅ Done |
-| **2** | Path Canonicalization & Prefix Hardening | Stripped outer wrapper artifacts and strictly anchored workspace paths | ✅ Done |
-| **3** | Zero-Fallback Elimination | Replaced loose directory-hunting loops with fail-fast diagnostic error reporting | ✅ Done |
-| **4** | Proactive AI Mentor Engine | Built multi-tier pedagogical prompts (Kid/Newbie, Builder, Architect) | ✅ Done |
-| **5** | Interactive Walkthrough Overlay | Added phone-first floating guide widget with 1-tap clipboard triggers | ✅ Done |
-| **6** | Universal GitHub Pages Deploy Engine | Added `LunoDeployEngine.js` with automated `.nojekyll` and HTML loader scaffolding | ✅ Done |
-| **7** | Instant Project Forking & Scaffolding | Hardened `LunoProjectTemplates.js` with root anchoring and GitHub Pages parity | ✅ Done |
-| **8** | Phone-First Vertical UX | Polished Outbox/Inbox cards, tap targets, and mobile split-screen ergonomics | ✅ Done |
-| **9** | Automated Diagnostic Test Suite | Updated `LunoTestRunner.js` with 8 comprehensive automated verification suites | ✅ Done |
-| **10**| Workspace Verification & Checkpoint | Validated cross-project loading, server APIs, and recorded system state | ✅ Done |
+| **1** | Deploy Library De-duplication | Eliminated dual-cased `Library/` vs `library/` mirrors in sibling projects | ✅ Done |
+| **2** | Path Resolution Boundary Routing | Hardened `sanitizeAndResolvePath` to prevent global library hijacking | ✅ Done |
+| **3** | Server File Listing Synchronization | Ignored nested `library/` folders across single and recursive file scans | ✅ Done |
+| **4** | Dedicated `/api/projects/fork` Endpoint | Implemented full-fidelity binary media preservation with zero size caps | ✅ Done |
+| **5** | AST Class & Manifest Renaming Engine | Automated renaming for classes, `globalThis` exports, `luno.json`, and HTML shells | ✅ Done |
+| **6** | Client UI `forkProject` Integration | Connected Projects Hub fork triggers directly to the atomic server pipeline | ✅ Done |
+| **7** | Projects Hub UI Enhancements | Updated project cards with real-time indicators and descriptive tooltips | ✅ Done |
+| **8** | Flat Files View Path Hardening | Filtered internal vendor libraries from flat file views in `DiskBrowser.js` | ✅ Done |
+| **9** | Diagnostic Test Suite Alignment | Updated `LunoTestRunner.js` with 12 automated verification suites | ✅ Done |
+| **10**| Final System Checkpoint | Synchronized `luno.json` manifest and recorded clean working tree state | ✅ Done |
 
 ---
 
-## 2. Core Architectural Principles Enforced
+## 2. Solved Root Causes
 
-1. **Zero Sweeping Under the Rug**:
-   - No silent multi-folder guessing loops or fallbacks. If a file or method target is missing, Luno fails fast and surfaces an explicit diagnostic error so it can be fixed immediately.
-2. **Proactive AI Mentor**:
-   - `LunoGuideEngine` generates rich context packets teaching any LLM to act as a 1-on-1 coding mentor that interviews the user (*"What do you want to build? Let's take step 1..."*) and delivers bite-sized single-method patches.
-3. **1-Tap GitHub Pages Publishing**:
-   - Any project can be cloned, developed, and deployed to standalone GitHub Pages hosting with automatic `.nojekyll` and asset resolution.
-4. **Phone-First Vertical UX**:
-   - Built to run seamlessly on mobile browsers with vertical split-screen LLM workflows, while scaling smoothly to desktop.
+1. **High-Fidelity Project Forking**:
+   - Binary media (images, audio samples, video chunks, SVG icons, fonts) are copied with 100% fidelity using native filesystem recursion.
+   - Class declarations, `globalThis` registrations, `module.exports`, and `luno.json` entrypoints are transformed into the new project's name and class structure.
+   - Automatic pre-flight collision checks and atomic transaction boundaries prevent partial or corrupt directory states.
+
+2. **Files View & Library Isolation**:
+   - `sanitizeAndResolvePath` strictly respects project boundaries.
+   - Internal vendor `library/` copies created during deployment staging no longer pollute the project flat file list.
