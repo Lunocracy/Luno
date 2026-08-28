@@ -205,7 +205,6 @@ class LunoServer {
 
       const action = (f.action || 'write').toLowerCase();
       const ext = filePath.split('.').pop().toLowerCase();
-      const isJs = ext === 'js' || ext === 'mjs';
       const canonicalPath = filePath.replace(/\\/g, '/').replace(/^\/+/, '');
 
       // 1. JSON Deep-Merge Handler
@@ -242,8 +241,8 @@ class LunoServer {
         continue;
       }
 
-      // 2. Direct Disk Writes
-      if (!isJs || canonicalPath.endsWith('luno.json') || canonicalPath.endsWith('files.json') || canonicalPath.endsWith('LunoPatchLog.html') || action === 'direct') {
+      // 2. Direct Disk Writes: Full files or action 'direct' ALWAYS write directly to disk
+      if (action === 'direct' || (!f.methodSpec && action !== 'patch' && action !== 'delete')) {
         const fullPath = LunoServer.sanitizeAndResolvePath(canonicalPath, baseDir);
         if (fullPath && LunoServer.isWritableWorkspacePath(fullPath)) {
           fs.mkdirSync(path.dirname(fullPath), { recursive: true });
@@ -255,7 +254,7 @@ class LunoServer {
         continue;
       }
 
-      // 3. Patch Journal Appends
+      // 3. Patch Journal Appends for un-consolidated surgical patches
       const methodSpec = f.methodSpec || '';
       const tagWord = 'script';
       const safeContent = (f.content || '').split('</' + tagWord + '>').join('<\\/' + tagWord + '>');
@@ -455,7 +454,6 @@ class LunoServer {
 
     const projFolder = path.basename(targetDir);
 
-    // Dynamically discover all peer sibling directories in webRoot
     const allSiblings = [];
     try {
       if (fs.existsSync(webRoot)) {
@@ -490,7 +488,6 @@ class LunoServer {
           continue;
         }
 
-        // Avoid scanning nested peer sibling folders if scanning from Luno or root
         if (projFolder === 'Luno' && allSiblings.includes(name) && name !== 'Luno') {
           continue;
         }
@@ -978,7 +975,6 @@ class LunoServer {
             meta.lastCheckpointTime = new Date().toISOString();
             meta.pendingCheckpointDescription = `Clean fork initialized from ${sourceName}`;
 
-            // Remap entrypoint file if prefixed with old project name
             if (meta.entrypoint && typeof meta.entrypoint === 'object') {
               if (meta.entrypoint.file && typeof meta.entrypoint.file === 'string') {
                 if (meta.entrypoint.file.startsWith(sourceName + '/')) {
@@ -990,7 +986,6 @@ class LunoServer {
               entrypointClass = meta.mainClass;
             }
 
-            // Remap main script array
             if (Array.isArray(meta.main)) {
               meta.main = meta.main.map(p => {
                 if (typeof p === 'string' && p.startsWith(sourceName + '/')) {
@@ -1000,7 +995,6 @@ class LunoServer {
               });
             }
 
-            // Remap styles array
             if (Array.isArray(meta.styles)) {
               meta.styles = meta.styles.map(p => {
                 if (typeof p === 'string' && p.startsWith(sourceName + '/')) {
@@ -1010,7 +1004,6 @@ class LunoServer {
               });
             }
 
-            // Remap files array if present
             if (Array.isArray(meta.files)) {
               meta.files = meta.files.map(p => {
                 if (typeof p === 'string' && p.startsWith(sourceName + '/')) {

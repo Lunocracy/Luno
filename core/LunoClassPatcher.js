@@ -1,9 +1,6 @@
 class LunoClassPatcher {
   constructor() {}
 
-  /**
-   * ⚙️ METHOD: parseAST(sourceText)
-   */
   static parseAST(sourceText) {
     if (!sourceText || typeof sourceText !== 'string' || !sourceText.trim()) {
       throw new Error('[Luno AST Guard] parseAST received empty source text.');
@@ -47,9 +44,6 @@ class LunoClassPatcher {
     }
   }
 
-  /**
-   * ⚙️ METHOD: parseSpec(targetSpec)
-   */
   static parseSpec(targetSpec) {
     if (!targetSpec || typeof targetSpec !== 'string' || !targetSpec.trim()) {
       throw new Error('[Luno AST Guard] Cannot parse targetSpec: targetSpec is empty.');
@@ -60,12 +54,12 @@ class LunoClassPatcher {
     clean = clean.replace(/^(?:globalThis|window)\./, '');
 
     var kind = 'method';
-    if (/^(?:get\s+|\w+\.(?:prototype\.)?get\s+)/.test(clean) || clean.startsWith('get ') || clean.includes('.get ')) {
+    if (clean.startsWith('get ') || clean.includes('.get ')) {
       kind = 'get';
-      clean = clean.replace(/(?:^|\.)get\s+/, '.').replace(/^\.+/, '');
-    } else if (/^(?:set\s+|\w+\.(?:prototype\.)?set\s+)/.test(clean) || clean.startsWith('set ') || clean.includes('.set ')) {
+      clean = clean.replace(/\bget\s+/, '');
+    } else if (clean.startsWith('set ') || clean.includes('.set ')) {
       kind = 'set';
-      clean = clean.replace(/(?:^|\.)set\s+/, '.').replace(/^\.+/, '');
+      clean = clean.replace(/\bset\s+/, '');
     }
 
     var className = '';
@@ -99,9 +93,6 @@ class LunoClassPatcher {
     return { className: className, memberName: memberName, isStatic: isStatic, kind: kind };
   }
 
-  /**
-   * ⚙️ METHOD: normalizeMethodCode(memberName, methodCode, isStatic, targetKind)
-   */
   static normalizeMethodCode(memberName, methodCode, isStatic, targetKind) {
     var rawStr = String(methodCode !== undefined && methodCode !== null ? methodCode : '').trim();
     if (!rawStr) {
@@ -120,7 +111,7 @@ class LunoClassPatcher {
       }
     }
 
-    // Linear O(N) deterministic comment stripper (Zero ReDoS)
+    // Safe linear comment stripper
     var stripped = clean;
     var maxPasses = 20;
     while (maxPasses > 0 && (stripped.startsWith('//') || stripped.startsWith('/*'))) {
@@ -173,9 +164,6 @@ class LunoClassPatcher {
     return String(out).trim();
   }
 
-  /**
-   * ⚙️ METHOD: findClassNodes(ast, targetClassName)
-   */
   static findClassNodes(ast, targetClassName) {
     var results = [];
     if (!ast || typeof ast !== 'object') return results;
@@ -216,9 +204,6 @@ class LunoClassPatcher {
     return results;
   }
 
-  /**
-   * ⚙️ METHOD: findMethodBounds(sourceCode, rawTarget)
-   */
   static findMethodBounds(sourceCode, rawTarget) {
     if (!sourceCode || !rawTarget) return null;
     var parsed = LunoClassPatcher.parseSpec(rawTarget);
@@ -249,9 +234,6 @@ class LunoClassPatcher {
     return null;
   }
 
-  /**
-   * ⚙️ METHOD: deleteMethodInSource(existingSource, targetSpec)
-   */
   static deleteMethodInSource(existingSource, targetSpec) {
     if (!existingSource || typeof existingSource !== 'string' || !existingSource.trim()) {
       return existingSource;
@@ -288,7 +270,7 @@ class LunoClassPatcher {
         var start = memberNode.range[0];
         var end = memberNode.range[1];
 
-        // Safe deterministic backward scan (Zero ReDoS)
+        // Safe deterministic backward scan
         var i = start - 1;
         while (i >= 0 && (existingSource[i] === ' ' || existingSource[i] === '\t' || existingSource[i] === '\r' || existingSource[i] === '\n')) {
           i--;
@@ -312,9 +294,6 @@ class LunoClassPatcher {
     return existingSource;
   }
 
-  /**
-   * ⚙️ METHOD: patchMethodInSource(existingSource, targetSpec, methodCode)
-   */
   static patchMethodInSource(existingSource, targetSpec, methodCode) {
     if (!existingSource || typeof existingSource !== 'string' || !existingSource.trim()) {
       throw new Error('[Luno AST Guard] Cannot patch method: existingSource is empty.');

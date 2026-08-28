@@ -55,7 +55,9 @@ class LunoManifestDecisionEngine {
       norm.startsWith('docs/') ||
       norm.startsWith('Luno/docs/') ||
       norm.startsWith('core/') ||
-      norm.startsWith('Luno/core/')
+      norm.startsWith('Luno/core/') ||
+      norm.startsWith('test/') ||
+      norm.startsWith('Luno/test/')
     ) {
       return true;
     }
@@ -93,51 +95,67 @@ class LunoManifestDecisionEngine {
         normPath = targetProj + '/' + normPath;
       }
 
-      const isExplicitDirect = (f.action === 'direct');
+      const isSurgicalPatch = Boolean(f.methodSpec || f.action === 'patch' || f.action === 'delete');
       const isExplicitMerge = (f.action === 'merge');
-      const isClientAsset = !isExplicitDirect && !isExplicitMerge && LunoManifestDecisionEngine.isStartupClientFile(normPath, manifestObj);
 
-      if (isClientAsset) {
+      if (isExplicitMerge) {
+        processedFilesList.push({
+          tagName: f.tagName || 'script',
+          filePath: normPath,
+          action: 'merge',
+          content: f.content || ''
+        });
+        continue;
+      }
+
+      // Full file replacements ALWAYS write directly to disk
+      if (!isSurgicalPatch) {
+        fullFilesMap.set(normPath, f.content || '');
+        continue;
+      }
+
+      // For surgical patches, apply AST patching in browser client memory
+      let baseContent = '';
+      if (fullFilesMap.has(normPath)) {
+        baseContent = fullFilesMap.get(normPath);
+      } else if (typeof LunoApiClient !== 'undefined' && LunoApiClient.fetchFsRead) {
+        let res = await LunoApiClient.fetchFsRead(normPath, targetProj);
+        if (res && res.content !== undefined) {
+          baseContent = res.content;
+        }
+      }
+
+      if (!baseContent || !baseContent.trim()) {
         processedFilesList.push({
           tagName: 'script',
           filePath: normPath,
           methodSpec: f.methodSpec || '',
-          action: f.action || 'write',
+          action: f.action || 'patch',
           content: f.content || ''
         });
-      } else {
-        if (f.methodSpec || f.action === 'patch' || f.action === 'delete') {
-          let baseContent = '';
-          if (fullFilesMap.has(normPath)) {
-            baseContent = fullFilesMap.get(normPath);
-          } else if (typeof LunoApiClient !== 'undefined' && LunoApiClient.fetchFsRead) {
-            let res = await LunoApiClient.fetchFsRead(normPath, targetProj);
-            if (res && res.content !== undefined) {
-              baseContent = res.content;
-            }
-          }
-
-          if (!baseContent || !baseContent.trim()) {
-            throw new Error(`[Luno AST Guard] Cannot apply surgical method patch to "${normPath}": Target file could not be read at strict path.`);
-          }
-
-          let classPatcher = globalThis.LunoClassPatcher;
-          if (!classPatcher) {
-            throw new Error(`[Luno AST Guard] LunoClassPatcher is not loaded in memory to patch "${normPath}".`);
-          }
-
-          let consolidatedContent = baseContent;
-          if (f.action === 'delete') {
-            consolidatedContent = classPatcher.deleteMethodInSource(baseContent, f.methodSpec || normPath);
-          } else {
-            consolidatedContent = classPatcher.patchMethodInSource(baseContent, f.methodSpec || normPath, f.content);
-          }
-
-          fullFilesMap.set(normPath, consolidatedContent);
-        } else {
-          fullFilesMap.set(normPath, f.content);
-        }
+        continue;
       }
+
+      let classPatcher = globalThis.LunoClassPatcher;
+      if (!classPatcher) {
+        processedFilesList.push({
+          tagName: 'script',
+          filePath: normPath,
+          methodSpec: f.methodSpec || '',
+          action: f.action || 'patch',
+          content: f.content || ''
+        });
+        continue;
+      }
+
+      let consolidatedContent = baseContent;
+      if (f.action === 'delete') {
+        consolidatedContent = classPatcher.deleteMethodInSource(baseContent, f.methodSpec || normPath);
+      } else {
+        consolidatedContent = classPatcher.patchMethodInSource(baseContent, f.methodSpec || normPath, f.content);
+      }
+
+      fullFilesMap.set(normPath, consolidatedContent);
     }
 
     fullFilesMap.forEach((content, filePath) => {
