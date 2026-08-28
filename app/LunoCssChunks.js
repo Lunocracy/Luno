@@ -3,63 +3,60 @@ class LunoCssChunks {
 
   }
 
-  static getVariableCSS(state) {
-
-    var s = state || {};
-    var isLight = Boolean(s.isLightMode);
-    var hue = s.hueRotate !== undefined ? s.hueRotate : 0;
-    var contrast = s.contrast !== undefined ? s.contrast : 100;
-    var fontSize = s.fontSize !== undefined ? s.fontSize : 13;
-    var glowLevel = s.glowLevel !== undefined ? s.glowLevel : 50;
-
-    var actualGlow = isLight ? 0 : glowLevel;
-    var glowBlur = Math.round(actualGlow * 0.35);
-    var glowOpacity = (actualGlow * 0.008).toFixed(2);
-    var glowColor = isLight ? 'rgba(2, 132, 199, 0.15)' : 'rgba(0, 242, 254, ' + glowOpacity + ')';
-
-    var bgPrimary = isLight ? '#f6f8fa' : '#070a13';
-    var bgSecondary = isLight ? '#ffffff' : '#0f172a';
-    var bgCard = isLight ? '#ffffff' : '#161b22';
-    var bgInput = isLight ? '#ffffff' : '#070a13';
-    var textPrimary = isLight ? '#0f172a' : '#f8fafc';
-    var textSecondary = isLight ? '#475569' : '#8b949e';
-    var textAccent = isLight ? '#0284c7' : '#00f2fe';
-    var textCode = isLight ? '#15803d' : '#7ee787';
-    var borderColor = isLight ? '#d0d7de' : '#1e293b';
-    var accentGreen = isLight ? '#16a34a' : '#00e676';
-    var accentPurple = isLight ? '#7e22ce' : '#ff007f';
-
-    return [
-      ':root {',
-      '  --bg-primary: ' + bgPrimary + ';',
-      '  --bg-secondary: ' + bgSecondary + ';',
-      '  --bg-card: ' + bgCard + ';',
-      '  --bg-input: ' + bgInput + ';',
-      '  --text-primary: ' + textPrimary + ';',
-      '  --text-secondary: ' + textSecondary + ';',
-      '  --text-accent: ' + textAccent + ';',
-      '  --text-code: ' + textCode + ';',
-      '  --border-color: ' + borderColor + ';',
-      '  --accent-green: ' + accentGreen + ';',
-      '  --accent-purple: ' + accentPurple + ';',
-      '  --glow-color: ' + glowColor + ';',
-      '  --glow-blur: ' + glowBlur + 'px;',
-      '  --hue-rotate: ' + hue + 'deg;',
-      '  --contrast-val: ' + contrast + '%;',
-      '  --font-size-val: ' + fontSize + 'px;',
-      '}',
-      'html {',
-      '  font-size: ' + fontSize + 'px !important;',
-      '  background-color: ' + bgPrimary + ' !important;',
-      '  color: ' + textPrimary + ' !important;',
-      '}',
-      'html, body, #app-root {',
-      '  font-size: ' + fontSize + 'px;',
-      '  filter: hue-rotate(' + hue + 'deg) contrast(' + contrast + '%);',
-      '}'
-    ].join('\n');
-
-  }
+    static getVariableCSS(state) {
+      var s = state || {};
+      var isLight = Boolean(s.isLightMode);
+      var fontSize = s.fontSize !== undefined ? s.fontSize : 13;
+      var glowLevel = s.glowLevel !== undefined ? s.glowLevel : 50;
+  
+      var actualGlow = isLight ? 0 : glowLevel;
+      var glowBlur = Math.round(actualGlow * 0.35);
+      var glowOpacity = (actualGlow * 0.008).toFixed(2);
+      var glowColor = isLight ? 'rgba(2, 132, 199, 0.15)' : 'rgba(0, 242, 254, ' + glowOpacity + ')';
+  
+      var bgPrimary = isLight ? '#f6f8fa' : '#070a13';
+      var bgSecondary = isLight ? '#ffffff' : '#0f172a';
+      var bgCard = isLight ? '#ffffff' : '#161b22';
+      var bgInput = isLight ? '#ffffff' : '#070a13';
+      var textPrimary = isLight ? '#0f172a' : '#f8fafc';
+      var textSecondary = isLight ? '#475569' : '#8b949e';
+      var textAccent = isLight ? '#0284c7' : '#00f2fe';
+      var textCode = isLight ? '#15803d' : '#7ee787';
+      var borderColor = isLight ? '#d0d7de' : '#1e293b';
+      var accentGreen = isLight ? '#16a34a' : '#00e676';
+      var accentPurple = isLight ? '#7e22ce' : '#ff007f';
+  
+      return [
+        ':root {',
+        '  --bg-primary: ' + bgPrimary + ';',
+        '  --bg-secondary: ' + bgSecondary + ';',
+        '  --bg-card: ' + bgCard + ';',
+        '  --bg-input: ' + bgInput + ';',
+        '  --text-primary: ' + textPrimary + ';',
+        '  --text-secondary: ' + textSecondary + ';',
+        '  --text-accent: ' + textAccent + ';',
+        '  --text-code: ' + textCode + ';',
+        '  --border-color: ' + borderColor + ';',
+        '  --accent-green: ' + accentGreen + ';',
+        '  --accent-purple: ' + accentPurple + ';',
+        '  --glow-color: ' + glowColor + ';',
+        '  --glow-blur: ' + glowBlur + 'px;',
+        '  --font-size-val: ' + fontSize + 'px;',
+        '}',
+        'html {',
+        '  font-size: ' + fontSize + 'px !important;',
+        '  background-color: ' + bgPrimary + ' !important;',
+        '  color: ' + textPrimary + ' !important;',
+        '}',
+        'html, body, #app-root {',
+        '  font-size: ' + fontSize + 'px;',
+        '  filter: none !important;',
+        '}',
+        'iframe {',
+        '  filter: none !important;',
+        '}'
+      ].join('\n');
+    }
   static getLayoutCSS() {
 
     return [

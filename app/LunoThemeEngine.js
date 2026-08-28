@@ -70,35 +70,39 @@ class LunoThemeEngine {
    * - Type: Static Method
    * - Modifier: sync
    */
-  static applyDynamicTheme() {
-
-    const isLight = typeof localStorage !== 'undefined' && localStorage.getItem('luno_is_light_mode') === 'true';
-    const hueRotate = parseInt((typeof localStorage !== 'undefined' && localStorage.getItem('luno_hue_rotate')) || '0', 10);
-    const contrast = parseInt((typeof localStorage !== 'undefined' && localStorage.getItem('luno_contrast')) || '100', 10);
-    const fontSize = parseInt((typeof localStorage !== 'undefined' && localStorage.getItem('luno_font_size')) || '13', 10);
-    const glowLevel = parseInt((typeof localStorage !== 'undefined' && localStorage.getItem('luno_glow_level')) || '50', 10);
-
-    let styleEl = document.getElementById('luno-dynamic-theme-style');
-    if (!styleEl) {
-      styleEl = document.createElement('style');
-      styleEl.id = 'luno-dynamic-theme-style';
-      document.head.appendChild(styleEl);
+    static applyDynamicTheme() {
+      const isLight = typeof localStorage !== 'undefined' && localStorage.getItem('luno_is_light_mode') === 'true';
+      const hueRotate = parseInt((typeof localStorage !== 'undefined' && localStorage.getItem('luno_hue_rotate')) || '0', 10);
+      const contrast = parseInt((typeof localStorage !== 'undefined' && localStorage.getItem('luno_contrast')) || '100', 10);
+      const fontSize = parseInt((typeof localStorage !== 'undefined' && localStorage.getItem('luno_font_size')) || '13', 10);
+      const glowLevel = parseInt((typeof localStorage !== 'undefined' && localStorage.getItem('luno_glow_level')) || '50', 10);
+  
+      let styleEl = document.getElementById('luno-dynamic-theme-style');
+      if (!styleEl) {
+        styleEl = document.createElement('style');
+        styleEl.id = 'luno-dynamic-theme-style';
+        document.head.appendChild(styleEl);
+      }
+  
+      if (typeof LunoCssChunks !== 'undefined' && LunoCssChunks.getVariableCSS) {
+        styleEl.textContent = LunoCssChunks.getVariableCSS({
+          isLightMode: isLight,
+          hueRotate: hueRotate,
+          contrast: contrast,
+          fontSize: fontSize,
+          glowLevel: glowLevel
+        });
+      }
+  
+      if (typeof document !== 'undefined') {
+        if (document.documentElement) document.documentElement.style.filter = 'none';
+        if (document.body) {
+          document.body.style.filter = 'none';
+          if (isLight) document.body.classList.add('light-mode');
+          else document.body.classList.remove('light-mode');
+        }
+      }
     }
-
-    if (typeof LunoCssChunks !== 'undefined' && LunoCssChunks.getVariableCSS) {
-      styleEl.textContent = LunoCssChunks.getVariableCSS({
-        isLightMode: isLight,
-        hueRotate: hueRotate,
-        contrast: contrast,
-        fontSize: fontSize,
-        glowLevel: glowLevel
-      });
-    }
-
-    if (isLight) document.body.classList.add('light-mode');
-    else document.body.classList.remove('light-mode');
-
-  }
   /**
    * ⚙️ METHOD: openFloatingWidget()
    * - Type: Static Method
