@@ -63,24 +63,26 @@
     "Luno/docs/BookmarkletStudioRoadmap.md"
   ],
   "patchJournal": "LunoPatchLog.html",
-  "processedCountSinceCheckpoint": 11,
-  "lastCheckpointTime": "2026-08-28T18:30:16.188Z",
+  "processedCountSinceCheckpoint": 18,
+  "lastCheckpointTime": "2026-08-28T18:48:35.139Z",
   "pendingCheckpointDescription": "Clean working tree",
   "changedMethods": {
     "Luno/luno.json": "2026-08-28T15:56:29.956Z",
     "Luno/docs/MIGRATION_COMPLETE.md": "2026-08-28T15:56:29.956Z",
-    "Luno/core/LunoServer.js": "2026-08-28T18:48:31.874Z",
+    "Luno/core/LunoServer.js": "2026-08-28T18:54:20.801Z",
     "Luno/app/LunoProjectTemplates.js": "2026-08-28T17:41:43.620Z",
     "Luno/test/LunoTestRunner.js": "2026-08-28T17:44:11.192Z",
-    "Luno/core/LunoClassPatcher.js": "2026-08-28T18:45:48.839Z",
+    "Luno/core/LunoClassPatcher.js": "2026-08-28T18:50:08.060Z",
     "Luno/LunoPatchLog.html": "2026-08-28T18:48:24.491Z",
     "Luno/core/LunoClassPatcher.js.bak": "2026-08-28T17:44:11.192Z",
     "Luno/test/LunoTestRunner.js.bak": "2026-08-28T17:44:11.192Z",
-    "LunoPatchLog.html": "2026-08-28T18:48:31.874Z",
+    "LunoPatchLog.html": "2026-08-28T18:54:20.801Z",
     "Luno/core/LunoServer.js.bak": "2026-08-28T18:48:31.874Z",
     "Luno/app/LunoDeployEngine.js": "2026-08-28T18:30:14.474Z",
     "Luno/app/LunoDeployEngine.js.bak": "2026-08-28T18:30:14.474Z",
     "Luno/app/LunoManifestDecisionEngine.js": "2026-08-28T18:48:31.874Z",
-    "Luno/app/LunoManifestDecisionEngine.js.bak": "2026-08-28T18:48:31.874Z"
+    "Luno/app/LunoManifestDecisionEngine.js.bak": "2026-08-28T18:48:31.874Z",
+    "Luno/app/LunoLoader.js": "2026-08-28T18:50:08.060Z",
+    "Luno/app/LunoPatchConsolidator.js": "2026-08-28T18:52:40.239Z"
   }
 }

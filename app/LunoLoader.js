@@ -120,7 +120,7 @@ var LunoLoader = globalThis.LunoLoader = class LunoLoader {
         if (f.methodSpec) {
           var spec = f.methodSpec.replace(/^(?:globalThis|window)\./, '').trim();
           var isProto = spec.includes('.prototype.');
-          var kind = 'method'; // 'method', 'get', 'set'
+          var kind = 'method';
 
           if (spec.startsWith('get ') || spec.includes('.get ')) {
             kind = 'get';
@@ -145,7 +145,6 @@ var LunoLoader = globalThis.LunoLoader = class LunoLoader {
             memberName = spec;
           }
 
-          // Target object resolution
           var targetClass = globalThis[className];
           if (!targetClass && typeof window !== 'undefined') targetClass = window[className];
 
@@ -158,7 +157,6 @@ var LunoLoader = globalThis.LunoLoader = class LunoLoader {
             }
           }
 
-          // Handle live deletion action
           if (f.action === 'delete') {
             if (targetObj && memberName) {
               delete targetObj[memberName];
@@ -172,34 +170,45 @@ var LunoLoader = globalThis.LunoLoader = class LunoLoader {
           var fnCode = f.content.trim();
           if (fnCode.endsWith(';')) fnCode = fnCode.slice(0, -1).trim();
 
-          // Header inspection
-          var headerMatch = fnCode.match(/^(?:(static)\s+)?(?:(async)\s+)?(\*)?\s*(?:(get|set)\s+)?([A-Za-z0-9_$#]+)\s*(\([\s\S]*?\))?\s*(\{[\s\S]*\})$/);
-          var isAsync = Boolean(headerMatch && headerMatch[2]) || fnCode.includes('await ');
-          var isGenerator = Boolean(headerMatch && headerMatch[3]);
-          var memberKind = (headerMatch && headerMatch[4]) || kind;
-          var params = (headerMatch && headerMatch[6]) || '()';
-          var body = (headerMatch && headerMatch[7]) || (fnCode.indexOf('{') !== -1 ? fnCode.slice(fnCode.indexOf('{')) : ('{ ' + fnCode + ' }'));
+          // Strip leading comments and JSDoc before structural inspection
+          var cleanFnCode = fnCode.replace(/^\s*(?:\/\/[^\r\n]*[\r\n]+|\/\*[\s\S]*?\*\/\s*)+/, '').trim();
+
+          var firstBraceIdx = cleanFnCode.indexOf('{');
+          var headerPart = firstBraceIdx !== -1 ? cleanFnCode.slice(0, firstBraceIdx).trim() : cleanFnCode;
+          var bodyPart = firstBraceIdx !== -1 ? cleanFnCode.slice(firstBraceIdx).trim() : '{ ' + cleanFnCode + ' }';
+
+          var isAsync = /\basync\b/.test(headerPart) || bodyPart.includes('await ');
+          var isGenerator = headerPart.includes('*');
+          var isGet = /\bget\b/.test(headerPart) || kind === 'get';
+          var isSet = /\bset\b/.test(headerPart) || kind === 'set';
+
+          var params = '()';
+          var openParenIdx = headerPart.indexOf('(');
+          var closeParenIdx = headerPart.lastIndexOf(')');
+          if (openParenIdx !== -1 && closeParenIdx !== -1 && closeParenIdx > openParenIdx) {
+            params = headerPart.slice(openParenIdx, closeParenIdx + 1);
+          }
 
           var fnExpr = '';
-          if (memberKind === 'get' || memberKind === 'set') {
-            fnExpr = (isAsync ? 'async function' : 'function') + params + ' ' + body;
+          if (isGet || isSet) {
+            fnExpr = (isAsync ? 'async function' : 'function') + params + ' ' + bodyPart;
           } else {
             var genPrefix = isGenerator ? '*' : '';
             var asyncPrefix = isAsync ? 'async ' : '';
-            fnExpr = asyncPrefix + 'function' + genPrefix + params + ' ' + body;
+            fnExpr = asyncPrefix + 'function' + genPrefix + params + ' ' + bodyPart;
           }
 
           try {
             var evalFn = new Function('return (' + fnExpr + ');')();
 
             if (targetObj) {
-              if (memberKind === 'get') {
+              if (isGet) {
                 Object.defineProperty(targetObj, memberName, {
                   get: evalFn,
                   configurable: true,
                   enumerable: true
                 });
-              } else if (memberKind === 'set') {
+              } else if (isSet) {
                 Object.defineProperty(targetObj, memberName, {
                   set: evalFn,
                   configurable: true,
@@ -237,58 +246,58 @@ var LunoLoader = globalThis.LunoLoader = class LunoLoader {
     }
   }
 
-        static async loadApp(containerId) {
-      var targetContainer = typeof containerId === 'string'
-        ? document.getElementById(containerId)
-        : (containerId || document.getElementById('app-root') || document.body);
-  
-      var lunoMeta = {};
-      try {
-        var res = await fetch('luno.json?v=' + Date.now());
-        if (res.ok) lunoMeta = await res.json();
-      } catch(e){}
-  
-      var libRoot = LunoLoader.getLibraryRoot();
-      var libs = Array.isArray(lunoMeta.library) ? lunoMeta.library : [];
-      var main = Array.isArray(lunoMeta.main) ? lunoMeta.main : [];
-      var styles = Array.isArray(lunoMeta.styles) ? lunoMeta.styles : [];
-  
-      for (var s = 0; s < styles.length; s++) {
-        try { await LunoLoader.loadStyle(styles[s]); } catch(e){}
-      }
-  
-      for (var l = 0; l < libs.length; l++) {
-        var cleanLib = libs[l].replace(/^Library\//i, '').replace(/^library\//i, '').replace(/^\/+/, '');
-        try { await LunoLoader.loadScript(libRoot + cleanLib); } catch(e){}
-      }
-  
-      if (typeof DomBasics !== 'undefined' && typeof DomBasics.run === 'function') {
-        DomBasics.run();
-      }
-  
-      for (var m = 0; m < main.length; m++) {
-        try { await LunoLoader.loadScript(main[m]); } catch(e){}
-      }
-  
-      try {
-        await LunoLoader.applyPatchLog(lunoMeta.name || 'Luno');
-      } catch(e){}
-  
-      var entryClass = (lunoMeta.entrypoint && lunoMeta.entrypoint.class) || lunoMeta.mainClass;
-      var entryMethod = (lunoMeta.entrypoint && lunoMeta.entrypoint.method) || 'run';
-  
-      if (entryClass && typeof window[entryClass] === 'function') {
-        var AppCls = window[entryClass];
-        var envCtx = { container: targetContainer, config: lunoMeta, isStatic: LunoLoader.isStaticHosting() };
-        if (typeof AppCls[entryMethod] === 'function') {
-          await AppCls[entryMethod](envCtx);
-        } else {
-          var inst = new AppCls();
-          if (typeof inst[entryMethod] === 'function') await inst[entryMethod](envCtx);
-          else if (typeof inst.run === 'function') await inst.run(envCtx);
-        }
+  static async loadApp(containerId) {
+    var targetContainer = typeof containerId === 'string'
+      ? document.getElementById(containerId)
+      : (containerId || document.getElementById('app-root') || document.body);
+
+    var lunoMeta = {};
+    try {
+      var res = await fetch('luno.json?v=' + Date.now());
+      if (res.ok) lunoMeta = await res.json();
+    } catch(e){}
+
+    var libRoot = LunoLoader.getLibraryRoot();
+    var libs = Array.isArray(lunoMeta.library) ? lunoMeta.library : [];
+    var main = Array.isArray(lunoMeta.main) ? lunoMeta.main : [];
+    var styles = Array.isArray(lunoMeta.styles) ? lunoMeta.styles : [];
+
+    for (var s = 0; s < styles.length; s++) {
+      try { await LunoLoader.loadStyle(styles[s]); } catch(e){}
+    }
+
+    for (var l = 0; l < libs.length; l++) {
+      var cleanLib = libs[l].replace(/^Library\//i, '').replace(/^library\//i, '').replace(/^\/+/, '');
+      try { await LunoLoader.loadScript(libRoot + cleanLib); } catch(e){}
+    }
+
+    if (typeof DomBasics !== 'undefined' && typeof DomBasics.run === 'function') {
+      DomBasics.run();
+    }
+
+    for (var m = 0; m < main.length; m++) {
+      try { await LunoLoader.loadScript(main[m]); } catch(e){}
+    }
+
+    try {
+      await LunoLoader.applyPatchLog(lunoMeta.name || 'Luno');
+    } catch(e){}
+
+    var entryClass = (lunoMeta.entrypoint && lunoMeta.entrypoint.class) || lunoMeta.mainClass;
+    var entryMethod = (lunoMeta.entrypoint && lunoMeta.entrypoint.method) || 'run';
+
+    if (entryClass && typeof window[entryClass] === 'function') {
+      var AppCls = window[entryClass];
+      var envCtx = { container: targetContainer, config: lunoMeta, isStatic: LunoLoader.isStaticHosting() };
+      if (typeof AppCls[entryMethod] === 'function') {
+        await AppCls[entryMethod](envCtx);
+      } else {
+        var inst = new AppCls();
+        if (typeof inst[entryMethod] === 'function') await inst[entryMethod](envCtx);
+        else if (typeof inst.run === 'function') await inst.run(envCtx);
       }
     }
+  }
 };
 
 if (typeof module !== "undefined" && module.exports) module.exports = LunoLoader;

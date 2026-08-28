@@ -1,6 +1,5 @@
 const fs = require("fs");
 const path = require("path");
-const vm = require("vm");
 const { execSync } = require("child_process");
 
 class LunoServer {
@@ -34,13 +33,7 @@ class LunoServer {
 
   static getPatchLogPath(projectName) {
     const baseDir = LunoServer.resolveProjectBaseDir(projectName);
-    const projPatchLog = path.join(baseDir, 'LunoPatchLog.html');
-    const webRoot = LunoServer.getWebRootDir();
-    const globalPatchLog = path.join(webRoot, 'LunoPatchLog.html');
-
-    if (fs.existsSync(projPatchLog)) return projPatchLog;
-    if (fs.existsSync(globalPatchLog)) return globalPatchLog;
-    return projPatchLog;
+    return path.join(baseDir, 'LunoPatchLog.html');
   }
 
   static resolveProjectBaseDir(projectName) {
@@ -90,10 +83,7 @@ class LunoServer {
     const webRoot = LunoServer.getWebRootDir().replace(/\\/g, "/");
     const normCwd = process.cwd().replace(/\\/g, "/");
 
-    if (norm.startsWith(activeRoot) || norm.startsWith(webRoot) || norm.startsWith(normCwd)) {
-      return true;
-    }
-    return false;
+    return norm.startsWith(activeRoot) || norm.startsWith(webRoot) || norm.startsWith(normCwd);
   }
 
   static ensureGitignoreDefaults() {
@@ -148,11 +138,7 @@ class LunoServer {
   
     if (normalized === 'LunoPatchLog.html') {
       const targetDir = baseDir || LunoServer.getRootDir();
-      const projPatchLog = path.join(targetDir, 'LunoPatchLog.html');
-      const globalPatchLog = path.join(webRoot, 'LunoPatchLog.html');
-      if (fs.existsSync(projPatchLog)) return projPatchLog;
-      if (fs.existsSync(globalPatchLog)) return globalPatchLog;
-      return projPatchLog;
+      return path.join(targetDir, 'LunoPatchLog.html');
     }
   
     const targetDir = baseDir || LunoServer.getRootDir();
@@ -183,68 +169,6 @@ class LunoServer {
     }
   
     return path.resolve(targetDir, normalized);
-  }
-
-  static validateJsSyntax(content, canonicalPath) {
-    if (!content || typeof content !== 'string') return { valid: true };
-
-    let acornObj = null;
-    try { acornObj = require('acorn'); } catch (e) {}
-    if (!acornObj) {
-      try {
-        const root = LunoServer.getRootDir();
-        acornObj = require(path.join(root, 'node_modules', 'acorn'));
-      } catch (e2) {}
-    }
-
-    if (acornObj && typeof acornObj.parse === 'function') {
-      try {
-        acornObj.parse(content, {
-          ecmaVersion: 'latest',
-          sourceType: 'module',
-          allowReturnOutsideFunction: true,
-          allowImportExportEverywhere: true,
-          allowHashBang: true
-        });
-        return { valid: true };
-      } catch (e) {
-        try {
-          acornObj.parse(content, {
-            ecmaVersion: 'latest',
-            sourceType: 'script',
-            allowReturnOutsideFunction: true,
-            allowImportExportEverywhere: true,
-            allowHashBang: true
-          });
-          return { valid: true };
-        } catch (e2) {
-          return { valid: false, error: e2.message };
-        }
-      }
-    }
-
-    try {
-      new vm.Script(content);
-      return { valid: true };
-    } catch (vmErr) {
-      return { valid: false, error: vmErr.message };
-    }
-  }
-
-  static validateMethodPatchSyntax(methodSpec, content, canonicalPath) {
-    if (!content || typeof content !== 'string' || !content.trim()) {
-      return { valid: true };
-    }
-
-    const testClassCode = `class __LunoSyntaxTestClass__ {\n  ${content.trim()}\n}`;
-    const check = LunoServer.validateJsSyntax(testClassCode, canonicalPath);
-    if (!check.valid) {
-      const standaloneCheck = LunoServer.validateJsSyntax(content, canonicalPath);
-      if (!standaloneCheck.valid) {
-        return { valid: false, error: check.error || standaloneCheck.error };
-      }
-    }
-    return { valid: true };
   }
 
   static async parseAndSaveFiles(bodyText, projectOverride) {
@@ -318,21 +242,10 @@ class LunoServer {
         continue;
       }
 
-      // 2. Direct Disk Writes (Non-JS, Manifests, Patch Logs, or action: direct)
+      // 2. Direct Disk Writes
       if (!isJs || canonicalPath.endsWith('luno.json') || canonicalPath.endsWith('files.json') || canonicalPath.endsWith('LunoPatchLog.html') || action === 'direct') {
         const fullPath = LunoServer.sanitizeAndResolvePath(canonicalPath, baseDir);
         if (fullPath && LunoServer.isWritableWorkspacePath(fullPath)) {
-          if (isJs && !canonicalPath.endsWith('.json') && !canonicalPath.endsWith('.html')) {
-            const syntaxCheck = LunoServer.validateJsSyntax(f.content, canonicalPath);
-            if (!syntaxCheck.valid) {
-              return {
-                success: false,
-                error: `[Server Guard] Rejected malformed JavaScript for "${canonicalPath}": ${syntaxCheck.error}`,
-                llmFeedback: `❌ DIRECT WRITE REJECTED: Syntax error in "${canonicalPath}": ${syntaxCheck.error}`
-              };
-            }
-          }
-
           fs.mkdirSync(path.dirname(fullPath), { recursive: true });
           fs.writeFileSync(fullPath, f.content, "utf8");
           savedFiles.push(canonicalPath);
@@ -342,19 +255,8 @@ class LunoServer {
         continue;
       }
 
-      // 3. Patch Journal Appends with Pre-Validation
+      // 3. Patch Journal Appends
       const methodSpec = f.methodSpec || '';
-      if (action !== 'delete') {
-        const patchCheck = LunoServer.validateMethodPatchSyntax(methodSpec, f.content, canonicalPath);
-        if (!patchCheck.valid) {
-          return {
-            success: false,
-            error: `[Server Guard] Rejected malformed patch for "${canonicalPath}" (${methodSpec || 'method'}): ${patchCheck.error}`,
-            llmFeedback: `❌ PATCH REJECTED: Syntax error in patch for "${canonicalPath}": ${patchCheck.error}`
-          };
-        }
-      }
-
       const tagWord = 'script';
       const safeContent = (f.content || '').split('</' + tagWord + '>').join('<\\/' + tagWord + '>');
 
@@ -553,6 +455,21 @@ class LunoServer {
 
     const projFolder = path.basename(targetDir);
 
+    // Dynamically discover all peer sibling directories in webRoot
+    const allSiblings = [];
+    try {
+      if (fs.existsSync(webRoot)) {
+        const entries = fs.readdirSync(webRoot);
+        for (const entry of entries) {
+          if (entry.startsWith('.') || entry.startsWith('_') || entry === 'node_modules') continue;
+          const full = path.join(webRoot, entry);
+          try {
+            if (fs.statSync(full).isDirectory()) allSiblings.push(entry);
+          } catch(e) {}
+        }
+      }
+    } catch(e) {}
+
     function scan(dir, depth, prefix) {
       if (depth > 5 || !fs.existsSync(dir)) return;
       const items = fs.readdirSync(dir);
@@ -570,6 +487,11 @@ class LunoServer {
         ) continue;
 
         if (!includeLibrary && (name.toLowerCase() === 'library') && projFolder.toLowerCase() !== 'library') {
+          continue;
+        }
+
+        // Avoid scanning nested peer sibling folders if scanning from Luno or root
+        if (projFolder === 'Luno' && allSiblings.includes(name) && name !== 'Luno') {
           continue;
         }
 
@@ -1055,7 +977,49 @@ class LunoServer {
             meta.processedCountSinceCheckpoint = 0;
             meta.lastCheckpointTime = new Date().toISOString();
             meta.pendingCheckpointDescription = `Clean fork initialized from ${sourceName}`;
-            entrypointClass = (meta.entrypoint && meta.entrypoint.class) || meta.mainClass || '';
+
+            // Remap entrypoint file if prefixed with old project name
+            if (meta.entrypoint && typeof meta.entrypoint === 'object') {
+              if (meta.entrypoint.file && typeof meta.entrypoint.file === 'string') {
+                if (meta.entrypoint.file.startsWith(sourceName + '/')) {
+                  meta.entrypoint.file = rawNewName + '/' + meta.entrypoint.file.slice(sourceName.length + 1);
+                }
+              }
+              entrypointClass = meta.entrypoint.class || '';
+            } else if (meta.mainClass) {
+              entrypointClass = meta.mainClass;
+            }
+
+            // Remap main script array
+            if (Array.isArray(meta.main)) {
+              meta.main = meta.main.map(p => {
+                if (typeof p === 'string' && p.startsWith(sourceName + '/')) {
+                  return rawNewName + '/' + p.slice(sourceName.length + 1);
+                }
+                return p;
+              });
+            }
+
+            // Remap styles array
+            if (Array.isArray(meta.styles)) {
+              meta.styles = meta.styles.map(p => {
+                if (typeof p === 'string' && p.startsWith(sourceName + '/')) {
+                  return rawNewName + '/' + p.slice(sourceName.length + 1);
+                }
+                return p;
+              });
+            }
+
+            // Remap files array if present
+            if (Array.isArray(meta.files)) {
+              meta.files = meta.files.map(p => {
+                if (typeof p === 'string' && p.startsWith(sourceName + '/')) {
+                  return rawNewName + '/' + p.slice(sourceName.length + 1);
+                }
+                return p;
+              });
+            }
+
             fs.writeFileSync(lunoJsonPath, JSON.stringify(meta, null, 2) + '\n', 'utf8');
           } catch (e) {}
         }

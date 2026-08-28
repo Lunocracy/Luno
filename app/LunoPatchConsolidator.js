@@ -3,8 +3,7 @@ class LunoPatchConsolidator {
 
   /**
    * ⚙️ METHOD: consolidate(projectOverride)
-   * Hardened client-side AST consolidation with sequential patch folding,
-   * method deletion support, multi-project journal isolation, and pre-write rollback verification.
+   * Client-side AST consolidation: runs 100% in browser JavaScript memory.
    */
   static async consolidate(projectOverride) {
     try {
@@ -80,7 +79,7 @@ class LunoPatchConsolidator {
         return { success: true, consolidatedCount: 0, modifiedFiles: [], note: 'No pending patches for ' + targetProj };
       }
 
-      // Group patches by target file while preserving chronological order
+      // Group patches by target file preserving sequence
       var fileMap = new Map();
       targetFiles.forEach(function(f) {
         var key = f.canonicalPath || f.filePath;
@@ -107,7 +106,6 @@ class LunoPatchConsolidator {
           }
         } catch(e){}
 
-        // If file does not exist on disk, check if first patch provides initial content
         if (!currentSource && patchSequence.length > 0 && !patchSequence[0].methodSpec && patchSequence[0].content) {
           isNewFile = true;
           currentSource = patchSequence[0].content;
@@ -127,7 +125,6 @@ class LunoPatchConsolidator {
           });
         }
 
-        // Apply chronological patch sequence
         for (var p = 0; p < patchSequence.length; p++) {
           var item = patchSequence[p];
           if (!item) continue;
@@ -142,7 +139,7 @@ class LunoPatchConsolidator {
               currentSource = LunoClassPatcher.deleteMethodInSource(currentSource, item.methodSpec);
             }
           }
-          // 3. Surgical method / property patch
+          // 3. Surgical method patch
           else if (item.methodSpec || item.action === 'patch') {
             if (typeof LunoClassPatcher !== 'undefined' && LunoClassPatcher.patchMethodInSource) {
               currentSource = LunoClassPatcher.patchMethodInSource(currentSource, item.methodSpec || canonicalPath, item.content);
@@ -152,7 +149,7 @@ class LunoPatchConsolidator {
           }
         }
 
-        // PRE-WRITE AST SYNTAX VALIDATION (Strict fail-fast invariant)
+        // Client-Side AST Syntax Pre-Validation
         if (canonicalPath.endsWith('.js') || canonicalPath.endsWith('.mjs')) {
           if (typeof LunoClassPatcher !== 'undefined' && LunoClassPatcher.parseAST) {
             try {
@@ -171,7 +168,6 @@ class LunoPatchConsolidator {
         modifiedFilesList.push(canonicalPath);
       }
 
-      // Update LunoPatchLog.html with any remaining patches for other projects
       filesToWrite.push({
         filePath: 'LunoPatchLog.html',
         action: 'direct',
@@ -191,7 +187,7 @@ class LunoPatchConsolidator {
           LunoPlaybackLogger.boot('Consolidation Complete', 'Consolidated ' + targetFiles.length + ' patch(es) across ' + modifiedFilesList.length + ' file(s) for [' + targetProj + '].');
         }
         if (typeof ClientApp !== 'undefined' && ClientApp.showToast) {
-          ClientApp.showToast('Consolidated ' + targetFiles.length + ' patch(es) for [' + targetProj + '] with .bak backups!', 'success', '✨');
+          ClientApp.showToast('Consolidated ' + targetFiles.length + ' patch(es) for [' + targetProj + ']!', 'success', '✨');
         }
         return {
           success: true,

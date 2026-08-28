@@ -111,7 +111,6 @@ class LunoClassPatcher {
     var clean = rawStr;
     if (clean.endsWith(';')) clean = clean.slice(0, -1).trim();
 
-    // Strip assignments like Class.prototype.method = ... or Class.method = ...
     if (clean.includes('=')) {
       var equalsIdx = clean.indexOf('=');
       var leftPart = clean.slice(0, equalsIdx).trim();
@@ -120,6 +119,8 @@ class LunoClassPatcher {
         if (clean.endsWith(';')) clean = clean.slice(0, -1).trim();
       }
     }
+
+    clean = clean.replace(/^\s*(?:\/\/[^\r\n]*[\r\n]+|\/\*[\s\S]*?\*\/\s*)+/, '').trim();
 
     var firstBraceIdx = clean.indexOf('{');
     if (firstBraceIdx === -1) {
@@ -265,14 +266,14 @@ class LunoClassPatcher {
         var start = memberNode.range[0];
         var end = memberNode.range[1];
 
-        while (start > 0 && (existingSource[start - 1] === ' ' || existingSource[start - 1] === '\t')) {
-          start--;
+        // Consume preceding comments and indentation attached to the method
+        var beforeText = existingSource.slice(0, start);
+        var commentMatch = beforeText.match(/(?:\/\/[^\r\n]*[\r\n]+|\/\*[\s\S]*?\*\/\s*|[ \t\r\n])+$/);
+        if (commentMatch && commentMatch[0]) {
+          start = start - commentMatch[0].length;
         }
-        if (start > 0 && existingSource[start - 1] === '\n') {
-          start--;
-          if (start > 0 && existingSource[start - 1] === '\r') start--;
-        }
-        return existingSource.slice(0, start) + existingSource.slice(end);
+
+        return existingSource.slice(0, start) + '\n' + existingSource.slice(end).replace(/^[\r\n]+/, '');
       }
     } catch(e) {
       console.warn('[LunoClassPatcher] deleteMethodInSource notice:', e.message);
