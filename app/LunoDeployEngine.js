@@ -121,90 +121,91 @@ class LunoDeployEngine {
     }
   }
 
-  ensureGitHubPagesParity(projectName) {
-    var pName = projectName || (typeof ClientApp !== 'undefined' && ClientApp.getTargetProject ? ClientApp.getTargetProject() : 'Luno');
+  static async ensureGitHubPagesParity(projectName) {
+      var pName = projectName || (typeof ClientApp !== 'undefined' && ClientApp.getTargetProject ? ClientApp.getTargetProject() : 'Luno');
   
-    try {
-      var serverScript = [
-        'const fs = require("fs");',
-        'const path = require("path");',
-        'const projRoot = LunoServer.resolveProjectBaseDir("' + pName + '");',
-        'const webRoot = LunoServer.getWebRootDir();',
-        'const libraryRoot = path.join(webRoot, "Library");',
-        'let actions = [];',
-        '',
-        '// 1. Ensure .nojekyll in project root',
-        'const noJekyllPath = path.join(projRoot, ".nojekyll");',
-        'if (!fs.existsSync(noJekyllPath)) {',
-        '  fs.writeFileSync(noJekyllPath, "", "utf8");',
-        '  actions.push("Created .nojekyll in " + path.basename(projRoot));',
-        '}',
-        '',
-        '// 2. Ensure central Library/ in workspace root has canonical LunoLoader.js and DomBasics.js',
-        'const coreLunoLoader = path.join(webRoot, "Luno", "app", "LunoLoader.js");',
-        'const centralLunoLoader = path.join(libraryRoot, "LunoLoader.js");',
-        'if (fs.existsSync(coreLunoLoader) && fs.existsSync(libraryRoot)) {',
-        '  fs.copyFileSync(coreLunoLoader, centralLunoLoader);',
-        '}',
-        '',
-        '// 3. Self-Contained Library Copy into Target Sibling Project (Single Lowercase library/ folder)',
-        'const lunoJsonPath = path.join(projRoot, "luno.json");',
-        'if (fs.existsSync(lunoJsonPath) && pName !== "Library") {',
-        '  try {',
-        '    const meta = JSON.parse(fs.readFileSync(lunoJsonPath, "utf8"));',
-        '    const libs = Array.isArray(meta.library) ? meta.library.slice() : [];',
-        '    if (!libs.includes("LunoLoader.js")) libs.push("LunoLoader.js");',
-        '    if (!libs.includes("DomBasics.js")) libs.push("DomBasics.js");',
-        '    ',
-        '    const localLibDir = path.join(projRoot, "library");',
-        '    fs.mkdirSync(localLibDir, { recursive: true });',
-        '    ',
-        '    // Clean up legacy uppercase Library/ duplicate if present',
-        '    const legacyCapLib = path.join(projRoot, "Library");',
-        '    if (fs.existsSync(legacyCapLib) && legacyCapLib !== projRoot) {',
-        '      try { fs.rmSync(legacyCapLib, { recursive: true, force: true }); } catch(e){}',
-        '    }',
-        '    ',
-        '    for (const lib of libs) {',
-        '      const cleanLib = lib.replace(/^Library\\//i, "").replace(/^library\\//i, "");',
-        '      let srcFile = path.join(libraryRoot, cleanLib);',
-        '      if (!fs.existsSync(srcFile) && cleanLib === "LunoLoader.js") {',
-        '        srcFile = coreLunoLoader;',
-        '      }',
-        '      if (fs.existsSync(srcFile)) {',
-        '        fs.copyFileSync(srcFile, path.join(localLibDir, cleanLib));',
-        '        actions.push("Bundled library/" + cleanLib + " into [" + pName + "]");',
-        '      }',
-        '    }',
-        '  } catch(e) {}',
-        '}',
-        '',
-        '// 4. Ensure index.html uses relative library/ paths',
-        'const indexPath = path.join(projRoot, "index.html");',
-        'if (fs.existsSync(indexPath)) {',
-        '  try {',
-        '    let idxContent = fs.readFileSync(indexPath, "utf8");',
-        '    if (idxContent.includes("/Library/") || idxContent.includes("/library/")) {',
-        '      idxContent = idxContent.replace(/src=["\']\\/Library\\//gi, \'src="library/\');',
-        '      idxContent = idxContent.replace(/src=["\']\\/library\\//gi, \'src="library/\');',
-        '      fs.writeFileSync(indexPath, idxContent, "utf8");',
-        '      actions.push("Normalized index.html script tags to relative paths in [" + pName + "]");',
-        '    }',
-        '  } catch(e) {}',
-        '}',
-        '',
-        'return actions.length > 0 ? actions.join("\\n") : "GitHub Pages assets verified cleanly.";'
-      ].join('\n');
+      try {
+        var serverScript = [
+          'const fs = require("fs");',
+          'const path = require("path");',
+          'const projRoot = LunoServer.resolveProjectBaseDir("' + pName + '");',
+          'const webRoot = LunoServer.getWebRootDir();',
+          'const libraryRoot = path.join(webRoot, "Library");',
+          'let actions = [];',
+          '',
+          '// 1. Ensure .nojekyll in project root',
+          'const noJekyllPath = path.join(projRoot, ".nojekyll");',
+          'if (!fs.existsSync(noJekyllPath)) {',
+          '  fs.writeFileSync(noJekyllPath, "", "utf8");',
+          '  actions.push("Created .nojekyll in " + path.basename(projRoot));',
+          '}',
+          '',
+          '// 2. Ensure central Library/ in workspace root has canonical LunoLoader.js and DomBasics.js',
+          'const coreLunoLoader = path.join(webRoot, "Luno", "app", "LunoLoader.js");',
+          'const centralLunoLoader = path.join(libraryRoot, "LunoLoader.js");',
+          'if (fs.existsSync(coreLunoLoader) && fs.existsSync(libraryRoot)) {',
+          '  fs.copyFileSync(coreLunoLoader, centralLunoLoader);',
+          '}',
+          '',
+          '// 3. Self-Contained Library Copy into Target Sibling Project (Single Lowercase library/ folder)',
+          'const lunoJsonPath = path.join(projRoot, "luno.json");',
+          'if (fs.existsSync(lunoJsonPath) && pName !== "Library") {',
+          '  try {',
+          '    const meta = JSON.parse(fs.readFileSync(lunoJsonPath, "utf8"));',
+          '    const libs = Array.isArray(meta.library) ? meta.library.slice() : [];',
+          '    if (!libs.includes("LunoLoader.js")) libs.push("LunoLoader.js");',
+          '    if (!libs.includes("DomBasics.js")) libs.push("DomBasics.js");',
+          '    ',
+          '    const localLibDir = path.join(projRoot, "library");',
+          '    fs.mkdirSync(localLibDir, { recursive: true });',
+          '    ',
+          '    // Clean up legacy uppercase Library/ duplicate if present',
+          '    const legacyCapLib = path.join(projRoot, "Library");',
+          '    if (fs.existsSync(legacyCapLib) && legacyCapLib !== projRoot) {',
+          '      try { fs.rmSync(legacyCapLib, { recursive: true, force: true }); } catch(e){}',
+          '    }',
+          '    ',
+          '    for (const lib of libs) {',
+          '      const cleanLib = lib.replace(/^Library\\//i, "").replace(/^library\\//i, "");',
+          '      let srcFile = path.join(libraryRoot, cleanLib);',
+          '      if (!fs.existsSync(srcFile) && cleanLib === "LunoLoader.js") {',
+          '        srcFile = coreLunoLoader;',
+          '      }',
+          '      if (fs.existsSync(srcFile)) {',
+          '        fs.copyFileSync(srcFile, path.join(localLibDir, cleanLib));',
+          '        actions.push("Bundled library/" + cleanLib + " into [" + pName + "]");',
+          '      }',
+          '    }',
+          '  } catch(e) {}',
+          '}',
+          '',
+          '// 4. Ensure index.html uses relative library/ paths',
+          'const indexPath = path.join(projRoot, "index.html");',
+          'if (fs.existsSync(indexPath)) {',
+          '  try {',
+          '    let idxContent = fs.readFileSync(indexPath, "utf8");',
+          '    if (idxContent.includes("/Library/") || idxContent.includes("/library/")) {',
+          '      idxContent = idxContent.replace(/src=["\']\\/Library\\//gi, \'src="library/\');',
+          '      idxContent = idxContent.replace(/src=["\']\\/library\\//gi, \'src="library/\');',
+          '      fs.writeFileSync(indexPath, idxContent, "utf8");',
+          '      actions.push("Normalized index.html script tags to relative paths in [" + pName + "]");',
+          '    }',
+          '  } catch(e) {}',
+          '}',
+          '',
+          'return actions.length > 0 ? actions.join("\\n") : "GitHub Pages assets verified cleanly.";'
+        ].join('\n');
   
-      return fetch('/api/save?project=' + encodeURIComponent(pName), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ files: [], serverScript: serverScript, project: pName })
-      }).then(function(r) { return r.json(); });
-    } catch (e) {
-      return Promise.resolve({ success: false, error: e.message });
+        var res = await fetch('/api/save?project=' + encodeURIComponent(pName), {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ files: [], serverScript: serverScript, project: pName })
+        });
+        return await res.json();
+      } catch (e) {
+        return { success: false, error: e.message };
+      }
     }
-  }
 
   static async checkProjectGitStatus(projectName) {
     var pName = projectName || (typeof ClientApp !== 'undefined' && ClientApp.getTargetProject ? ClientApp.getTargetProject() : 'Luno');

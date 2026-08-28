@@ -970,225 +970,120 @@ class LunoServer {
   }
 
   static handleForkProject(req, res) {
-    let body = '';
-    req.on('data', chunk => { body += chunk; });
-    req.on('end', () => {
-      let tempCreatedDir = null;
-      try {
-        const parsed = JSON.parse(body || '{}');
-        const sourceName = (parsed.sourceProject || '').trim();
-        const rawNewName = (parsed.newProjectName || '').trim();
+      let body = '';
+      req.on('data', chunk => { body += chunk; });
+      req.on('end', () => {
+        let stagingDir = null;
+        try {
+          const parsed = JSON.parse(body || '{}');
+          const sourceName = (parsed.sourceProject || '').trim();
+          const rawNewName = (parsed.newProjectName || '').trim();
   
-        if (!sourceName || !rawNewName) {
-          return LunoServer.sendJSON(res, 400, { success: false, error: 'Both sourceProject and newProjectName are required.' });
-        }
-  
-        const cleanNewName = rawNewName.replace(/[^a-zA-Z0-9_\-]/g, '');
-        if (!cleanNewName) {
-          return LunoServer.sendJSON(res, 400, { success: false, error: 'Invalid new project name.' });
-        }
-  
-        if (sourceName === cleanNewName) {
-          return LunoServer.sendJSON(res, 400, { success: false, error: 'New project name cannot be identical to source project.' });
-        }
-  
-        const webRoot = LunoServer.getWebRootDir();
-        const sourceDir = LunoServer.resolveProjectBaseDir(sourceName);
-        const targetDir = path.join(webRoot, cleanNewName);
-  
-        if (!fs.existsSync(sourceDir) || !fs.statSync(sourceDir).isDirectory()) {
-          return LunoServer.sendJSON(res, 404, { success: false, error: `Source project [${sourceName}] does not exist on disk.` });
-        }
-  
-        if (fs.existsSync(targetDir)) {
-          return LunoServer.sendJSON(res, 409, { success: false, error: `Project [${cleanNewName}] already exists. Please choose a different name.` });
-        }
-  
-        // Establish transaction boundary
-        tempCreatedDir = targetDir;
-        let copiedCount = 0;
-  
-        // 1. Recursive Full-Fidelity Disk Copy (Copies all text and binary assets without size caps)
-        function copyRecursiveSync(src, dest) {
-          const stats = fs.statSync(src);
-          if (stats.isDirectory()) {
-            const baseName = path.basename(src);
-            if (baseName === '.git' || baseName === 'node_modules' || baseName === '.checkpoints') return;
-            fs.mkdirSync(dest, { recursive: true });
-            const entries = fs.readdirSync(src);
-            for (const entry of entries) {
-              if (entry.endsWith('.bak')) continue;
-              copyRecursiveSync(path.join(src, entry), path.join(dest, entry));
-            }
-          } else if (stats.isFile()) {
-            if (src.endsWith('.bak')) return;
-            fs.mkdirSync(path.dirname(dest), { recursive: true });
-            fs.copyFileSync(src, dest);
-            copiedCount++;
+          // 1. Strict Validation: Reject spaces and invalid characters immediately
+          if (!sourceName || !rawNewName) {
+            return LunoServer.sendJSON(res, 400, { success: false, error: 'Both sourceProject and newProjectName are required.' });
           }
-        }
   
-        copyRecursiveSync(sourceDir, targetDir);
-  
-        // 2. Identify Class Name Transformations
-        let sourceClassName = '';
-        const sourceLunoJsonPath = path.join(targetDir, 'luno.json');
-        if (fs.existsSync(sourceLunoJsonPath)) {
-          try {
-            const sMeta = JSON.parse(fs.readFileSync(sourceLunoJsonPath, 'utf8'));
-            sourceClassName = (sMeta.entrypoint && sMeta.entrypoint.class) || sMeta.mainClass || '';
-          } catch(e){}
-        }
-  
-        if (!sourceClassName) {
-          sourceClassName = sourceName.charAt(0).toUpperCase() + sourceName.slice(1);
-        }
-  
-        // Target Class Name (PascalCase)
-        let targetClassName = cleanNewName
-          .split(/[^a-zA-Z0-9]/)
-          .filter(Boolean)
-          .map(part => part.charAt(0).toUpperCase() + part.slice(1))
-          .join('');
-  
-        if (!targetClassName) {
-          targetClassName = cleanNewName.charAt(0).toUpperCase() + cleanNewName.slice(1);
-        }
-  
-        let renamedFilesCount = 0;
-  
-        // 3. Rename Specific Entrypoint File if matching old class name
-        if (sourceClassName && targetClassName && sourceClassName !== targetClassName) {
-          function scanAndRenameFiles(dir) {
-            const items = fs.readdirSync(dir);
-            for (const item of items) {
-              const full = path.join(dir, item);
-              const stat = fs.statSync(full);
-              if (stat.isDirectory()) {
-                scanAndRenameFiles(full);
-              } else if (stat.isFile()) {
-                if (item.startsWith(sourceClassName + '.') || item === sourceClassName + '.js') {
-                  const newFileName = item.replace(sourceClassName, targetClassName);
-                  const newFull = path.join(dir, newFileName);
-                  fs.renameSync(full, newFull);
-                  renamedFilesCount++;
-                }
-              }
-            }
+          const validNameRegex = /^[a-zA-Z0-9_-]+$/;
+          if (!validNameRegex.test(rawNewName)) {
+            return LunoServer.sendJSON(res, 400, {
+              success: false,
+              error: `Invalid project name "${rawNewName}". Names must only contain letters, numbers, hyphens (-), or underscores (_).`
+            });
           }
-          scanAndRenameFiles(targetDir);
-        }
   
-        // 4. Content-Level Transformation Pass
-        const TEXT_EXTS = ['.js', '.mjs', '.json', '.html', '.css', '.md', '.txt', '.svg'];
+          if (sourceName === rawNewName) {
+            return LunoServer.sendJSON(res, 400, { success: false, error: 'New project name must be different from source.' });
+          }
   
-        function transformFileContents(dir) {
-          const items = fs.readdirSync(dir);
-          for (const item of items) {
-            const full = path.join(dir, item);
-            const stat = fs.statSync(full);
+          const webRoot = LunoServer.getWebRootDir();
+          const sourceDir = LunoServer.resolveProjectBaseDir(sourceName);
+          const targetDir = path.join(webRoot, rawNewName);
+  
+          if (!fs.existsSync(sourceDir) || !fs.statSync(sourceDir).isDirectory()) {
+            return LunoServer.sendJSON(res, 404, { success: false, error: `Source project [${sourceName}] not found on disk.` });
+          }
+  
+          if (fs.existsSync(targetDir)) {
+            return LunoServer.sendJSON(res, 409, { success: false, error: `Project [${rawNewName}] already exists.` });
+          }
+  
+          // 2. Atomic Staging in Temp Folder
+          const stagingName = `.fork_staging_${Date.now()}_${Math.floor(Math.random() * 10000)}`;
+          stagingDir = path.join(webRoot, stagingName);
+          if (fs.existsSync(stagingDir)) {
+            fs.rmSync(stagingDir, { recursive: true, force: true });
+          }
+          fs.mkdirSync(stagingDir, { recursive: true });
+  
+          let copiedCount = 0;
+  
+          // 3. Full-Fidelity Copy (Zero regex symbol mangling)
+          function copyRecursive(src, dest) {
+            const stat = fs.lstatSync(src);
+            if (stat.isSymbolicLink()) return;
+  
             if (stat.isDirectory()) {
-              transformFileContents(full);
+              const base = path.basename(src);
+              if (base === '.git' || base === 'node_modules' || base === '.checkpoints') return;
+              fs.mkdirSync(dest, { recursive: true });
+              for (const entry of fs.readdirSync(src)) {
+                if (entry.endsWith('.bak')) continue;
+                copyRecursive(path.join(src, entry), path.join(dest, entry));
+              }
             } else if (stat.isFile()) {
-              const ext = path.extname(item).toLowerCase();
-              if (!TEXT_EXTS.includes(ext)) continue;
-  
-              let content = fs.readFileSync(full, 'utf8');
-              let modified = false;
-  
-              if (item === 'luno.json' || item === 'package.json') {
-                try {
-                  const meta = JSON.parse(content);
-                  meta.name = cleanNewName;
-                  meta.description = (meta.description ? `${meta.description} (Forked from ${sourceName})` : `Forked application from ${sourceName}`);
-                  meta.processedCountSinceCheckpoint = 0;
-                  meta.lastCheckpointTime = new Date().toISOString();
-                  meta.pendingCheckpointDescription = `Clean fork initialized from ${sourceName}`;
-  
-                  if (meta.entrypoint && typeof meta.entrypoint === 'object') {
-                    if (meta.entrypoint.class === sourceClassName) {
-                      meta.entrypoint.class = targetClassName;
-                    }
-                    if (meta.entrypoint.file && meta.entrypoint.file.includes(sourceClassName)) {
-                      meta.entrypoint.file = meta.entrypoint.file.replace(sourceClassName, targetClassName);
-                    }
-                  }
-  
-                  if (meta.mainClass === sourceClassName) {
-                    meta.mainClass = targetClassName;
-                  }
-  
-                  if (Array.isArray(meta.main)) {
-                    meta.main = meta.main.map(m => m.replace(sourceClassName + '.js', targetClassName + '.js'));
-                  }
-  
-                  content = JSON.stringify(meta, null, 2) + '\n';
-                  modified = true;
-                } catch(e){}
-              } else if (ext === '.js' || ext === '.mjs') {
-                if (sourceClassName && targetClassName && sourceClassName !== targetClassName) {
-                  const classRegex = new RegExp('\\bclass\\s+' + sourceClassName + '\\b', 'g');
-                  const globalRegex = new RegExp('\\bglobalThis\\.' + sourceClassName + '\\b', 'g');
-                  const windowRegex = new RegExp('\\bwindow\\.' + sourceClassName + '\\b', 'g');
-                  const moduleExportRegex = new RegExp('\\bmodule\\.exports\\s*=\\s*' + sourceClassName + '\\b', 'g');
-  
-                  if (classRegex.test(content) || globalRegex.test(content) || windowRegex.test(content) || moduleExportRegex.test(content)) {
-                    content = content
-                      .replace(classRegex, 'class ' + targetClassName)
-                      .replace(globalRegex, 'globalThis.' + targetClassName)
-                      .replace(windowRegex, 'window.' + targetClassName)
-                      .replace(moduleExportRegex, 'module.exports = ' + targetClassName);
-                    modified = true;
-                  }
-                }
-              } else if (ext === '.html') {
-                if (content.includes(`<title>${sourceName}</title>`)) {
-                  content = content.replace(`<title>${sourceName}</title>`, `<title>${cleanNewName}</title>`);
-                  modified = true;
-                }
-                if (sourceClassName && targetClassName && content.includes(sourceClassName + '.js')) {
-                  content = content.replace(sourceClassName + '.js', targetClassName + '.js');
-                  modified = true;
-                }
-              }
-  
-              if (modified) {
-                fs.writeFileSync(full, content, 'utf8');
-              }
+              if (src.endsWith('.bak')) return;
+              fs.mkdirSync(path.dirname(dest), { recursive: true });
+              fs.copyFileSync(src, dest);
+              copiedCount++;
             }
           }
+  
+          copyRecursive(sourceDir, stagingDir);
+  
+          // 4. Update manifest metadata cleanly while preserving original entrypoint class
+          const lunoJsonPath = path.join(stagingDir, 'luno.json');
+          let entrypointClass = '';
+          if (fs.existsSync(lunoJsonPath)) {
+            try {
+              const meta = JSON.parse(fs.readFileSync(lunoJsonPath, 'utf8'));
+              meta.name = rawNewName;
+              meta.description = meta.description ? `${meta.description} (Forked from ${sourceName})` : `Forked application from ${sourceName}`;
+              meta.processedCountSinceCheckpoint = 0;
+              meta.lastCheckpointTime = new Date().toISOString();
+              meta.pendingCheckpointDescription = `Clean fork initialized from ${sourceName}`;
+              entrypointClass = (meta.entrypoint && meta.entrypoint.class) || meta.mainClass || '';
+              fs.writeFileSync(lunoJsonPath, JSON.stringify(meta, null, 2) + '\n', 'utf8');
+            } catch (e) {}
+          }
+  
+          // 5. Standalone .nojekyll parity
+          const noJekyll = path.join(stagingDir, '.nojekyll');
+          if (!fs.existsSync(noJekyll)) {
+            fs.writeFileSync(noJekyll, '', 'utf8');
+          }
+  
+          // 6. Commit atomic rename
+          fs.renameSync(stagingDir, targetDir);
+          stagingDir = null;
+  
+          return LunoServer.sendJSON(res, 200, {
+            success: true,
+            project: rawNewName,
+            sourceProject: sourceName,
+            entrypointClass: entrypointClass,
+            path: targetDir.replace(/\\/g, '/'),
+            copiedFilesCount: copiedCount
+          });
+  
+        } catch (err) {
+          if (stagingDir && fs.existsSync(stagingDir)) {
+            try { fs.rmSync(stagingDir, { recursive: true, force: true }); } catch(e){}
+          }
+          return LunoServer.sendJSON(res, 500, { success: false, error: 'Fork operation failed: ' + err.message });
         }
-  
-        transformFileContents(targetDir);
-  
-        // 5. Ensure .nojekyll for instant GitHub Pages support
-        const noJekyll = path.join(targetDir, '.nojekyll');
-        if (!fs.existsSync(noJekyll)) {
-          fs.writeFileSync(noJekyll, '', 'utf8');
-        }
-  
-        // Transaction successful
-        tempCreatedDir = null;
-  
-        return LunoServer.sendJSON(res, 200, {
-          success: true,
-          project: cleanNewName,
-          sourceProject: sourceName,
-          targetClassName: targetClassName,
-          sourceClassName: sourceClassName,
-          path: targetDir.replace(/\\/g, '/'),
-          copiedFilesCount: copiedCount,
-          renamedFilesCount: renamedFilesCount
-        });
-  
-      } catch (err) {
-        if (tempCreatedDir && fs.existsSync(tempCreatedDir)) {
-          try { fs.rmSync(tempCreatedDir, { recursive: true, force: true }); } catch(e){}
-        }
-        return LunoServer.sendJSON(res, 500, { success: false, error: 'Fork operation failed: ' + err.message });
-      }
-    });
-  }
+      });
+    }
 }
 
 globalThis.LunoServer = LunoServer;
