@@ -684,10 +684,11 @@ class LunoServer {
     if (!targetDir || !fs.existsSync(targetDir) || !fs.statSync(targetDir).isDirectory()) {
       return LunoServer.sendJSON(res, 404, { error: 'Directory not found: ' + reqPath });
     }
-
+  
     const normTarget = targetDir.replace(/\\/g, '/');
     const parentDir = path.dirname(normTarget).replace(/\\/g, '/');
-
+    const isLibProj = (path.basename(baseDir).toLowerCase() === 'library');
+  
     if (isRecursive) {
       const fileList = LunoServer.getAllFiles(targetDir);
       const items = fileList.map(item => {
@@ -709,7 +710,7 @@ class LunoServer {
         items: items
       });
     }
-
+  
     const items = fs.readdirSync(targetDir).map(name => {
       const fullPath = path.join(targetDir, name);
       let stat = null;
@@ -723,8 +724,12 @@ class LunoServer {
         size: stat ? stat.size : 0,
         mtimeMs: stat ? stat.mtimeMs : 0
       };
-    }).filter(item => !item.name.startsWith('.') && item.name !== 'node_modules' && !item.name.endsWith('.bak'));
-
+    }).filter(item => {
+      if (item.name.startsWith('.') || item.name === 'node_modules' || item.name.endsWith('.bak')) return false;
+      if (!isLibProj && item.isDirectory && item.name.toLowerCase() === 'library') return false;
+      return true;
+    });
+  
     return LunoServer.sendJSON(res, 200, {
       success: true,
       currentPath: normTarget,
@@ -868,11 +873,11 @@ class LunoServer {
     try {
       const url = new URL(req.url, 'http://' + (req.headers.host || 'localhost'));
       const method = req.method.toUpperCase();
-
+  
       if (method === 'GET' && (url.pathname === '/' || url.pathname === '/index.html' || url.pathname === '/full' || url.pathname === '/ui/1' || url.pathname === '/ui/full')) {
         return LunoServer.serveIndex(req, res);
       }
-
+  
       if (method === 'GET' && (url.pathname === '/app-preview' || url.pathname === '/app-preview/index.html')) {
         const targetProj = url.searchParams.get('project');
         const baseDir = LunoServer.resolveProjectBaseDir(targetProj);
@@ -884,43 +889,47 @@ class LunoServer {
         res.writeHead(200, { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-cache" });
         return res.end("<!DOCTYPE html><html><body style='background:#0d1117;color:#c9d1d9;font-family:monospace;padding:2rem;'><h2>📱 Active Project View: " + path.basename(baseDir) + "</h2><p>No index.html found in: " + baseDir + "</p></body></html>");
       }
-
+  
       if (method === 'GET' && url.pathname === '/api/ping') {
         return LunoServer.sendJSON(res, 200, { status: "online", pid: process.pid, rootDir: LunoServer.getRootDir(), version: LunoServer.VERSION });
       }
-
+  
       if (method === 'GET' && url.pathname === '/api/projects/list') {
         return LunoServer.handleProjectsList(req, res);
       }
-
+  
+      if (method === 'POST' && url.pathname === '/api/projects/fork') {
+        return LunoServer.handleForkProject(req, res);
+      }
+  
       if (method === 'GET' && url.pathname === '/api/fs/ls') {
         return LunoServer.handleFsLs(req, res, url);
       }
-
+  
       if (method === 'GET' && url.pathname === '/api/fs/read') {
         return LunoServer.handleFsRead(req, res, url);
       }
-
+  
       if (method === 'GET' && url.pathname === '/api/all-code') {
         return LunoServer.handleAllCode(req, res, url);
       }
-
+  
       if (method === 'POST' && url.pathname === '/api/fs/set-root') {
         return LunoServer.handleSetRoot(req, res);
       }
-
+  
       if (method === 'POST' && url.pathname === '/api/fs/create-project') {
         return LunoServer.handleCreateProject(req, res);
       }
-
+  
       if (method === 'POST' && url.pathname === '/api/context/request') {
         return LunoServer.handleContextRequest(req, res, url);
       }
-
+  
       if (method === 'POST' && url.pathname === '/api/deploy') {
         return LunoServer.handleDeploy(req, res, url);
       }
-
+  
       if (method === 'POST' && url.pathname === '/api/save') {
         let b = '';
         const projectParam = url.searchParams.get('project') || '';
@@ -935,11 +944,11 @@ class LunoServer {
         });
         return;
       }
-
+  
       if (method === 'GET') {
         return LunoServer.serveAsset(req, res, url.pathname.slice(1));
       }
-
+  
       LunoServer.sendJSON(res, 404, { error: 'Route not found' });
     } catch (err) {
       LunoServer.sendJSON(res, 500, { error: err.message });
@@ -958,6 +967,227 @@ class LunoServer {
     }
     res.writeHead(200, { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-cache" });
     res.end("<!DOCTYPE html><html><body style='background:#0d1117;color:#c9d1d9;font-family:monospace;padding:2rem;'><h2>🌙 Luno Workspace</h2><p>index.html online.</p></body></html>");
+  }
+
+  static handleForkProject(req, res) {
+    let body = '';
+    req.on('data', chunk => { body += chunk; });
+    req.on('end', () => {
+      let tempCreatedDir = null;
+      try {
+        const parsed = JSON.parse(body || '{}');
+        const sourceName = (parsed.sourceProject || '').trim();
+        const rawNewName = (parsed.newProjectName || '').trim();
+  
+        if (!sourceName || !rawNewName) {
+          return LunoServer.sendJSON(res, 400, { success: false, error: 'Both sourceProject and newProjectName are required.' });
+        }
+  
+        const cleanNewName = rawNewName.replace(/[^a-zA-Z0-9_\-]/g, '');
+        if (!cleanNewName) {
+          return LunoServer.sendJSON(res, 400, { success: false, error: 'Invalid new project name.' });
+        }
+  
+        if (sourceName === cleanNewName) {
+          return LunoServer.sendJSON(res, 400, { success: false, error: 'New project name cannot be identical to source project.' });
+        }
+  
+        const webRoot = LunoServer.getWebRootDir();
+        const sourceDir = LunoServer.resolveProjectBaseDir(sourceName);
+        const targetDir = path.join(webRoot, cleanNewName);
+  
+        if (!fs.existsSync(sourceDir) || !fs.statSync(sourceDir).isDirectory()) {
+          return LunoServer.sendJSON(res, 404, { success: false, error: `Source project [${sourceName}] does not exist on disk.` });
+        }
+  
+        if (fs.existsSync(targetDir)) {
+          return LunoServer.sendJSON(res, 409, { success: false, error: `Project [${cleanNewName}] already exists. Please choose a different name.` });
+        }
+  
+        // Establish transaction boundary
+        tempCreatedDir = targetDir;
+        let copiedCount = 0;
+  
+        // 1. Recursive Full-Fidelity Disk Copy (Copies all text and binary assets without size caps)
+        function copyRecursiveSync(src, dest) {
+          const stats = fs.statSync(src);
+          if (stats.isDirectory()) {
+            const baseName = path.basename(src);
+            if (baseName === '.git' || baseName === 'node_modules' || baseName === '.checkpoints') return;
+            fs.mkdirSync(dest, { recursive: true });
+            const entries = fs.readdirSync(src);
+            for (const entry of entries) {
+              if (entry.endsWith('.bak')) continue;
+              copyRecursiveSync(path.join(src, entry), path.join(dest, entry));
+            }
+          } else if (stats.isFile()) {
+            if (src.endsWith('.bak')) return;
+            fs.mkdirSync(path.dirname(dest), { recursive: true });
+            fs.copyFileSync(src, dest);
+            copiedCount++;
+          }
+        }
+  
+        copyRecursiveSync(sourceDir, targetDir);
+  
+        // 2. Identify Class Name Transformations
+        let sourceClassName = '';
+        const sourceLunoJsonPath = path.join(targetDir, 'luno.json');
+        if (fs.existsSync(sourceLunoJsonPath)) {
+          try {
+            const sMeta = JSON.parse(fs.readFileSync(sourceLunoJsonPath, 'utf8'));
+            sourceClassName = (sMeta.entrypoint && sMeta.entrypoint.class) || sMeta.mainClass || '';
+          } catch(e){}
+        }
+  
+        if (!sourceClassName) {
+          sourceClassName = sourceName.charAt(0).toUpperCase() + sourceName.slice(1);
+        }
+  
+        // Target Class Name (PascalCase)
+        let targetClassName = cleanNewName
+          .split(/[^a-zA-Z0-9]/)
+          .filter(Boolean)
+          .map(part => part.charAt(0).toUpperCase() + part.slice(1))
+          .join('');
+  
+        if (!targetClassName) {
+          targetClassName = cleanNewName.charAt(0).toUpperCase() + cleanNewName.slice(1);
+        }
+  
+        let renamedFilesCount = 0;
+  
+        // 3. Rename Specific Entrypoint File if matching old class name
+        if (sourceClassName && targetClassName && sourceClassName !== targetClassName) {
+          function scanAndRenameFiles(dir) {
+            const items = fs.readdirSync(dir);
+            for (const item of items) {
+              const full = path.join(dir, item);
+              const stat = fs.statSync(full);
+              if (stat.isDirectory()) {
+                scanAndRenameFiles(full);
+              } else if (stat.isFile()) {
+                if (item.startsWith(sourceClassName + '.') || item === sourceClassName + '.js') {
+                  const newFileName = item.replace(sourceClassName, targetClassName);
+                  const newFull = path.join(dir, newFileName);
+                  fs.renameSync(full, newFull);
+                  renamedFilesCount++;
+                }
+              }
+            }
+          }
+          scanAndRenameFiles(targetDir);
+        }
+  
+        // 4. Content-Level Transformation Pass
+        const TEXT_EXTS = ['.js', '.mjs', '.json', '.html', '.css', '.md', '.txt', '.svg'];
+  
+        function transformFileContents(dir) {
+          const items = fs.readdirSync(dir);
+          for (const item of items) {
+            const full = path.join(dir, item);
+            const stat = fs.statSync(full);
+            if (stat.isDirectory()) {
+              transformFileContents(full);
+            } else if (stat.isFile()) {
+              const ext = path.extname(item).toLowerCase();
+              if (!TEXT_EXTS.includes(ext)) continue;
+  
+              let content = fs.readFileSync(full, 'utf8');
+              let modified = false;
+  
+              if (item === 'luno.json' || item === 'package.json') {
+                try {
+                  const meta = JSON.parse(content);
+                  meta.name = cleanNewName;
+                  meta.description = (meta.description ? `${meta.description} (Forked from ${sourceName})` : `Forked application from ${sourceName}`);
+                  meta.processedCountSinceCheckpoint = 0;
+                  meta.lastCheckpointTime = new Date().toISOString();
+                  meta.pendingCheckpointDescription = `Clean fork initialized from ${sourceName}`;
+  
+                  if (meta.entrypoint && typeof meta.entrypoint === 'object') {
+                    if (meta.entrypoint.class === sourceClassName) {
+                      meta.entrypoint.class = targetClassName;
+                    }
+                    if (meta.entrypoint.file && meta.entrypoint.file.includes(sourceClassName)) {
+                      meta.entrypoint.file = meta.entrypoint.file.replace(sourceClassName, targetClassName);
+                    }
+                  }
+  
+                  if (meta.mainClass === sourceClassName) {
+                    meta.mainClass = targetClassName;
+                  }
+  
+                  if (Array.isArray(meta.main)) {
+                    meta.main = meta.main.map(m => m.replace(sourceClassName + '.js', targetClassName + '.js'));
+                  }
+  
+                  content = JSON.stringify(meta, null, 2) + '\n';
+                  modified = true;
+                } catch(e){}
+              } else if (ext === '.js' || ext === '.mjs') {
+                if (sourceClassName && targetClassName && sourceClassName !== targetClassName) {
+                  const classRegex = new RegExp('\\bclass\\s+' + sourceClassName + '\\b', 'g');
+                  const globalRegex = new RegExp('\\bglobalThis\\.' + sourceClassName + '\\b', 'g');
+                  const windowRegex = new RegExp('\\bwindow\\.' + sourceClassName + '\\b', 'g');
+                  const moduleExportRegex = new RegExp('\\bmodule\\.exports\\s*=\\s*' + sourceClassName + '\\b', 'g');
+  
+                  if (classRegex.test(content) || globalRegex.test(content) || windowRegex.test(content) || moduleExportRegex.test(content)) {
+                    content = content
+                      .replace(classRegex, 'class ' + targetClassName)
+                      .replace(globalRegex, 'globalThis.' + targetClassName)
+                      .replace(windowRegex, 'window.' + targetClassName)
+                      .replace(moduleExportRegex, 'module.exports = ' + targetClassName);
+                    modified = true;
+                  }
+                }
+              } else if (ext === '.html') {
+                if (content.includes(`<title>${sourceName}</title>`)) {
+                  content = content.replace(`<title>${sourceName}</title>`, `<title>${cleanNewName}</title>`);
+                  modified = true;
+                }
+                if (sourceClassName && targetClassName && content.includes(sourceClassName + '.js')) {
+                  content = content.replace(sourceClassName + '.js', targetClassName + '.js');
+                  modified = true;
+                }
+              }
+  
+              if (modified) {
+                fs.writeFileSync(full, content, 'utf8');
+              }
+            }
+          }
+        }
+  
+        transformFileContents(targetDir);
+  
+        // 5. Ensure .nojekyll for instant GitHub Pages support
+        const noJekyll = path.join(targetDir, '.nojekyll');
+        if (!fs.existsSync(noJekyll)) {
+          fs.writeFileSync(noJekyll, '', 'utf8');
+        }
+  
+        // Transaction successful
+        tempCreatedDir = null;
+  
+        return LunoServer.sendJSON(res, 200, {
+          success: true,
+          project: cleanNewName,
+          sourceProject: sourceName,
+          targetClassName: targetClassName,
+          sourceClassName: sourceClassName,
+          path: targetDir.replace(/\\/g, '/'),
+          copiedFilesCount: copiedCount,
+          renamedFilesCount: renamedFilesCount
+        });
+  
+      } catch (err) {
+        if (tempCreatedDir && fs.existsSync(tempCreatedDir)) {
+          try { fs.rmSync(tempCreatedDir, { recursive: true, force: true }); } catch(e){}
+        }
+        return LunoServer.sendJSON(res, 500, { success: false, error: 'Fork operation failed: ' + err.message });
+      }
+    });
   }
 }
 
