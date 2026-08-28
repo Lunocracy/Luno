@@ -13,7 +13,7 @@ class LunoTestRunner {
 
   static async runTestSuite() {
     LunoTestRunner.results = [];
-    console.log('🧪 Starting Luno Full Architecture & Determinism Test Suite...');
+    console.log('🧪 Starting Luno Full Architecture & Determinism Test Suite (14 Tests)...');
 
     if (typeof LunoAcornLoader !== 'undefined' && LunoAcornLoader.ensureLoaded) {
       try { await LunoAcornLoader.ensureLoaded(); } catch (e) {}
@@ -175,7 +175,45 @@ class LunoTestRunner {
       LunoTestRunner.assert('LunoClassPatcher: Accessor Get/Set AST Integration', false, e.message);
     }
 
-    // Test 10: Strict Name Validation Guard on /api/projects/fork
+    // Test 10: Method Normalization with Leading JSDoc/Comments
+    try {
+      if (typeof LunoClassPatcher !== 'undefined' && LunoClassPatcher.normalizeMethodCode) {
+        var rawCommentedMethod = '/**\n * Some documentation\n */\nmyMethod(alpha, beta) {\n  return alpha + beta;\n}';
+        var normalized = LunoClassPatcher.normalizeMethodCode('myMethod', rawCommentedMethod, false, 'method');
+        var hasParams = normalized.includes('(alpha, beta)');
+        var noLeadingComment = !normalized.startsWith('/**');
+        LunoTestRunner.assert(
+          'LunoClassPatcher: Method Normalization with Leading JSDoc/Comments',
+          hasParams && noLeadingComment,
+          'Stripped JSDoc and preserved (alpha, beta) parameter signatures'
+        );
+      } else {
+        LunoTestRunner.assert('LunoClassPatcher: Method Normalization', false, 'LunoClassPatcher unavailable');
+      }
+    } catch (e) {
+      LunoTestRunner.assert('LunoClassPatcher: Method Normalization', false, e.message);
+    }
+
+    // Test 11: Clean Method Deletion & JSDoc Header Cleanup
+    try {
+      if (typeof LunoClassPatcher !== 'undefined' && LunoClassPatcher.deleteMethodInSource) {
+        var classWithDoc = 'class Sample {\n  /**\n   * Old method doc\n   */\n  oldMethod() {\n    return 1;\n  }\n  nextMethod() {\n    return 2;\n  }\n}';
+        var afterDelete = LunoClassPatcher.deleteMethodInSource(classWithDoc, 'Sample.oldMethod');
+        var noOldDoc = !afterDelete.includes('Old method doc');
+        var retainsNext = afterDelete.includes('nextMethod()') && afterDelete.includes('return 2;');
+        LunoTestRunner.assert(
+          'LunoClassPatcher: Clean Method Deletion & JSDoc Cleanup',
+          noOldDoc && retainsNext,
+          'Deleted method and consumed preceding JSDoc comment cleanly'
+        );
+      } else {
+        LunoTestRunner.assert('LunoClassPatcher: Clean Method Deletion', false, 'LunoClassPatcher unavailable');
+      }
+    } catch (e) {
+      LunoTestRunner.assert('LunoClassPatcher: Clean Method Deletion', false, e.message);
+    }
+
+    // Test 12: Strict Name Validation Guard on /api/projects/fork
     try {
       var forkInvalidRes = await fetch('/api/projects/fork', {
         method: 'POST',
@@ -192,7 +230,7 @@ class LunoTestRunner {
       LunoTestRunner.assert('LunoServer: Strict Name Validation Guard on /api/projects/fork', false, e.message);
     }
 
-    // Test 11: End-to-End Fork Execution & Staging Atomicity Test
+    // Test 13: End-to-End Staging Fork Pipeline & Manifest Path Remapping
     try {
       var testForkName = 'test_e2e_fork_' + Date.now();
       var forkExecRes = await fetch('/api/projects/fork', {
@@ -203,9 +241,20 @@ class LunoTestRunner {
       var forkExecData = await forkExecRes.json();
 
       var isForkSuccess = forkExecRes.ok && forkExecData && forkExecData.success;
+      var manifestRemapped = false;
 
-      // Clean up the temporary test fork from disk
       if (isForkSuccess) {
+        var metaRes = await fetch('/api/fs/read?path=luno.json&project=' + encodeURIComponent(testForkName));
+        var metaData = await metaRes.json();
+        if (metaRes.ok && metaData && metaData.content) {
+          var metaObj = JSON.parse(metaData.content);
+          manifestRemapped = (metaObj.name === testForkName);
+          if (Array.isArray(metaObj.main) && metaObj.main.length > 0) {
+            manifestRemapped = manifestRemapped && !metaObj.main.some(function(p) { return p.startsWith('SimpleTest/'); });
+          }
+        }
+
+        // Clean up the temporary test fork from disk
         await fetch('/api/save', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -217,15 +266,15 @@ class LunoTestRunner {
       }
 
       LunoTestRunner.assert(
-        'LunoServer: End-to-End Staging Fork Pipeline & Cleanup',
-        isForkSuccess,
-        'Cloned project via staging directory, verified manifest, and purged cleanly'
+        'LunoServer: End-to-End Staging Fork Pipeline & Manifest Path Remapping',
+        isForkSuccess && manifestRemapped,
+        'Cloned project, verified luno.json path remapping, and purged test fork cleanly'
       );
     } catch (e) {
-      LunoTestRunner.assert('LunoServer: End-to-End Staging Fork Pipeline & Cleanup', false, e.message);
+      LunoTestRunner.assert('LunoServer: End-to-End Staging Fork Pipeline & Manifest Path Remapping', false, e.message);
     }
 
-    // Test 12: ES6 Module Syntax Verification & Validation
+    // Test 14: ES6 Module Syntax Verification & Validation
     try {
       var sampleEs6Module = 'import { useState } from "react";\nexport class ModuleApp {\n  static run() { return "active"; }\n}';
       if (typeof LunoClassPatcher !== 'undefined' && LunoClassPatcher.parseAST) {
@@ -270,7 +319,7 @@ class LunoTestRunner {
     var card = m('div', {
       style: { background: '#161b22', border: '2px solid #00f2fe', borderRadius: '10px', padding: '1rem', color: '#c9d1d9', fontFamily: 'monospace', maxWidth: '680px', margin: '1rem auto' }
     },
-      m('h2', { style: { color: '#00f2fe', fontSize: '1.1rem', margin: '0 0 0.8rem 0' } }, '🧪 Luno Diagnostic Test Suite (12 Tests)'),
+      m('h2', { style: { color: '#00f2fe', fontSize: '1.1rem', margin: '0 0 0.8rem 0' } }, '🧪 Luno Diagnostic Test Suite (14 Tests)'),
       m('button', {
         style: { padding: '0.65rem 1.2rem', background: '#238636', color: '#fff', border: 'none', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer', fontFamily: 'monospace', marginBottom: '1rem' },
         onclick: function() {
