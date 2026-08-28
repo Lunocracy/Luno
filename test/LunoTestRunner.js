@@ -155,7 +155,7 @@ class LunoTestRunner {
       LunoTestRunner.assert('LunoServer: Multi-Project Recursive Listing', false, e.message);
     }
 
-    // Test 9: LunoClassPatcher Getters, Setters & Generator AST Patching
+    // Test 9: LunoClassPatcher Getters, Setters & Accessor AST Patching
     try {
       if (typeof LunoClassPatcher !== 'undefined') {
         var baseSrc = 'class ItemState {\n  constructor() {\n    this._val = 10;\n  }\n}';
@@ -163,10 +163,13 @@ class LunoTestRunner {
         var withSetter = LunoClassPatcher.patchMethodInSource(withGetter, 'ItemState.set val', 'set val(v) {\n  this._val = v;\n}');
         var hasGetter = withSetter.includes('get val()') && withSetter.includes('return this._val * 2');
         var hasSetter = withSetter.includes('set val(v)') && withSetter.includes('this._val = v');
+        var detailMsg = (hasGetter && hasSetter)
+          ? 'Successfully inserted getters and setters into class body'
+          : ('Mismatch: hasGetter=' + hasGetter + ', hasSetter=' + hasSetter);
         LunoTestRunner.assert(
           'LunoClassPatcher: Accessor Get/Set AST Integration',
           hasGetter && hasSetter,
-          'Successfully inserted getters and setters into class body'
+          detailMsg
         );
       } else {
         LunoTestRunner.assert('LunoClassPatcher: Accessor Get/Set AST Integration', false, 'LunoClassPatcher missing');

@@ -60,12 +60,12 @@ class LunoClassPatcher {
     clean = clean.replace(/^(?:globalThis|window)\./, '');
 
     var kind = 'method';
-    if (clean.startsWith('get ') || clean.includes('.get ')) {
+    if (/^(?:get\s+|\w+\.(?:prototype\.)?get\s+)/.test(clean) || clean.startsWith('get ') || clean.includes('.get ')) {
       kind = 'get';
-      clean = clean.replace(/\bget\s+/, '');
-    } else if (clean.startsWith('set ') || clean.includes('.set ')) {
+      clean = clean.replace(/(?:^|\.)get\s+/, '.').replace(/^\.+/, '');
+    } else if (/^(?:set\s+|\w+\.(?:prototype\.)?set\s+)/.test(clean) || clean.startsWith('set ') || clean.includes('.set ')) {
       kind = 'set';
-      clean = clean.replace(/\bset\s+/, '');
+      clean = clean.replace(/(?:^|\.)set\s+/, '.').replace(/^\.+/, '');
     }
 
     var className = '';
@@ -120,7 +120,20 @@ class LunoClassPatcher {
       }
     }
 
-    clean = clean.replace(/^\s*(?:\/\/[^\r\n]*[\r\n]+|\/\*[\s\S]*?\*\/\s*)+/, '').trim();
+    // Linear O(N) deterministic comment stripper (Zero ReDoS)
+    var stripped = clean;
+    var maxPasses = 20;
+    while (maxPasses > 0 && (stripped.startsWith('//') || stripped.startsWith('/*'))) {
+      maxPasses--;
+      if (stripped.startsWith('//')) {
+        var nl = stripped.indexOf('\n');
+        stripped = nl !== -1 ? stripped.slice(nl + 1).trim() : '';
+      } else if (stripped.startsWith('/*')) {
+        var endComment = stripped.indexOf('*/');
+        stripped = endComment !== -1 ? stripped.slice(endComment + 2).trim() : '';
+      }
+    }
+    clean = stripped || clean;
 
     var firstBraceIdx = clean.indexOf('{');
     if (firstBraceIdx === -1) {
@@ -221,7 +234,12 @@ class LunoClassPatcher {
       if (member.type === 'MethodDefinition' || member.type === 'PropertyDefinition') {
         var keyName = member.key ? (member.key.name || member.key.value) : null;
         var staticMatch = (parsed.isStatic === null) ? true : (Boolean(member.static) === Boolean(parsed.isStatic));
-        if (keyName === parsed.memberName && staticMatch) {
+        var memberKind = member.kind || 'method';
+        var kindMatch = (parsed.kind === 'get' || parsed.kind === 'set')
+          ? (memberKind === parsed.kind)
+          : (memberKind === 'method' || memberKind === 'constructor');
+
+        if (keyName === parsed.memberName && staticMatch && kindMatch) {
           if (member.range) {
             return { startIdx: member.range[0], endIdx: member.range[1] };
           }
@@ -254,7 +272,11 @@ class LunoClassPatcher {
         if (member.type === 'MethodDefinition' || member.type === 'PropertyDefinition') {
           var keyName = member.key ? (member.key.name || member.key.value) : null;
           var staticMatch = (parsed.isStatic === null) ? true : (Boolean(member.static) === Boolean(parsed.isStatic));
-          var kindMatch = parsed.kind === 'method' || member.kind === parsed.kind;
+          var memberKind = member.kind || 'method';
+          var kindMatch = (parsed.kind === 'get' || parsed.kind === 'set')
+            ? (memberKind === parsed.kind)
+            : (memberKind === 'method' || memberKind === 'constructor');
+
           if (keyName === parsed.memberName && staticMatch && kindMatch) {
             memberNode = member;
             break;
@@ -266,12 +288,21 @@ class LunoClassPatcher {
         var start = memberNode.range[0];
         var end = memberNode.range[1];
 
-        // Consume preceding comments and indentation attached to the method
-        var beforeText = existingSource.slice(0, start);
-        var commentMatch = beforeText.match(/(?:\/\/[^\r\n]*[\r\n]+|\/\*[\s\S]*?\*\/\s*|[ \t\r\n])+$/);
-        if (commentMatch && commentMatch[0]) {
-          start = start - commentMatch[0].length;
+        // Safe deterministic backward scan (Zero ReDoS)
+        var i = start - 1;
+        while (i >= 0 && (existingSource[i] === ' ' || existingSource[i] === '\t' || existingSource[i] === '\r' || existingSource[i] === '\n')) {
+          i--;
         }
+        if (i >= 1 && existingSource[i] === '/' && existingSource[i - 1] === '*') {
+          var commentStart = existingSource.lastIndexOf('/*', i);
+          if (commentStart !== -1) {
+            i = commentStart - 1;
+            while (i >= 0 && (existingSource[i] === ' ' || existingSource[i] === '\t' || existingSource[i] === '\r' || existingSource[i] === '\n')) {
+              i--;
+            }
+          }
+        }
+        start = Math.max(0, i + 1);
 
         return existingSource.slice(0, start) + '\n' + existingSource.slice(end).replace(/^[\r\n]+/, '');
       }
@@ -319,7 +350,17 @@ class LunoClassPatcher {
       if (member.type === 'MethodDefinition' || member.type === 'PropertyDefinition') {
         var keyName = member.key ? (member.key.name || member.key.value) : null;
         var staticMatch = (isStatic === null) ? true : (Boolean(member.static) === Boolean(isStatic));
-        var kindMatch = targetKind === 'method' || member.kind === targetKind;
+        var memberKind = member.kind || (member.type === 'PropertyDefinition' ? 'property' : 'method');
+        var kindMatch = false;
+
+        if (targetKind === 'get' || targetKind === 'set') {
+          kindMatch = (memberKind === targetKind);
+        } else if (targetKind === 'constructor') {
+          kindMatch = (memberKind === 'constructor');
+        } else {
+          kindMatch = (memberKind === 'method' || memberKind === 'constructor');
+        }
+
         if (keyName === memberName && staticMatch && kindMatch) {
           existingMemberNode = member;
           break;
