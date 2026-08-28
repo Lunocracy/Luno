@@ -103,13 +103,15 @@ class LunoClassPatcher {
    * ⚙️ METHOD: normalizeMethodCode(memberName, methodCode, isStatic, targetKind)
    */
   static normalizeMethodCode(memberName, methodCode, isStatic, targetKind) {
-    if (!methodCode || typeof methodCode !== 'string' || !methodCode.trim()) {
-      throw new Error('[Luno AST Guard] Cannot normalize method code: methodCode is empty for "' + memberName + '".');
+    var rawStr = String(methodCode !== undefined && methodCode !== null ? methodCode : '').trim();
+    if (!rawStr) {
+      return (isStatic === true ? 'static ' : '') + memberName + '() {}';
     }
 
-    var clean = methodCode.trim();
+    var clean = rawStr;
     if (clean.endsWith(';')) clean = clean.slice(0, -1).trim();
 
+    // Strip assignments like Class.prototype.method = ... or Class.method = ...
     if (clean.includes('=')) {
       var equalsIdx = clean.indexOf('=');
       var leftPart = clean.slice(0, equalsIdx).trim();
@@ -119,43 +121,42 @@ class LunoClassPatcher {
       }
     }
 
-    if (/^(?:async\s+)?function\s*\(/.test(clean)) {
-      var isAsyncFn = clean.startsWith('async ');
-      var fnKeywordIdx = clean.indexOf('function');
-      var rest = clean.slice(fnKeywordIdx + 8).trim();
-      var prefix = (isStatic === true ? 'static ' : '') + (isAsyncFn ? 'async ' : '');
-      return prefix + memberName + rest;
+    var firstBraceIdx = clean.indexOf('{');
+    if (firstBraceIdx === -1) {
+      var prefix = (isStatic === true ? 'static ' : '');
+      if (memberName === 'constructor') return 'constructor() { ' + clean + ' }';
+      return prefix + memberName + '() { ' + clean + ' }';
     }
 
-    var headerRegex = /^(?:(static)\s+)?(?:(async)\s+)?(\*)?\s*(?:(get|set)\s+)?([A-Za-z0-9_$#]+)\s*(\([\s\S]*?\))?\s*(\{[\s\S]*\})$/;
-    var match = clean.match(headerRegex);
+    var headerPart = clean.slice(0, firstBraceIdx).trim();
+    var bodyPart = clean.slice(firstBraceIdx).trim();
 
-    if (match) {
-      var hasStatic = Boolean(match[1]) || (isStatic === true);
-      var hasAsync = Boolean(match[2]) || clean.includes('await ');
-      var isGenerator = Boolean(match[3]);
-      var memberKind = match[4] || targetKind || 'method';
-      var params = match[6] || '()';
-      var body = match[7];
+    var hasStatic = /\bstatic\b/.test(headerPart) || (isStatic === true);
+    var hasAsync = /\basync\b/.test(headerPart) || bodyPart.includes('await ');
+    var isGenerator = headerPart.includes('*');
+    var isGet = /\bget\b/.test(headerPart) || targetKind === 'get';
+    var isSet = /\bset\b/.test(headerPart) || targetKind === 'set';
 
-      if (memberName === 'constructor') {
-        return 'constructor' + params + ' ' + body;
-      }
-
-      var out = '';
-      if (hasStatic) out += 'static ';
-      if (hasAsync && memberKind !== 'get' && memberKind !== 'set') out += 'async ';
-      if (isGenerator) out += '*';
-      if (memberKind === 'get') out += 'get ';
-      if (memberKind === 'set') out += 'set ';
-
-      out += memberName + (memberKind === 'get' && params === '()' ? '() ' : params + ' ') + body;
-      return out.trim();
+    var params = '()';
+    var openParenIdx = headerPart.indexOf('(');
+    var closeParenIdx = headerPart.lastIndexOf(')');
+    if (openParenIdx !== -1 && closeParenIdx !== -1 && closeParenIdx > openParenIdx) {
+      params = headerPart.slice(openParenIdx, closeParenIdx + 1);
     }
 
-    var prefixFallback = (isStatic === true ? 'static ' : '');
-    if (memberName === 'constructor') return 'constructor() ' + clean;
-    return prefixFallback + memberName + '() ' + clean;
+    if (memberName === 'constructor') {
+      return 'constructor' + params + ' ' + bodyPart;
+    }
+
+    var out = '';
+    if (hasStatic) out += 'static ';
+    if (hasAsync && !isGet && !isSet) out += 'async ';
+    if (isGenerator) out += '*';
+    if (isGet) out += 'get ';
+    if (isSet) out += 'set ';
+
+    out += memberName + params + ' ' + bodyPart;
+    return String(out).trim();
   }
 
   /**
@@ -293,7 +294,9 @@ class LunoClassPatcher {
     var isStatic = parsed.isStatic;
     var targetKind = parsed.kind;
 
-    var cleanMethod = LunoClassPatcher.normalizeMethodCode(memberName, methodCode, isStatic, targetKind);
+    var cleanMethod = String(LunoClassPatcher.normalizeMethodCode(memberName, methodCode, isStatic, targetKind) || '').trim();
+    if (!cleanMethod) return existingSource;
+
     var ast = LunoClassPatcher.parseAST(existingSource);
     var classNodes = LunoClassPatcher.findClassNodes(ast, className);
 

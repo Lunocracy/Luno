@@ -63,11 +63,19 @@
     "Luno/docs/BookmarkletStudioRoadmap.md"
   ],
   "patchJournal": "LunoPatchLog.html",
-  "processedCountSinceCheckpoint": 2,
-  "lastCheckpointTime": "2026-08-28T15:55:00.000Z",
-  "pendingCheckpointDescription": "Clean working tree: Hardened project forking engine and library path resolution",
+  "processedCountSinceCheckpoint": 14,
+  "lastCheckpointTime": "2026-08-28T15:56:43.836Z",
+  "pendingCheckpointDescription": "Clean working tree",
   "changedMethods": {
     "Luno/luno.json": "2026-08-28T15:56:29.956Z",
-    "Luno/docs/MIGRATION_COMPLETE.md": "2026-08-28T15:56:29.956Z"
+    "Luno/docs/MIGRATION_COMPLETE.md": "2026-08-28T15:56:29.956Z",
+    "Luno/core/LunoServer.js": "2026-08-28T17:41:43.620Z",
+    "Luno/app/LunoProjectTemplates.js": "2026-08-28T17:41:43.620Z",
+    "Luno/test/LunoTestRunner.js": "2026-08-28T17:44:11.192Z",
+    "Luno/core/LunoClassPatcher.js": "2026-08-28T17:44:11.192Z",
+    "Luno/LunoPatchLog.html": "2026-08-28T17:44:04.897Z",
+    "Luno/core/LunoClassPatcher.js.bak": "2026-08-28T17:44:11.192Z",
+    "Luno/test/LunoTestRunner.js.bak": "2026-08-28T17:44:11.192Z",
+    "LunoPatchLog.html": "2026-08-28T17:44:11.192Z"
   }
 }
