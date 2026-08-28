@@ -1,6 +1,10 @@
 class LunoClassPatcher {
   constructor() {}
 
+  /**
+   * ⚙️ METHOD: parseAST(sourceText)
+   * Safely parses JavaScript into an Acorn AST with source ranges enabled.
+   */
   static parseAST(sourceText) {
     if (!sourceText || typeof sourceText !== 'string' || !sourceText.trim()) {
       throw new Error('[Luno AST Guard] parseAST received empty source text.');
@@ -15,38 +19,49 @@ class LunoClassPatcher {
       throw new Error('[Luno AST Guard] Acorn AST parser is not loaded in memory.');
     }
 
+    var parseOpts = {
+      ecmaVersion: 'latest',
+      sourceType: 'module',
+      allowReturnOutsideFunction: true,
+      allowImportExportEverywhere: true,
+      allowHashBang: true,
+      ranges: true,
+      locations: true
+    };
+
     try {
-      return acornObj.parse(sourceText, {
-        ecmaVersion: 'latest',
-        sourceType: 'module',
-        allowReturnOutsideFunction: true,
-        allowImportExportEverywhere: true,
-        allowHashBang: true,
-        ranges: true
-      });
+      return acornObj.parse(sourceText, parseOpts);
     } catch (e) {
       try {
-        return acornObj.parse(sourceText, {
-          ecmaVersion: 'latest',
-          sourceType: 'script',
-          allowReturnOutsideFunction: true,
-          allowImportExportEverywhere: true,
-          allowHashBang: true,
-          ranges: true
-        });
+        parseOpts.sourceType = 'script';
+        return acornObj.parse(sourceText, parseOpts);
       } catch (e2) {
         throw new Error('[Luno AST Guard] Acorn failed to parse source AST: ' + e2.message);
       }
     }
   }
 
+  /**
+   * ⚙️ METHOD: parseSpec(targetSpec)
+   * Deconstructs target specifiers (e.g. "App.run", "App.prototype.render", "App.get size") into structured metadata.
+   */
   static parseSpec(targetSpec) {
     if (!targetSpec || typeof targetSpec !== 'string' || !targetSpec.trim()) {
       throw new Error('[Luno AST Guard] Cannot parse targetSpec: targetSpec is empty.');
     }
+
     var clean = targetSpec.trim();
     if (clean.includes('@')) clean = clean.split('@').pop().trim();
     clean = clean.replace(/^(?:globalThis|window)\./, '');
+
+    var kind = 'method'; // 'method', 'get', 'set'
+    if (clean.startsWith('get ') || clean.includes('.get ')) {
+      kind = 'get';
+      clean = clean.replace(/\bget\s+/, '');
+    } else if (clean.startsWith('set ') || clean.includes('.set ')) {
+      kind = 'set';
+      clean = clean.replace(/\bset\s+/, '');
+    }
 
     var className = '';
     var memberName = '';
@@ -64,27 +79,34 @@ class LunoClassPatcher {
       isStatic = true;
     } else {
       memberName = clean;
+      isStatic = false;
+    }
+
+    if (memberName === 'constructor') {
+      isStatic = false;
+      kind = 'constructor';
     }
 
     if (!memberName) {
       throw new Error('[Luno AST Guard] Invalid targetSpec "' + targetSpec + '": Could not extract member name.');
     }
 
-    return { className: className, memberName: memberName, isStatic: isStatic };
+    return { className: className, memberName: memberName, isStatic: isStatic, kind: kind };
   }
 
   /**
-   * ⚙️ METHOD: normalizeMethodCode(memberName, methodCode, isStatic)
-   * Robust header parsing that never corrupts method signatures with body parenthesis.
+   * ⚙️ METHOD: normalizeMethodCode(memberName, methodCode, isStatic, targetKind)
+   * Normalizes incoming method/property source code for seamless class body insertion.
    */
-  static normalizeMethodCode(memberName, methodCode, isStatic) {
+  static normalizeMethodCode(memberName, methodCode, isStatic, targetKind) {
     if (!methodCode || typeof methodCode !== 'string' || !methodCode.trim()) {
       throw new Error('[Luno AST Guard] Cannot normalize method code: methodCode is empty for "' + memberName + '".');
     }
+
     var clean = methodCode.trim();
     if (clean.endsWith(';')) clean = clean.slice(0, -1).trim();
 
-    // If it's a property assignment like: ClassName.member = function(...) { ... }
+    // Strip standalone assignment prefix (e.g., ClassName.method = ...)
     if (clean.includes('=')) {
       var equalsIdx = clean.indexOf('=');
       var leftPart = clean.slice(0, equalsIdx).trim();
@@ -94,64 +116,78 @@ class LunoClassPatcher {
       }
     }
 
-    // If it starts with `function` or `async function`
+    // Check for standalone function expression
     if (/^(?:async\s+)?function\s*\(/.test(clean)) {
       var isAsyncFn = clean.startsWith('async ');
       var fnKeywordIdx = clean.indexOf('function');
       var rest = clean.slice(fnKeywordIdx + 8).trim();
-      return (isStatic ? 'static ' : '') + (isAsyncFn ? 'async ' : '') + memberName + rest;
+      var prefix = (isStatic ? 'static ' : '') + (isAsyncFn ? 'async ' : '');
+      return prefix + memberName + rest;
     }
 
-    // Match method header: [static] [async] methodName(...)
-    var headerMatch = clean.match(/^(?:(static)\s+)?(?:(async)\s+)?([A-Za-z0-9_$]+)\s*\(/);
-    if (headerMatch) {
-      var hasStatic = Boolean(headerMatch[1]) || Boolean(isStatic);
-      var hasAsync = Boolean(headerMatch[2]) || clean.includes('await ');
-      var matchedName = headerMatch[3];
+    // Comprehensive header matcher: [static] [async] [*] [get|set] name(...)
+    var headerRegex = /^(?:(static)\s+)?(?:(async)\s+)?(\*)?\s*(?:(get|set)\s+)?([A-Za-z0-9_$#]+)\s*(\([\s\S]*?\))?\s*(\{[\s\S]*\})$/;
+    var match = clean.match(headerRegex);
 
-      // Strip existing leading static / async
-      var body = clean.replace(/^(?:static\s+)?(?:async\s+)?/, '');
+    if (match) {
+      var hasStatic = Boolean(match[1]) || Boolean(isStatic);
+      var hasAsync = Boolean(match[2]) || clean.includes('await ');
+      var isGenerator = Boolean(match[3]);
+      var memberKind = match[4] || targetKind || 'method';
+      var params = match[6] || '()';
+      var body = match[7];
 
-      if (matchedName !== memberName) {
-        body = memberName + body.slice(matchedName.length);
+      if (memberName === 'constructor') {
+        return 'constructor' + params + ' ' + body;
       }
 
-      var prefix = (hasStatic ? 'static ' : '') + (hasAsync ? 'async ' : '');
-      return prefix + body;
+      var out = '';
+      if (hasStatic) out += 'static ';
+      if (hasAsync && memberKind !== 'get' && memberKind !== 'set') out += 'async ';
+      if (isGenerator) out += '*';
+      if (memberKind === 'get') out += 'get ';
+      if (memberKind === 'set') out += 'set ';
+
+      out += memberName + (memberKind === 'get' && params === '()' ? '() ' : params + ' ') + body;
+      return out.trim();
     }
 
-    return (isStatic ? 'static ' : '') + memberName + '() ' + clean;
+    // Standard method fallback
+    var prefixFallback = (isStatic ? 'static ' : '');
+    if (memberName === 'constructor') return 'constructor() ' + clean;
+    return prefixFallback + memberName + '() ' + clean;
   }
 
-  static patchMethodInSource(existingSource, targetSpec, methodCode) {
-    if (!existingSource || typeof existingSource !== 'string' || !existingSource.trim()) {
-      throw new Error('[Luno AST Guard] Cannot patch method: existingSource is empty.');
-    }
-
-    var parsed = LunoClassPatcher.parseSpec(targetSpec);
-    var className = parsed.className;
-    var memberName = parsed.memberName;
-    var isStatic = parsed.isStatic;
-    var cleanMethod = LunoClassPatcher.normalizeMethodCode(memberName, methodCode, isStatic);
-
-    var ast = LunoClassPatcher.parseAST(existingSource);
-
-    var targetClassNode = null;
-    var foundClasses = [];
+  /**
+   * ⚙️ METHOD: findClassNodes(ast, targetClassName)
+   * Locates all ClassDeclaration or ClassExpression nodes in the AST matching targetClassName.
+   */
+  static findClassNodes(ast, targetClassName) {
+    var results = [];
+    if (!ast || typeof ast !== 'object') return results;
 
     var walk = function(node) {
       if (!node || typeof node !== 'object') return;
+
       if (node.type === 'ClassDeclaration' || node.type === 'ClassExpression') {
-        var clsName = node.id ? node.id.name : null;
-        if (clsName) foundClasses.push(clsName);
-        if (!className || clsName === className) {
-          targetClassNode = node;
-          return;
+        var name = (node.id && node.id.name) ? node.id.name : null;
+        var namesSet = new Set();
+        if (name) namesSet.add(name);
+
+        if (!targetClassName || namesSet.has(targetClassName)) {
+          results.push({
+            node: node,
+            name: name,
+            names: namesSet,
+            bodyNode: node.body,
+            range: node.range
+          });
         }
       }
-      for (var k in node) {
-        if (k === 'parent') continue;
-        var child = node[k];
+
+      for (var key in node) {
+        if (key === 'parent') continue;
+        var child = node[key];
         if (Array.isArray(child)) {
           for (var i = 0; i < child.length; i++) {
             if (child[i] && typeof child[i].type === 'string') walk(child[i]);
@@ -161,41 +197,157 @@ class LunoClassPatcher {
         }
       }
     };
-    walk(ast);
 
-    if (!targetClassNode) {
-      throw new Error('[Luno AST Guard] Target class "' + (className || 'target') + '" not found in source AST. Available classes: [' + foundClasses.join(', ') + '].');
+    walk(ast);
+    return results;
+  }
+
+  /**
+   * ⚙️ METHOD: findMethodBounds(sourceCode, rawTarget)
+   * Returns { startIdx, endIdx } for a specific method or property in the source code.
+   */
+  static findMethodBounds(sourceCode, rawTarget) {
+    if (!sourceCode || !rawTarget) return null;
+    var parsed = LunoClassPatcher.parseSpec(rawTarget);
+    var ast = LunoClassPatcher.parseAST(sourceCode);
+    var classNodes = LunoClassPatcher.findClassNodes(ast, parsed.className);
+
+    if (classNodes.length === 0) return null;
+    var targetClass = classNodes[0];
+    if (!targetClass.bodyNode || !Array.isArray(targetClass.bodyNode.body)) return null;
+
+    for (var i = 0; i < targetClass.bodyNode.body.length; i++) {
+      var member = targetClass.bodyNode.body[i];
+      if (member.type === 'MethodDefinition' || member.type === 'PropertyDefinition') {
+        var keyName = member.key ? (member.key.name || member.key.value) : null;
+        var isStaticMatch = Boolean(member.static) === Boolean(parsed.isStatic);
+        if (keyName === parsed.memberName && isStaticMatch) {
+          if (member.range) {
+            return { startIdx: member.range[0], endIdx: member.range[1] };
+          }
+        }
+      }
+    }
+    return null;
+  }
+
+  /**
+   * ⚙️ METHOD: deleteMethodInSource(existingSource, targetSpec)
+   * Surgically removes a method, getter, setter, or static property from an ES6 class body.
+   */
+  static deleteMethodInSource(existingSource, targetSpec) {
+    if (!existingSource || typeof existingSource !== 'string' || !existingSource.trim()) {
+      return existingSource;
     }
 
-    if (!targetClassNode.body || !Array.isArray(targetClassNode.body.body) || !targetClassNode.body.range) {
+    try {
+      var parsed = LunoClassPatcher.parseSpec(targetSpec);
+      var ast = LunoClassPatcher.parseAST(existingSource);
+      var classNodes = LunoClassPatcher.findClassNodes(ast, parsed.className);
+
+      if (classNodes.length === 0) return existingSource;
+      var targetClass = classNodes[0];
+      if (!targetClass.bodyNode || !Array.isArray(targetClass.bodyNode.body)) return existingSource;
+
+      var memberNode = null;
+      for (var i = 0; i < targetClass.bodyNode.body.length; i++) {
+        var member = targetClass.bodyNode.body[i];
+        if (member.type === 'MethodDefinition' || member.type === 'PropertyDefinition') {
+          var keyName = member.key ? (member.key.name || member.key.value) : null;
+          var isStaticMatch = Boolean(member.static) === Boolean(parsed.isStatic);
+          var kindMatch = parsed.kind === 'method' || member.kind === parsed.kind;
+          if (keyName === parsed.memberName && isStaticMatch && kindMatch) {
+            memberNode = member;
+            break;
+          }
+        }
+      }
+
+      if (memberNode && memberNode.range) {
+        var start = memberNode.range[0];
+        var end = memberNode.range[1];
+
+        // Clean up leading indent and newline
+        while (start > 0 && (existingSource[start - 1] === ' ' || existingSource[start - 1] === '\t')) {
+          start--;
+        }
+        if (start > 0 && existingSource[start - 1] === '\n') {
+          start--;
+          if (start > 0 && existingSource[start - 1] === '\r') start--;
+        }
+        return existingSource.slice(0, start) + existingSource.slice(end);
+      }
+    } catch(e) {
+      console.warn('[LunoClassPatcher] deleteMethodInSource notice:', e.message);
+    }
+    return existingSource;
+  }
+
+  /**
+   * ⚙️ METHOD: patchMethodInSource(existingSource, targetSpec, methodCode)
+   * Surgically replaces or inserts a method inside an ES6 class body using Acorn AST ranges.
+   */
+  static patchMethodInSource(existingSource, targetSpec, methodCode) {
+    if (!existingSource || typeof existingSource !== 'string' || !existingSource.trim()) {
+      throw new Error('[Luno AST Guard] Cannot patch method: existingSource is empty.');
+    }
+
+    var parsed = LunoClassPatcher.parseSpec(targetSpec);
+    var className = parsed.className;
+    var memberName = parsed.memberName;
+    var isStatic = parsed.isStatic;
+    var targetKind = parsed.kind;
+
+    var cleanMethod = LunoClassPatcher.normalizeMethodCode(memberName, methodCode, isStatic, targetKind);
+    var ast = LunoClassPatcher.parseAST(existingSource);
+    var classNodes = LunoClassPatcher.findClassNodes(ast, className);
+
+    if (classNodes.length === 0) {
+      var allFound = LunoClassPatcher.findClassNodes(ast).map(function(c) { return c.name || 'Anonymous'; });
+      throw new Error('[Luno AST Guard] Target class "' + (className || 'target') + '" not found in source AST. Available classes: [' + allFound.join(', ') + '].');
+    }
+
+    var targetClassNode = classNodes[0].node;
+    var classBody = targetClassNode.body;
+
+    if (!classBody || !Array.isArray(classBody.body) || !classBody.range) {
       throw new Error('[Luno AST Guard] Target class "' + className + '" has an invalid class body in AST.');
     }
 
-    var classBody = targetClassNode.body;
-    var existingMethodNode = null;
-
+    var existingMemberNode = null;
     for (var i = 0; i < classBody.body.length; i++) {
       var member = classBody.body[i];
       if (member.type === 'MethodDefinition' || member.type === 'PropertyDefinition') {
         var keyName = member.key ? (member.key.name || member.key.value) : null;
-        if (keyName === memberName) {
-          existingMethodNode = member;
+        var isStaticMatch = Boolean(member.static) === Boolean(isStatic);
+        var kindMatch = targetKind === 'method' || member.kind === targetKind;
+        if (keyName === memberName && isStaticMatch && kindMatch) {
+          existingMemberNode = member;
           break;
         }
       }
     }
 
-    // Replace existing method node
-    if (existingMethodNode && existingMethodNode.range) {
-      var startIdx = existingMethodNode.range[0];
-      var endIdx = existingMethodNode.range[1];
-      var indentedMethod = '  ' + cleanMethod.split('\n').join('\n  ');
+    var baseIndentation = '  ';
+
+    // Replace existing method node in place
+    if (existingMemberNode && existingMemberNode.range) {
+      var startIdx = existingMemberNode.range[0];
+      var endIdx = existingMemberNode.range[1];
+
+      var indentedMethod = baseIndentation + cleanMethod.split('\n').map(function(line, idx) {
+        return idx === 0 ? line : (baseIndentation + line);
+      }).join('\n');
+
       return existingSource.slice(0, startIdx) + indentedMethod + existingSource.slice(endIdx);
     }
 
-    // Insert new method strictly before the closing class bracket
+    // Insert new method cleanly before the closing bracket of the class body
     var closeBraceIdx = classBody.range[1] - 1;
-    var indentedNewMethod = '\n  ' + cleanMethod.split('\n').join('\n  ') + '\n';
+    var indentedNewMethod = '\n' + baseIndentation + cleanMethod.split('\n').map(function(line, idx) {
+      return idx === 0 ? line : (baseIndentation + line);
+    }).join('\n') + '\n';
+
     return existingSource.slice(0, closeBraceIdx) + indentedNewMethod + existingSource.slice(closeBraceIdx);
   }
 }

@@ -3,8 +3,8 @@ class LunoPatchConsolidator {
 
   /**
    * ⚙️ METHOD: consolidate(projectOverride)
-   * Hardened client-side AST consolidation with pre-write syntax verification,
-   * method deduplication, and safe rollback protection.
+   * Hardened client-side AST consolidation with sequential patch folding,
+   * method deletion support, multi-project journal isolation, and pre-write rollback verification.
    */
   static async consolidate(projectOverride) {
     try {
@@ -15,7 +15,7 @@ class LunoPatchConsolidator {
         try { await LunoAcornLoader.ensureLoaded(); } catch(e){}
       }
 
-      var logRes = await fetch('/api/fs/read?path=LunoPatchLog.html' + pParam);
+      var logRes = await fetch('/api/fs/read?path=LunoPatchLog.html' + pParam + '&v=' + Date.now());
       var logData = await logRes.json();
 
       if (!logRes.ok || !logData || !logData.content || !logData.content.trim()) {
@@ -80,7 +80,7 @@ class LunoPatchConsolidator {
         return { success: true, consolidatedCount: 0, modifiedFiles: [], note: 'No pending patches for ' + targetProj };
       }
 
-      // Group patches by target file
+      // Group patches by target file while preserving chronological order
       var fileMap = new Map();
       targetFiles.forEach(function(f) {
         var key = f.canonicalPath || f.filePath;
@@ -94,65 +94,71 @@ class LunoPatchConsolidator {
       var fileEntries = Array.from(fileMap.entries());
       for (var fIdx = 0; fIdx < fileEntries.length; fIdx++) {
         var canonicalPath = fileEntries[fIdx][0];
-        var patchList = fileEntries[fIdx][1];
+        var patchSequence = fileEntries[fIdx][1];
 
         var currentSource = '';
+        var isNewFile = false;
+
         try {
           var baseRes = await fetch('/api/fs/read?path=' + encodeURIComponent(canonicalPath) + pParam);
           var baseData = await baseRes.json();
-          if (baseRes.ok && baseData && baseData.content) {
+          if (baseRes.ok && baseData && baseData.content !== undefined) {
             currentSource = baseData.content;
           }
         } catch(e){}
 
-        if (!currentSource || !currentSource.trim()) {
-          throw new Error('[Luno Consolidation Guard] Cannot consolidate into missing base file: ' + canonicalPath);
+        // If file does not exist on disk, check if first patch provides initial content
+        if (!currentSource && patchSequence.length > 0 && !patchSequence[0].methodSpec && patchSequence[0].content) {
+          isNewFile = true;
+          currentSource = patchSequence[0].content;
+          patchSequence = patchSequence.slice(1);
         }
 
-        filesToWrite.push({
-          filePath: canonicalPath + '.bak',
-          action: 'direct',
-          content: currentSource
-        });
+        if (!currentSource && !isNewFile) {
+          throw new Error('[Luno Consolidation Guard] Cannot consolidate patches into missing base file: ' + canonicalPath);
+        }
 
-        // Deduplicate method patches by methodSpec (latest takes precedence)
-        var dedupedPatches = [];
-        var seenSpecs = new Set();
-        for (var pIdx = patchList.length - 1; pIdx >= 0; pIdx--) {
-          var item = patchList[pIdx];
-          if (item.methodSpec) {
-            if (!seenSpecs.has(item.methodSpec)) {
-              seenSpecs.add(item.methodSpec);
-              dedupedPatches.unshift(item);
-            }
-          } else {
-            dedupedPatches.unshift(item);
+        // Backup existing file content before modifying
+        if (!isNewFile) {
+          filesToWrite.push({
+            filePath: canonicalPath + '.bak',
+            action: 'direct',
+            content: currentSource
+          });
+        }
+
+        // Apply chronological patch sequence
+        for (var p = 0; p < patchSequence.length; p++) {
+          var item = patchSequence[p];
+          if (!item) continue;
+
+          // 1. Full-file override block
+          if (!item.methodSpec && item.action !== 'patch' && item.content) {
+            currentSource = item.content;
           }
-        }
-
-        // Apply each patch with fresh AST re-parsing
-        for (var i = 0; i < dedupedPatches.length; i++) {
-          var p = dedupedPatches[i];
-          if (p.action === 'delete') continue;
-
-          if (p.methodSpec || p.action === 'patch') {
+          // 2. Member deletion block
+          else if (item.action === 'delete' && item.methodSpec) {
+            if (typeof LunoClassPatcher !== 'undefined' && LunoClassPatcher.deleteMethodInSource) {
+              currentSource = LunoClassPatcher.deleteMethodInSource(currentSource, item.methodSpec);
+            }
+          }
+          // 3. Surgical method / property patch
+          else if (item.methodSpec || item.action === 'patch') {
             if (typeof LunoClassPatcher !== 'undefined' && LunoClassPatcher.patchMethodInSource) {
-              currentSource = LunoClassPatcher.patchMethodInSource(currentSource, p.methodSpec || canonicalPath, p.content);
+              currentSource = LunoClassPatcher.patchMethodInSource(currentSource, item.methodSpec || canonicalPath, item.content);
             } else {
-              currentSource = currentSource.trimEnd() + '\n\n' + p.content + '\n';
+              currentSource = currentSource.trimEnd() + '\n\n' + item.content + '\n';
             }
-          } else {
-            currentSource = p.content;
           }
         }
 
-        // PRE-WRITE AST SYNTAX VALIDATION (Hardened invariant)
+        // PRE-WRITE AST SYNTAX VALIDATION (Strict fail-fast invariant)
         if (canonicalPath.endsWith('.js') || canonicalPath.endsWith('.mjs')) {
           if (typeof LunoClassPatcher !== 'undefined' && LunoClassPatcher.parseAST) {
             try {
               LunoClassPatcher.parseAST(currentSource);
             } catch(astErr) {
-              throw new Error('[Luno Consolidation Guard] Syntax error in consolidated "' + canonicalPath + '": ' + astErr.message + '. Aborting consolidation.');
+              throw new Error('[Luno Consolidation Guard] Syntax error in consolidated "' + canonicalPath + '": ' + astErr.message + '. Consolidation aborted cleanly.');
             }
           }
         }
@@ -165,10 +171,11 @@ class LunoPatchConsolidator {
         modifiedFilesList.push(canonicalPath);
       }
 
+      // Update LunoPatchLog.html with any remaining patches for other projects
       filesToWrite.push({
         filePath: 'LunoPatchLog.html',
         action: 'direct',
-        content: remainingOtherProjectBlocks.join('\n\n')
+        content: remainingOtherProjectBlocks.length > 0 ? remainingOtherProjectBlocks.join('\n\n') : ''
       });
 
       var savePayloadObj = { files: filesToWrite, serverScript: '', project: targetProj };
@@ -193,7 +200,7 @@ class LunoPatchConsolidator {
           project: targetProj
         };
       } else {
-        throw new Error(saveData.error || 'Server write failed during consolidation');
+        throw new Error((saveData && saveData.error) || 'Server write failed during consolidation');
       }
     } catch (err) {
       if (typeof LunoPlaybackLogger !== 'undefined') {

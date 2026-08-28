@@ -1,6 +1,10 @@
 class LunoLinePatcher {
   constructor() {}
 
+  /**
+   * ⚙️ METHOD: appendPatch(sourceCode, targetSpec, methodCode, options)
+   * Dynamically constructs executable assignment statements and performs live runtime hot-patching.
+   */
   static appendPatch(sourceCode = '', targetSpec = '', methodCode = '', options = {}) {
     const opts = options || {};
     const isHotPatch = opts.hotPatch !== false;
@@ -12,6 +16,15 @@ class LunoLinePatcher {
     let cleanSpec = targetSpec.trim();
     if (cleanSpec.includes('@')) cleanSpec = cleanSpec.split('@').pop().trim();
     cleanSpec = cleanSpec.replace(/^(?:globalThis|window)\./, '');
+
+    let kind = 'method';
+    if (cleanSpec.startsWith('get ') || cleanSpec.includes('.get ')) {
+      kind = 'get';
+      cleanSpec = cleanSpec.replace(/\bget\s+/, '');
+    } else if (cleanSpec.startsWith('set ') || cleanSpec.includes('.set ')) {
+      kind = 'set';
+      cleanSpec = cleanSpec.replace(/\bset\s+/, '');
+    }
 
     let className = '';
     let memberName = '';
@@ -35,49 +48,40 @@ class LunoLinePatcher {
     let cleanMethod = methodCode.trim();
     if (cleanMethod.endsWith(';')) cleanMethod = cleanMethod.slice(0, -1).trim();
 
-    // Comprehensive async detection across entire header signature & body
-    const braceIdx = cleanMethod.indexOf('{');
-    const headerSig = braceIdx !== -1 ? cleanMethod.slice(0, braceIdx) : cleanMethod;
-    const isAsync = /\basync\b/.test(headerSig) || cleanMethod.includes('await ');
+    // Comprehensive header matcher: [static] [async] [*] [get|set] name(...)
+    const headerRegex = /^(?:(static)\s+)?(?:(async)\s+)?(\*)?\s*(?:(get|set)\s+)?([A-Za-z0-9_$#]+)\s*(\([\s\S]*?\))?\s*(\{[\s\S]*\})$/;
+    const match = cleanMethod.match(headerRegex);
 
-    if (cleanMethod.startsWith('static ')) {
-      cleanMethod = cleanMethod.slice(7).trim();
-    }
-    if (cleanMethod.startsWith('async ')) {
-      cleanMethod = cleanMethod.slice(6).trim();
-    }
+    const isAsync = Boolean(match && match[2]) || cleanMethod.includes('await ');
+    const isGenerator = Boolean(match && match[3]);
+    const memberKind = (match && match[4]) || kind;
+    const params = (match && match[6]) || '()';
+    const body = (match && match[7]) || (cleanMethod.indexOf('{') !== -1 ? cleanMethod.slice(cleanMethod.indexOf('{')) : ('{ ' + cleanMethod + ' }'));
 
-    if (cleanMethod.startsWith('function')) {
-      cleanMethod = (isAsync ? 'async ' : '') + cleanMethod;
-    } else {
-      if (braceIdx !== -1) {
-        const sig = cleanMethod.slice(0, braceIdx).trim();
-        const parenIdx = sig.indexOf('(');
-        if (parenIdx !== -1) {
-          const params = sig.slice(parenIdx);
-          const body = cleanMethod.slice(braceIdx);
-          cleanMethod = (isAsync ? 'async function' : 'function') + params + ' ' + body;
-        } else {
-          cleanMethod = (isAsync ? 'async function() ' : 'function() ') + cleanMethod.slice(braceIdx);
-        }
-      }
-    }
+    const genPrefix = isGenerator ? '*' : '';
+    const asyncPrefix = isAsync ? 'async ' : '';
+    const cleanFnExpr = asyncPrefix + 'function' + genPrefix + params + ' ' + body;
 
-    let patchTargetStr = '';
+    let isProtoTarget = isPrototype;
     if (typeof globalThis !== 'undefined' && globalThis[targetClass]) {
       const cls = globalThis[targetClass];
-      if (isPrototype || (cls.prototype && (typeof cls.prototype[memberName] === 'function' || memberName in cls.prototype))) {
-        patchTargetStr = `globalThis.${targetClass}.prototype.${memberName}`;
-      } else {
-        patchTargetStr = `globalThis.${targetClass}.${memberName}`;
+      if (cls.prototype && (memberName in cls.prototype || typeof cls.prototype[memberName] === 'function')) {
+        isProtoTarget = true;
       }
-    } else {
-      patchTargetStr = isPrototype
-        ? `globalThis.${targetClass}.prototype.${memberName}`
-        : `globalThis.${targetClass}.${memberName}`;
     }
 
-    const patchAssignmentStatement = `${patchTargetStr} = ${cleanMethod};`;
+    let patchAssignmentStatement = '';
+    const targetObjPath = isProtoTarget
+      ? `globalThis.${targetClass}.prototype`
+      : `globalThis.${targetClass}`;
+
+    if (memberKind === 'get') {
+      patchAssignmentStatement = `Object.defineProperty(${targetObjPath}, '${memberName}', { get: ${cleanFnExpr}, configurable: true, enumerable: true });`;
+    } else if (memberKind === 'set') {
+      patchAssignmentStatement = `Object.defineProperty(${targetObjPath}, '${memberName}', { set: ${cleanFnExpr}, configurable: true, enumerable: true });`;
+    } else {
+      patchAssignmentStatement = `${targetObjPath}.${memberName} = ${cleanFnExpr};`;
+    }
 
     const updatedSource = sourceCode
       ? (sourceCode.trimEnd() + '\n\n' + patchAssignmentStatement + '\n')
@@ -89,16 +93,6 @@ class LunoLinePatcher {
         const evalFn = new Function('globalThis', patchAssignmentStatement);
         evalFn(globalThis);
         appliedToRuntime = true;
-
-        if (globalThis[targetClass]) {
-          const cls = globalThis[targetClass];
-          if (cls.prototype && typeof cls.prototype[memberName] === 'function') {
-            try {
-              const protoFn = new Function('globalThis', `globalThis.${targetClass}.prototype.${memberName} = ${cleanMethod};`);
-              protoFn(globalThis);
-            } catch(e2){}
-          }
-        }
       } catch (e) {
         console.warn('[LunoLinePatcher] Runtime hot-patch evaluation notice:', e.message);
       }
@@ -114,6 +108,10 @@ class LunoLinePatcher {
     };
   }
 
+  /**
+   * ⚙️ METHOD: consolidate(sourceCode)
+   * Merges and deduplicates sequential trailing assignment statements.
+   */
   static consolidate(sourceCode = '') {
     if (!sourceCode || typeof sourceCode !== 'string') return sourceCode;
 

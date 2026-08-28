@@ -83,6 +83,10 @@ var LunoLoader = globalThis.LunoLoader = class LunoLoader {
     });
   }
 
+  /**
+   * ⚙️ METHOD: applyPatchLog(projectName)
+   * Hardened live runtime patch evaluator for methods, getters, setters, generators, and full file overrides.
+   */
   static async applyPatchLog(projectName) {
     if (LunoLoader.isStaticHosting()) {
       return { appliedCount: 0, note: 'Static hosting mode' };
@@ -92,28 +96,40 @@ var LunoLoader = globalThis.LunoLoader = class LunoLoader {
       var targetProj = projectName || 'Luno';
       var res = await fetch('/api/fs/read?path=LunoPatchLog.html&project=' + encodeURIComponent(targetProj) + '&v=' + Date.now());
       var data = await res.json();
-      if (!res.ok || !data || !data.content || !data.content.trim()) return;
+      if (!res.ok || !data || !data.content || !data.content.trim()) return { appliedCount: 0, note: 'Patch log empty' };
 
       var parser = globalThis.LunoPayloadParser || globalThis.LunoContainerParser;
-      if (!parser || typeof parser.parsePatchLog !== 'function') return;
+      if (!parser || typeof parser.parsePatchLog !== 'function') return { appliedCount: 0, error: 'Parser unavailable' };
 
       var parsed = parser.parsePatchLog(data.content);
       var files = parsed.files || [];
+      var appliedCount = 0;
 
       for (var i = 0; i < files.length; i++) {
         var f = files[i];
         if (!f || !f.filePath) continue;
 
         var norm = f.filePath.replace(/\\/g, '/').replace(/^\/+/, '');
-        var isForTarget = (targetProj === 'Luno') 
+        var isForTarget = (targetProj === 'Luno')
           ? (norm.startsWith('Luno/') || !norm.includes('/') || norm.startsWith('app/') || norm.startsWith('browser/') || norm.startsWith('core/') || norm.startsWith('docs/') || norm.startsWith('test/'))
           : (norm.startsWith(targetProj + '/') || norm.startsWith('Library/'));
 
         if (!isForTarget) continue;
 
-        if (f.methodSpec && f.content) {
+        // 1. Surgical Method / Property Patch
+        if (f.methodSpec) {
           var spec = f.methodSpec.replace(/^(?:globalThis|window)\./, '').trim();
           var isProto = spec.includes('.prototype.');
+          var kind = 'method'; // 'method', 'get', 'set'
+
+          if (spec.startsWith('get ') || spec.includes('.get ')) {
+            kind = 'get';
+            spec = spec.replace(/\bget\s+/, '');
+          } else if (spec.startsWith('set ') || spec.includes('.set ')) {
+            kind = 'set';
+            spec = spec.replace(/\bset\s+/, '');
+          }
+
           var className = '';
           var memberName = '';
 
@@ -129,28 +145,96 @@ var LunoLoader = globalThis.LunoLoader = class LunoLoader {
             memberName = spec;
           }
 
+          // Target object resolution
+          var targetClass = globalThis[className];
+          if (!targetClass && typeof window !== 'undefined') targetClass = window[className];
+
+          var targetObj = null;
+          if (targetClass) {
+            if (isProto || (targetClass.prototype && (memberName in targetClass.prototype || typeof targetClass.prototype[memberName] === 'function'))) {
+              targetObj = targetClass.prototype;
+            } else {
+              targetObj = targetClass;
+            }
+          }
+
+          // Handle live deletion action
+          if (f.action === 'delete') {
+            if (targetObj && memberName) {
+              delete targetObj[memberName];
+              appliedCount++;
+            }
+            continue;
+          }
+
+          if (!f.content || !f.content.trim()) continue;
+
           var fnCode = f.content.trim();
           if (fnCode.endsWith(';')) fnCode = fnCode.slice(0, -1).trim();
 
-          var braceIdx = fnCode.indexOf('{');
-          var headerSig = braceIdx !== -1 ? fnCode.slice(0, braceIdx) : fnCode;
-          var isAsync = /\basync\b/.test(headerSig) || fnCode.includes('await ');
+          // Header inspection
+          var headerMatch = fnCode.match(/^(?:(static)\s+)?(?:(async)\s+)?(\*)?\s*(?:(get|set)\s+)?([A-Za-z0-9_$#]+)\s*(\([\s\S]*?\))?\s*(\{[\s\S]*\})$/);
+          var isAsync = Boolean(headerMatch && headerMatch[2]) || fnCode.includes('await ');
+          var isGenerator = Boolean(headerMatch && headerMatch[3]);
+          var memberKind = (headerMatch && headerMatch[4]) || kind;
+          var params = (headerMatch && headerMatch[6]) || '()';
+          var body = (headerMatch && headerMatch[7]) || (fnCode.indexOf('{') !== -1 ? fnCode.slice(fnCode.indexOf('{')) : ('{ ' + fnCode + ' }'));
 
-          var cleanBody = fnCode.replace(/^(?:static\s+)?(?:async\s+)?/, '');
-          var parenIdx = cleanBody.indexOf('(');
-          var paramsAndBody = (parenIdx !== -1) ? cleanBody.slice(parenIdx) : ('() ' + cleanBody);
+          var fnExpr = '';
+          if (memberKind === 'get' || memberKind === 'set') {
+            fnExpr = (isAsync ? 'async function' : 'function') + params + ' ' + body;
+          } else {
+            var genPrefix = isGenerator ? '*' : '';
+            var asyncPrefix = isAsync ? 'async ' : '';
+            fnExpr = asyncPrefix + 'function' + genPrefix + params + ' ' + body;
+          }
 
-          var fnExpr = (isAsync ? 'async function' : 'function') + paramsAndBody;
-          var targetObj = isProto ? (globalThis[className] && globalThis[className].prototype) : globalThis[className];
-          if (targetObj) {
-            try {
-              var evalFn = new Function('return (' + fnExpr + ');')();
-              targetObj[memberName] = evalFn;
-            } catch(e) {}
+          try {
+            var evalFn = new Function('return (' + fnExpr + ');')();
+
+            if (targetObj) {
+              if (memberKind === 'get') {
+                Object.defineProperty(targetObj, memberName, {
+                  get: evalFn,
+                  configurable: true,
+                  enumerable: true
+                });
+              } else if (memberKind === 'set') {
+                Object.defineProperty(targetObj, memberName, {
+                  set: evalFn,
+                  configurable: true,
+                  enumerable: true
+                });
+              } else {
+                targetObj[memberName] = evalFn;
+              }
+              appliedCount++;
+            }
+          } catch(evalErr) {
+            console.warn('[LunoLoader] Runtime patch evaluation failed for ' + spec + ':', evalErr.message);
+          }
+        }
+        // 2. Full File Live Override in Patch Log
+        else if (f.content && f.action !== 'delete') {
+          try {
+            var execFn = new Function('globalThis', f.content);
+            execFn(globalThis);
+            appliedCount++;
+          } catch(fileErr) {
+            console.warn('[LunoLoader] Runtime full file patch failed for ' + norm + ':', fileErr.message);
           }
         }
       }
-    } catch(err) {}
+
+      if (appliedCount > 0 && typeof LunoPlaybackLogger !== 'undefined') {
+        LunoPlaybackLogger.patch('Runtime Patches Applied', 'Evaluated ' + appliedCount + ' live patch(es) from LunoPatchLog.html for [' + targetProj + ']');
+      }
+
+      return { appliedCount: appliedCount, targetProject: targetProj };
+    } catch(err) {
+      console.warn('[LunoLoader] applyPatchLog exception:', err);
+      return { appliedCount: 0, error: err.message };
+    }
   }
 
   static async loadApp(containerId) {
