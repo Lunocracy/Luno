@@ -5,6 +5,7 @@ var LunoLoader = globalThis.LunoLoader = class LunoLoader {
     'LunoLoader.js',
     '/app/LunoLoader.js',
     './app/LunoLoader.js',
+    'app/LunoLoader.js',
     '/Luno/app/LunoLoader.js',
     'Luno/app/LunoLoader.js',
     '/Library/LunoLoader.js',
@@ -15,6 +16,9 @@ var LunoLoader = globalThis.LunoLoader = class LunoLoader {
   ]);
   static loadedStyles = new Set();
 
+  /**
+   * Detects if running on GitHub Pages, Cloudflare Pages, or static file protocol.
+   */
   static isStaticHosting() {
     try {
       if (typeof window !== 'undefined' && window.location) {
@@ -25,6 +29,32 @@ var LunoLoader = globalThis.LunoLoader = class LunoLoader {
     return false;
   }
 
+  /**
+   * Normalizes script paths:
+   * - Local Node server: Preserves '/Luno/app/...' format expected by LunoServer.
+   * - GitHub Pages: Strips redundant 'Luno/' prefix so it cleanly loads './app/...'.
+   */
+  static normalizeScriptPath(rawPath) {
+    if (!rawPath || typeof rawPath !== 'string') return '';
+    if (rawPath.startsWith('http://') || rawPath.startsWith('https://')) return rawPath;
+
+    var clean = rawPath.replace(/\\/g, '/').replace(/^\/+/, '');
+
+    if (LunoLoader.isStaticHosting()) {
+      // In standalone GitHub repository, strip leading 'Luno/' prefix if present
+      if (clean.startsWith('Luno/')) {
+        clean = clean.slice(5);
+      }
+      if (!clean.startsWith('./') && !clean.startsWith('../')) {
+        clean = './' + clean;
+      }
+      return clean;
+    }
+
+    // Local Node server mode: absolute slash path
+    return clean.startsWith('/') ? clean : ('/' + clean);
+  }
+
   static getLibraryRoot() {
     if (LunoLoader.isStaticHosting()) {
       return './library/';
@@ -33,32 +63,30 @@ var LunoLoader = globalThis.LunoLoader = class LunoLoader {
   }
 
   static loadStyle(cssPath) {
-    return new Promise(function(resolve, reject) {
-      var isStatic = LunoLoader.isStaticHosting();
-      var fullUrl = cssPath;
-      if (!fullUrl.startsWith('http://') && !fullUrl.startsWith('https://')) {
-        fullUrl = isStatic ? (cssPath.startsWith('/') ? ('.' + cssPath) : cssPath) : (cssPath.startsWith('/') ? cssPath : ('/' + cssPath));
-      }
+    return new Promise(function(resolve) {
+      var fullUrl = LunoLoader.normalizeScriptPath(cssPath);
       if (LunoLoader.loadedStyles.has(fullUrl)) return resolve({ url: fullUrl, cached: true });
 
       var link = document.createElement('link');
       link.rel = 'stylesheet';
       link.href = fullUrl + (fullUrl.indexOf('?') === -1 ? '?v=' : '&v=') + Date.now();
-      link.onload = function() { LunoLoader.loadedStyles.add(fullUrl); resolve({ url: fullUrl, cached: false }); };
-      link.onerror = function() { reject(new Error('Failed to load stylesheet: ' + cssPath)); };
+      link.onload = function() {
+        LunoLoader.loadedStyles.add(fullUrl);
+        resolve({ url: fullUrl, cached: false });
+      };
+      link.onerror = function() {
+        console.warn('[LunoLoader] Optional stylesheet notice:', cssPath);
+        resolve({ url: fullUrl, failed: true });
+      };
       document.head.appendChild(link);
     });
   }
 
   static loadScript(jsPath) {
     return new Promise(function(resolve, reject) {
-      var isStatic = LunoLoader.isStaticHosting();
-      var fullUrl = jsPath;
-      if (!fullUrl.startsWith('http://') && !fullUrl.startsWith('https://')) {
-        fullUrl = isStatic ? (jsPath.startsWith('/') ? ('.' + jsPath) : jsPath) : (jsPath.startsWith('/') ? jsPath : ('/' + jsPath));
-      }
-
+      var fullUrl = LunoLoader.normalizeScriptPath(jsPath);
       var cleanName = jsPath.split('?')[0].split('/').pop();
+
       if (cleanName === 'LunoLoader.js' && typeof globalThis.LunoLoader !== 'undefined') {
         LunoLoader.loadedScripts.add(fullUrl);
         return resolve({ url: fullUrl, cached: true });
@@ -77,16 +105,25 @@ var LunoLoader = globalThis.LunoLoader = class LunoLoader {
         resolve({ url: fullUrl, cached: false });
       };
       script.onerror = function() {
-        reject(new Error('Failed to load script: ' + jsPath));
+        // Fallback: If './subfolder/file.js' failed on static host, try './app/file.js'
+        var altPath = './app/' + cleanName + '?v=' + Date.now();
+        var altScript = document.createElement('script');
+        altScript.src = altPath;
+        altScript.async = false;
+        altScript.onload = function() {
+          LunoLoader.loadedScripts.add(fullUrl);
+          LunoLoader.loadedScripts.add(jsPath);
+          resolve({ url: altPath, fallback: true });
+        };
+        altScript.onerror = function() {
+          reject(new Error('Failed to load script: ' + fullUrl));
+        };
+        document.head.appendChild(altScript);
       };
       document.head.appendChild(script);
     });
   }
 
-  /**
-   * ⚙️ METHOD: applyPatchLog(projectName)
-   * Hardened live runtime patch evaluator for methods, getters, setters, generators, and full file overrides.
-   */
   static async applyPatchLog(projectName) {
     if (LunoLoader.isStaticHosting()) {
       return { appliedCount: 0, note: 'Static hosting mode' };
@@ -116,132 +153,28 @@ var LunoLoader = globalThis.LunoLoader = class LunoLoader {
 
         if (!isForTarget) continue;
 
-        // 1. Surgical Method / Property Patch
-        if (f.methodSpec) {
+        if (f.methodSpec && f.content) {
           var spec = f.methodSpec.replace(/^(?:globalThis|window)\./, '').trim();
-          var isProto = spec.includes('.prototype.');
-          var kind = 'method';
-
-          if (spec.startsWith('get ') || spec.includes('.get ')) {
-            kind = 'get';
-            spec = spec.replace(/\bget\s+/, '');
-          } else if (spec.startsWith('set ') || spec.includes('.set ')) {
-            kind = 'set';
-            spec = spec.replace(/\bset\s+/, '');
-          }
-
-          var className = '';
-          var memberName = '';
-
-          if (isProto) {
-            var pParts = spec.split('.prototype.');
-            className = pParts[0].trim();
-            memberName = pParts[1].trim();
-          } else if (spec.includes('.')) {
-            var dParts = spec.split('.');
-            memberName = dParts.pop().trim();
-            className = dParts.join('.').trim();
-          } else {
-            memberName = spec;
-          }
-
-          var targetClass = globalThis[className];
-          if (!targetClass && typeof window !== 'undefined') targetClass = window[className];
-
-          var targetObj = null;
+          var parts = spec.split('.');
+          var mName = parts.pop();
+          var cName = parts.join('.');
+          var targetClass = globalThis[cName] || (typeof window !== 'undefined' && window[cName]);
           if (targetClass) {
-            if (isProto || (targetClass.prototype && (memberName in targetClass.prototype || typeof targetClass.prototype[memberName] === 'function'))) {
-              targetObj = targetClass.prototype;
-            } else {
-              targetObj = targetClass;
-            }
-          }
-
-          if (f.action === 'delete') {
-            if (targetObj && memberName) {
-              delete targetObj[memberName];
+            try {
+              var cleanCode = f.content.trim().replace(/^\s*(?:\/\/[^\r\n]*[\r\n]+|\/\*[\s\S]*?\*\/\s*)+/, '').trim();
+              var firstBrace = cleanCode.indexOf('{');
+              var body = firstBrace !== -1 ? cleanCode.slice(firstBrace).trim() : '{ ' + cleanCode + ' }';
+              var isAsync = /\basync\b/.test(cleanCode.slice(0, firstBrace));
+              var fn = new Function('return (' + (isAsync ? 'async function' : 'function') + '() ' + body + ');')();
+              targetClass[mName] = fn;
               appliedCount++;
-            }
-            continue;
-          }
-
-          if (!f.content || !f.content.trim()) continue;
-
-          var fnCode = f.content.trim();
-          if (fnCode.endsWith(';')) fnCode = fnCode.slice(0, -1).trim();
-
-          // Strip leading comments and JSDoc before structural inspection
-          var cleanFnCode = fnCode.replace(/^\s*(?:\/\/[^\r\n]*[\r\n]+|\/\*[\s\S]*?\*\/\s*)+/, '').trim();
-
-          var firstBraceIdx = cleanFnCode.indexOf('{');
-          var headerPart = firstBraceIdx !== -1 ? cleanFnCode.slice(0, firstBraceIdx).trim() : cleanFnCode;
-          var bodyPart = firstBraceIdx !== -1 ? cleanFnCode.slice(firstBraceIdx).trim() : '{ ' + cleanFnCode + ' }';
-
-          var isAsync = /\basync\b/.test(headerPart) || bodyPart.includes('await ');
-          var isGenerator = headerPart.includes('*');
-          var isGet = /\bget\b/.test(headerPart) || kind === 'get';
-          var isSet = /\bset\b/.test(headerPart) || kind === 'set';
-
-          var params = '()';
-          var openParenIdx = headerPart.indexOf('(');
-          var closeParenIdx = headerPart.lastIndexOf(')');
-          if (openParenIdx !== -1 && closeParenIdx !== -1 && closeParenIdx > openParenIdx) {
-            params = headerPart.slice(openParenIdx, closeParenIdx + 1);
-          }
-
-          var fnExpr = '';
-          if (isGet || isSet) {
-            fnExpr = (isAsync ? 'async function' : 'function') + params + ' ' + bodyPart;
-          } else {
-            var genPrefix = isGenerator ? '*' : '';
-            var asyncPrefix = isAsync ? 'async ' : '';
-            fnExpr = asyncPrefix + 'function' + genPrefix + params + ' ' + bodyPart;
-          }
-
-          try {
-            var evalFn = new Function('return (' + fnExpr + ');')();
-
-            if (targetObj) {
-              if (isGet) {
-                Object.defineProperty(targetObj, memberName, {
-                  get: evalFn,
-                  configurable: true,
-                  enumerable: true
-                });
-              } else if (isSet) {
-                Object.defineProperty(targetObj, memberName, {
-                  set: evalFn,
-                  configurable: true,
-                  enumerable: true
-                });
-              } else {
-                targetObj[memberName] = evalFn;
-              }
-              appliedCount++;
-            }
-          } catch(evalErr) {
-            console.warn('[LunoLoader] Runtime patch evaluation failed for ' + spec + ':', evalErr.message);
+            } catch(e) {}
           }
         }
-        // 2. Full File Live Override in Patch Log
-        else if (f.content && f.action !== 'delete') {
-          try {
-            var execFn = new Function('globalThis', f.content);
-            execFn(globalThis);
-            appliedCount++;
-          } catch(fileErr) {
-            console.warn('[LunoLoader] Runtime full file patch failed for ' + norm + ':', fileErr.message);
-          }
-        }
-      }
-
-      if (appliedCount > 0 && typeof LunoPlaybackLogger !== 'undefined') {
-        LunoPlaybackLogger.patch('Runtime Patches Applied', 'Evaluated ' + appliedCount + ' live patch(es) from LunoPatchLog.html for [' + targetProj + ']');
       }
 
       return { appliedCount: appliedCount, targetProject: targetProj };
     } catch(err) {
-      console.warn('[LunoLoader] applyPatchLog exception:', err);
       return { appliedCount: 0, error: err.message };
     }
   }
@@ -251,24 +184,36 @@ var LunoLoader = globalThis.LunoLoader = class LunoLoader {
       ? document.getElementById(containerId)
       : (containerId || document.getElementById('app-root') || document.body);
 
+    var bootStatusEl = document.getElementById('boot-status');
+    var updateBootStatus = function(msg) {
+      if (bootStatusEl) {
+        var p = bootStatusEl.querySelector('p');
+        if (p) p.textContent = msg;
+      }
+    };
+
     var lunoMeta = {};
     try {
-      var res = await fetch('luno.json?v=' + Date.now());
+      updateBootStatus('Reading luno.json manifest...');
+      var manifestUrl = LunoLoader.isStaticHosting() ? './luno.json' : 'luno.json?v=' + Date.now();
+      var res = await fetch(manifestUrl);
       if (res.ok) lunoMeta = await res.json();
-    } catch(e){}
+    } catch(e) {
+      console.warn('[LunoLoader] Manifest load notice:', e);
+    }
 
-    var libRoot = LunoLoader.getLibraryRoot();
     var libs = Array.isArray(lunoMeta.library) ? lunoMeta.library : [];
     var main = Array.isArray(lunoMeta.main) ? lunoMeta.main : [];
     var styles = Array.isArray(lunoMeta.styles) ? lunoMeta.styles : [];
 
     for (var s = 0; s < styles.length; s++) {
-      try { await LunoLoader.loadStyle(styles[s]); } catch(e){}
+      await LunoLoader.loadStyle(styles[s]);
     }
 
+    var libRoot = LunoLoader.getLibraryRoot();
     for (var l = 0; l < libs.length; l++) {
       var cleanLib = libs[l].replace(/^Library\//i, '').replace(/^library\//i, '').replace(/^\/+/, '');
-      try { await LunoLoader.loadScript(libRoot + cleanLib); } catch(e){}
+      await LunoLoader.loadScript(libRoot + cleanLib);
     }
 
     if (typeof DomBasics !== 'undefined' && typeof DomBasics.run === 'function') {
@@ -276,18 +221,27 @@ var LunoLoader = globalThis.LunoLoader = class LunoLoader {
     }
 
     for (var m = 0; m < main.length; m++) {
-      try { await LunoLoader.loadScript(main[m]); } catch(e){}
+      var scriptName = main[m].split('/').pop();
+      updateBootStatus('Loading [' + (m + 1) + '/' + main.length + ']: ' + scriptName);
+      try {
+        await LunoLoader.loadScript(main[m]);
+      } catch (err) {
+        console.error('[LunoLoader] Error loading module:', main[m], err);
+        updateBootStatus('⚠️ Failed to load ' + scriptName + ': ' + err.message);
+      }
     }
 
     try {
       await LunoLoader.applyPatchLog(lunoMeta.name || 'Luno');
-    } catch(e){}
+    } catch(e) {}
 
-    var entryClass = (lunoMeta.entrypoint && lunoMeta.entrypoint.class) || lunoMeta.mainClass;
-    var entryMethod = (lunoMeta.entrypoint && lunoMeta.entrypoint.method) || 'run';
+    updateBootStatus('Launching ClientApp...');
 
-    if (entryClass && typeof window[entryClass] === 'function') {
-      var AppCls = window[entryClass];
+    var entryClass = (lunoMeta.entrypoint && lunoMeta.entrypoint.class) || lunoMeta.mainClass || 'ClientApp';
+    var entryMethod = (lunoMeta.entrypoint && lunoMeta.entrypoint.method) || 'init';
+
+    var AppCls = window[entryClass] || globalThis[entryClass];
+    if (typeof AppCls === 'function') {
       var envCtx = { container: targetContainer, config: lunoMeta, isStatic: LunoLoader.isStaticHosting() };
       if (typeof AppCls[entryMethod] === 'function') {
         await AppCls[entryMethod](envCtx);
@@ -295,6 +249,14 @@ var LunoLoader = globalThis.LunoLoader = class LunoLoader {
         var inst = new AppCls();
         if (typeof inst[entryMethod] === 'function') await inst[entryMethod](envCtx);
         else if (typeof inst.run === 'function') await inst.run(envCtx);
+      }
+    } else {
+      if (bootStatusEl) {
+        bootStatusEl.innerHTML = [
+          '<h3 style="color:#ff7b72; margin-top:0;">⚠️ Boot Scope Notice</h3>',
+          '<p style="font-size:12px; color:#c9d1d9;">Could not locate entrypoint class <strong>' + entryClass + '</strong>.</p>',
+          '<button onclick="location.reload()" style="margin-top:0.5rem; padding:0.35rem 0.75rem; background:#238636; color:#fff; border:none; border-radius:4px; font-weight:bold; cursor:pointer; font-family:monospace;">🔄 Reload</button>'
+        ].join('\n');
       }
     }
   }
