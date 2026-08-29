@@ -1,9 +1,6 @@
 class ClientAppPaster {
   constructor() {}
 
-  /**
-   * ⚙️ METHOD: pasteClipboard()
-   */
   static async pasteClipboard() {
     var pastedText = '';
     try {
@@ -20,9 +17,6 @@ class ClientAppPaster {
     }
   }
 
-  /**
-   * ⚙️ METHOD: processPastedText(text)
-   */
   static async processPastedText(text) {
     if (!text || !text.trim()) return;
 
@@ -52,9 +46,6 @@ class ClientAppPaster {
     ClientAppPaster.executeSave(text);
   }
 
-  /**
-   * ⚙️ METHOD: saveCode()
-   */
   static async saveCode() {
     var input = document.getElementById('code-input') || document.getElementById('payload-input');
     var text = input ? input.value : '';
@@ -68,10 +59,6 @@ class ClientAppPaster {
     ClientAppPaster.executeSave(text);
   }
 
-  /**
-   * ⚙️ METHOD: executeSave(overrideText)
-   * Hardened top-level execution loop running 100% in browser JavaScript.
-   */
   static async executeSave(overrideText) {
     var targetApp = globalThis.ClientAppCore || globalThis.ClientApp;
     var input = document.getElementById('code-input') || document.getElementById('payload-input');
@@ -131,7 +118,7 @@ class ClientAppPaster {
       if (finalPayload.serverScript) {
         clientSummary += "• Server Script Detected (" + finalPayload.serverScript.length + " bytes)\n";
       }
-      clientSummary += "\n⚡ Sending structured JSON payload to server...\n\n";
+      clientSummary += "\n⚡ Persisting changes to storage...\n\n";
 
       var pasteBtn = document.getElementById('btn-paste-chatbot');
       var feedbackCard = document.getElementById('feedback-card');
@@ -166,7 +153,7 @@ class ClientAppPaster {
         data = await res.json();
       }
 
-      var finalFeedback = clientSummary + "📊 SERVER EXECUTION RESPONSE:\n" + (data.llmFeedback || JSON.stringify(data, null, 2));
+      var finalFeedback = clientSummary + "📊 STORAGE EXECUTION RESPONSE:\n" + (data.llmFeedback || JSON.stringify(data, null, 2));
 
       if (targetApp && targetApp.showFeedback) {
         targetApp.showFeedback(finalFeedback, data && data.success ? "success" : "error");
@@ -181,6 +168,12 @@ class ClientAppPaster {
 
       if (data && data.success) {
         if (input) input.value = "";
+
+        // Automated feedback loop: Queue ground-truth response directly into Outbox
+        if (typeof OutboxQueue !== 'undefined' && OutboxQueue.addBundle) {
+          var modCountText = (data.modifiedCount !== undefined ? data.modifiedCount : (data.count || finalPayload.files.length));
+          OutboxQueue.addBundle('Save Feedback: [' + (targetProj || 'Luno') + '] (' + modCountText + ' files)', finalFeedback, { priority: 'high' });
+        }
 
         if (typeof LunoLoader !== 'undefined' && LunoLoader.applyPatchLog) {
           await LunoLoader.applyPatchLog(targetProj);
@@ -207,7 +200,7 @@ class ClientAppPaster {
           }
         }
       } else {
-        throw new Error((data && data.error) || 'Save operation failed on server');
+        throw new Error((data && data.error) || 'Save operation failed in storage');
       }
     } catch (err) {
       console.error('[ClientAppPaster Exception]', err);

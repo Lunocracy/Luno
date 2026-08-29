@@ -2,7 +2,6 @@ class LunoCheckpointView {
   constructor() {}
 
   static lastGitOutput = '';
-  static lastConsolidationOutput = '';
 
   static async mountUI(container) {
     if (!container) return;
@@ -20,30 +19,53 @@ class LunoCheckpointView {
           return el;
         };
 
+    var isServerMode = (typeof LunoFileSystem !== 'undefined') ? (LunoFileSystem.getActiveMode() === 'server') : true;
+
+    if (!isServerMode) {
+      var staticNoticeCard = m('div', {
+        style: {
+          background: '#161b22',
+          border: '2px solid #58a6ff',
+          borderRadius: '12px',
+          padding: '1.5rem',
+          maxWidth: '640px',
+          margin: '2rem auto',
+          color: '#c9d1d9',
+          fontFamily: 'monospace',
+          boxShadow: '0 8px 24px rgba(0,0,0,0.5)',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '1rem',
+          textAlign: 'center'
+        }
+      },
+        m('h2', { style: { color: '#58a6ff', fontSize: '1.25rem', margin: 0 } }, '📸 Git Checkpoint Manager'),
+        m('div', { style: { background: '#0d1117', border: '1px solid #30363d', padding: '1rem', borderRadius: '8px', fontSize: '0.82rem', lineHeight: '1.5', textAlign: 'left' } },
+          m('strong', { style: { color: '#00f2fe', display: 'block', marginBottom: '0.5rem' } }, 'ℹ️ Server-Only Feature:'),
+          'Git snapshots, staging, and commits require local Node.js process and filesystem access.',
+          m('br'),
+          m('br'),
+          'You are currently running in ',
+          m('strong', { style: { color: '#3fb950' } }, 'IndexedDB / Static Hosting Mode'),
+          '. All your files, edits, and template creations are being saved directly in your browser\'s persistent virtual storage.',
+          m('br'),
+          m('br'),
+          'To record snapshots directly into Git repositories, run Luno with Node.js on your local machine (http://localhost:8080).'
+        ),
+        m('button', {
+          style: { padding: '0.65rem 1.2rem', background: '#21262d', color: '#00f2fe', border: '1px solid #00f2fe', borderRadius: '6px', cursor: 'pointer', fontFamily: 'monospace', fontWeight: 'bold', alignSelf: 'center' },
+          onclick: function() {
+            if (typeof LunoSpaDock !== 'undefined') LunoSpaDock.mountView('workspace');
+          }
+        }, '🏠 Return to Workspace')
+      );
+      container.appendChild(staticNoticeCard);
+      return;
+    }
+
     var targetProj = (typeof ClientApp !== 'undefined' && ClientApp.getTargetProject) ? ClientApp.getTargetProject() : 'Luno';
     var pParam = targetProj ? ('&project=' + encodeURIComponent(targetProj)) : '';
     var uncommittedCount = (typeof ClientApp !== 'undefined' && ClientApp.uncommittedCount) || 0;
-
-    var pendingPatchesCount = 0;
-    try {
-      var plRes = await fetch('/api/fs/read?path=LunoPatchLog.html' + pParam);
-      var plData = await plRes.json();
-      if (plRes.ok && plData && plData.content) {
-        var parser = globalThis.LunoPayloadParser || globalThis.LunoContainerParser;
-        if (parser && typeof parser.parsePatchLog === 'function') {
-          var parsedPl = parser.parsePatchLog(plData.content);
-          var allFiles = parsedPl.files || [];
-          pendingPatchesCount = allFiles.filter(function(f) {
-            if (!f || !f.filePath) return false;
-            var norm = f.filePath.replace(/\\/g, '/');
-            if (targetProj === 'Luno') {
-              return norm.startsWith('Luno/') || norm.startsWith('app/') || norm.startsWith('core/') || norm.startsWith('browser/') || norm.startsWith('docs/') || norm.startsWith('test/');
-            }
-            return norm.startsWith(targetProj + '/') || !norm.includes('/') || norm.startsWith('Library/');
-          }).length;
-        }
-      }
-    } catch(e) {}
 
     var pendingNote = '';
     try {
@@ -89,75 +111,6 @@ class LunoCheckpointView {
       } catch (e) {}
     }, 40);
 
-    var consolidationCard = m('div', {
-      style: {
-        background: '#0d1117',
-        border: '2px solid ' + (pendingPatchesCount > 0 ? '#8257e5' : '#30363d'),
-        borderRadius: '10px',
-        padding: '1rem',
-        display: 'flex',
-        flexDirection: 'column',
-        gap: '0.65rem',
-        boxShadow: pendingPatchesCount > 0 ? '0 4px 16px rgba(130,87,229,0.25)' : 'none'
-      }
-    },
-      m('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.4rem' } },
-        m('strong', { style: { color: pendingPatchesCount > 0 ? '#d2a8ff' : '#8b949e', fontSize: '0.95rem', display: 'flex', alignItems: 'center', gap: '0.4rem' } }, 'STEP 1: 🧩 CONSOLIDATE PATCHES TO DISK'),
-        m('span', {
-          style: {
-            fontSize: '0.72rem',
-            fontWeight: 'bold',
-            padding: '0.2rem 0.6rem',
-            borderRadius: '12px',
-            background: pendingPatchesCount > 0 ? '#271052' : '#161b22',
-            color: pendingPatchesCount > 0 ? '#d2a8ff' : '#8b949e',
-            border: '1px solid ' + (pendingPatchesCount > 0 ? '#8257e5' : '#30363d')
-          }
-        }, pendingPatchesCount + ' patch(es) for [' + targetProj + ']')
-      ),
-      m('p', { style: { color: '#8b949e', margin: 0, fontSize: '0.78rem', lineHeight: '1.4' } },
-        'Client-side consolidation validates ES6 AST syntax, merges methods directly into ES6 class bodies, and cleans up LunoPatchLog.html.'
-      ),
-      m('button', {
-        id: 'btn-consolidate-patches',
-        style: {
-          padding: '0.75rem',
-          background: pendingPatchesCount > 0 ? '#8257e5' : '#21262d',
-          color: pendingPatchesCount > 0 ? '#ffffff' : '#8b949e',
-          border: 'none',
-          borderRadius: '8px',
-          fontWeight: 'bold',
-          fontSize: '0.9rem',
-          cursor: pendingPatchesCount > 0 ? 'pointer' : 'default',
-          fontFamily: 'monospace',
-          boxShadow: pendingPatchesCount > 0 ? '0 4px 12px rgba(130,87,229,0.3)' : 'none'
-        },
-        onclick: async function() {
-          if (pendingPatchesCount === 0) {
-            if (typeof ClientApp !== 'undefined' && ClientApp.showToast) {
-              ClientApp.showToast('No pending patches for [' + targetProj + ']!', 'info', 'ℹ️');
-            }
-            return;
-          }
-
-          try {
-            var data = await LunoPatchConsolidator.consolidate(targetProj);
-            if (data && data.success) {
-              LunoCheckpointView.lastConsolidationOutput = '✅ Consolidated ' + (data.consolidatedCount || 0) + ' patch(es) for [' + targetProj + ']!\nModified Files:\n- ' + (data.modifiedFiles || []).join('\n- ');
-              LunoCheckpointView.mountUI(container);
-            }
-          } catch(e) {
-            alert('Consolidation Error: ' + e.message);
-          }
-        }
-      }, '🧩 Consolidate Pending Patches (' + pendingPatchesCount + ')'),
-
-      LunoCheckpointView.lastConsolidationOutput ? m('pre', {
-        style: { background: '#070a13', border: '1px solid #1e293b', borderRadius: '6px', padding: '0.55rem', color: '#7ee787', fontSize: '0.72rem', fontFamily: 'monospace', whiteSpace: 'pre-wrap', margin: 0 },
-        textContent: LunoCheckpointView.lastConsolidationOutput
-      }) : null
-    );
-
     var card = m('div', {
       style: {
         background: '#161b22',
@@ -188,8 +141,6 @@ class LunoCheckpointView {
         }, '🏠 Workspace')
       ),
 
-      consolidationCard,
-
       m('div', { style: { background: '#0d1117', border: '1px solid #238636', padding: '0.85rem', borderRadius: '8px', fontSize: '0.82rem' } },
         m('strong', { style: { color: '#3fb950', display: 'block', marginBottom: '0.35rem' } }, '📊 Uncommitted Modifications for [' + targetProj + ']: ' + uncommittedCount + ' file(s)'),
         m('p', { style: { color: '#8b949e', margin: 0, lineHeight: '1.4' } },
@@ -198,7 +149,7 @@ class LunoCheckpointView {
       ),
 
       m('div', { style: { display: 'flex', flexDirection: 'column', gap: '0.4rem' } },
-        m('label', { style: { fontSize: '0.78rem', color: '#8b949e', fontWeight: 'bold' } }, 'STEP 2: 📸 Git Commit Note:'),
+        m('label', { style: { fontSize: '0.78rem', color: '#8b949e', fontWeight: 'bold' } }, 'Git Commit Note:'),
         m('input', {
           id: 'checkpoint-note-input',
           type: 'text',
@@ -235,7 +186,6 @@ class LunoCheckpointView {
                 'let commitMsg = "' + desc.replace(/"/g, '\\"') + '";',
                 'let gitOutput = "";',
                 'try {',
-                '  // 1. Purge .bak files from disk and untrack from git',
                 '  function deleteBakFiles(dir) {',
                 '    if (!fs.existsSync(dir)) return;',
                 '    const list = fs.readdirSync(dir);',

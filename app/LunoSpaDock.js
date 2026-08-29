@@ -19,7 +19,40 @@ class LunoSpaDock {
     return el;
   }
 
-  static reloadActivePreviewIframe(projectName) {
+  static async generateVirtualPreviewHtml(projectName) {
+    var pName = projectName || 'Luno';
+    var indexRes = null;
+    try {
+      if (typeof LunoApiClient !== 'undefined' && LunoApiClient.fetchFsRead) {
+        indexRes = await LunoApiClient.fetchFsRead('index.html', pName);
+      }
+    } catch(e) {}
+
+    if (indexRes && indexRes.success && indexRes.content) {
+      return indexRes.content;
+    }
+
+    return [
+      '<!DOCTYPE html>',
+      '<html>',
+      '<head>',
+      '  <meta charset="UTF-8">',
+      '  <title>' + pName + ' Preview</title>',
+      '  <style>html, body { background: #0d1117; color: #c9d1d9; font-family: monospace; padding: 1.5rem; margin: 0; min-height: 100vh; }</style>',
+      '</head>',
+      '<body>',
+      '  <div id="app-root">',
+      '    <div style="padding: 1.5rem; background: #161b22; border: 2px solid #00f2fe; border-radius: 8px; text-align: center; max-width: 540px; margin: 2rem auto; box-shadow: 0 4px 16px rgba(0,242,254,0.25);">',
+      '      <h3 style="color: #00f2fe; margin-top: 0;">📱 Virtual Sandbox: [' + pName + ']</h3>',
+      '      <p style="font-size: 0.82rem; color: #8b949e; line-height: 1.4;">Running in browser-local storage mode. Save files in the Files view to update this preview.</p>',
+      '    </div>',
+      '  </div>',
+      '</' + 'body>',
+      '</' + 'html>'
+    ].join('\n');
+  }
+
+  static async reloadActivePreviewIframe(projectName) {
     var pName = projectName || (typeof ClientApp !== 'undefined' && ClientApp.getTargetProject ? ClientApp.getTargetProject() : '');
     if (!pName) return;
 
@@ -27,6 +60,7 @@ class LunoSpaDock {
       LunoSpaDock._iframeCache = {};
     }
 
+    var isStatic = (typeof LunoFileSystem !== 'undefined' && LunoFileSystem.getActiveMode() !== 'server') || (typeof LunoLoader !== 'undefined' && LunoLoader.isStaticHosting());
     var iframeUrl = '/app-preview?project=' + encodeURIComponent(pName) + '&v=' + Date.now();
     var persistentAppRoot = document.getElementById('luno-persistent-app-root');
 
@@ -42,8 +76,19 @@ class LunoSpaDock {
       var newHolder = document.createElement('div');
       newHolder.id = 'iframe-holder-' + pName;
       newHolder.style.cssText = 'width:100%; height:100%; display:block;';
-      newHolder.innerHTML = '<iframe src="' + iframeUrl + '" style="width:100%; height:100%; border:1px solid #30363d; border-radius:8px; background:#0d1117;" allow="fullscreen; autoplay; midi"></iframe>';
 
+      var iframe = document.createElement('iframe');
+      iframe.style.cssText = 'width:100%; height:100%; border:1px solid #30363d; border-radius:8px; background:#0d1117;';
+      iframe.setAttribute('allow', 'fullscreen; autoplay; midi');
+
+      if (!isStatic) {
+        iframe.src = iframeUrl;
+      } else {
+        var srcdocContent = await LunoSpaDock.generateVirtualPreviewHtml(pName);
+        iframe.srcdoc = srcdocContent;
+      }
+
+      newHolder.appendChild(iframe);
       persistentAppRoot.appendChild(newHolder);
       LunoSpaDock._iframeCache[pName] = newHolder;
 
@@ -57,16 +102,21 @@ class LunoSpaDock {
     }
 
     var allIframes = document.querySelectorAll('iframe');
-    allIframes.forEach(function(ifr) {
+    for (var i = 0; i < allIframes.length; i++) {
+      var ifr = allIframes[i];
       try {
         if (ifr.src && (ifr.src.includes('project=' + encodeURIComponent(pName)) || ifr.src.includes('/' + pName + '/'))) {
-          ifr.src = iframeUrl;
+          if (!isStatic) {
+            ifr.src = iframeUrl;
+          } else {
+            ifr.srcdoc = await LunoSpaDock.generateVirtualPreviewHtml(pName);
+          }
         }
       } catch (e) {}
-    });
+    }
   }
 
-  static mountView(viewKey) {
+  static async mountView(viewKey) {
     LunoSpaDock.activeDockView = viewKey;
     if (typeof localStorage !== 'undefined') {
       try { localStorage.setItem('luno_active_dock_view', viewKey); } catch (e) {}
@@ -135,13 +185,14 @@ class LunoSpaDock {
     mainApp.appendChild(container);
 
     if (isAppView && targetProj) {
+      var isStatic = (typeof LunoFileSystem !== 'undefined' && LunoFileSystem.getActiveMode() !== 'server') || (typeof LunoLoader !== 'undefined' && LunoLoader.isStaticHosting());
       var toolbar = document.createElement('div');
       toolbar.id = 'luno-app-preview-toolbar';
       toolbar.style.cssText = 'display:flex; justify-content:space-between; align-items:center; background:#161b22; border:1px solid #30363d; border-radius:8px; padding:0.45rem 0.75rem; margin-bottom:0.5rem; flex-wrap:wrap; gap:0.4rem; font-family:monospace;';
 
       var leftInfo = document.createElement('div');
       leftInfo.style.cssText = 'display:flex; align-items:center; gap:0.4rem; font-size:0.8rem;';
-      leftInfo.innerHTML = '<span style="color:#00f2fe; font-weight:bold;">📱 App Preview:</span> <span style="color:#3fb950; font-weight:bold;">' + targetProj + '</span>';
+      leftInfo.innerHTML = '<span style="color:#00f2fe; font-weight:bold;">📱 App Preview:</span> <span style="color:#3fb950; font-weight:bold;">' + targetProj + '</span>' + (isStatic ? ' <span style="font-size:0.7rem; color:#8b949e;">(Virtual Sandbox)</span>' : '');
 
       var btnRow = document.createElement('div');
       btnRow.style.cssText = 'display:flex; gap:0.4rem; align-items:center;';
@@ -159,10 +210,16 @@ class LunoSpaDock {
 
       var btnNewTab = document.createElement('button');
       btnNewTab.style.cssText = 'padding:0.3rem 0.65rem; background:#238636; color:#fff; border:none; border-radius:6px; cursor:pointer; font-size:0.75rem; font-weight:bold; font-family:monospace; box-shadow:0 2px 8px rgba(35,134,54,0.3);';
-      btnNewTab.innerHTML = '↗ Open in New Window';
-      btnNewTab.title = 'Open app in standalone browser tab or window';
+      btnNewTab.innerHTML = isStatic ? '🌐 Open Live Site' : '↗ Open in New Window';
+      btnNewTab.title = isStatic ? 'Open live deployed GitHub Pages site' : 'Open app in standalone browser tab or window';
       btnNewTab.onclick = function() {
-        window.open('/app-preview?project=' + encodeURIComponent(targetProj), '_blank');
+        if (!isStatic) {
+          window.open('/app-preview?project=' + encodeURIComponent(targetProj), '_blank');
+        } else {
+          var remoteRepo = (typeof LunoDeployEngine !== 'undefined') ? LunoDeployEngine.getRemoteRepoName(targetProj) : targetProj;
+          var org = (typeof LunoDeployEngine !== 'undefined') ? LunoDeployEngine.GITHUB_ORG : 'Lunocracy';
+          window.open('https://' + org.toLowerCase() + '.github.io/' + remoteRepo + '/', '_blank');
+        }
       };
 
       btnRow.appendChild(btnReload);
@@ -184,7 +241,7 @@ class LunoSpaDock {
       persistentAppRoot.style.display = 'block';
 
       if (!LunoSpaDock._iframeCache[targetProj]) {
-        LunoSpaDock.reloadActivePreviewIframe(targetProj);
+        await LunoSpaDock.reloadActivePreviewIframe(targetProj);
       } else {
         Object.entries(LunoSpaDock._iframeCache).forEach(function(entry) {
           if (entry[0] === targetProj) {
