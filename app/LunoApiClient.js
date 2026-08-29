@@ -1,14 +1,16 @@
 class LunoApiClient {
-  /**
-   * ⚙️ CONSTRUCTOR: LunoApiClient()
-   */
   constructor() {}
 
-  /**
-   * ⚙️ METHOD: safeJsonFetch(url, options)
-   * - Type: Static Method
-   * - Modifier: async
-   */
+  static isStaticMode() {
+    if (typeof LunoFileSystem !== 'undefined' && LunoFileSystem.getActiveMode() !== 'server') {
+      return true;
+    }
+    if (typeof LunoLoader !== 'undefined' && LunoLoader.isStaticHosting()) {
+      return true;
+    }
+    return false;
+  }
+
   static async safeJsonFetch(url, options) {
     const res = await fetch(url, options);
     const text = await res.text();
@@ -19,107 +21,103 @@ class LunoApiClient {
     }
   }
 
-  /**
-   * ⚙️ METHOD: ping()
-   * - Type: Static Method
-   * - Modifier: async
-   */
   static async ping() {
-    return await LunoApiClient.safeJsonFetch('/api/ping');
+    if (LunoApiClient.isStaticMode()) {
+      return { status: 'online', mode: 'indexedDb-static', rootDir: 'IndexedDB Virtual Root', version: 'v3.6.5-browser' };
+    }
+    try {
+      return await LunoApiClient.safeJsonFetch('/api/ping');
+    } catch(e) {
+      return { status: 'offline', mode: 'indexedDb-static', rootDir: 'IndexedDB Virtual Root' };
+    }
   }
 
-  /**
-   * ⚙️ METHOD: fetchProjectsList()
-   * - Type: Static Method
-   * - Modifier: async
-   */
   static async fetchProjectsList() {
-    return await LunoApiClient.safeJsonFetch('/api/projects/list');
+    if (LunoApiClient.isStaticMode()) {
+      const adapter = LunoFileSystem.getAdapter();
+      if (adapter && adapter.listProjects) {
+        return await adapter.listProjects();
+      }
+    }
+    try {
+      return await LunoApiClient.safeJsonFetch('/api/projects/list');
+    } catch(e) {
+      const adapter = LunoFileSystem.getAdapter();
+      if (adapter && adapter.listProjects) return await adapter.listProjects();
+      return { success: true, projects: [{ name: 'Luno' }, { name: 'Library' }] };
+    }
   }
 
-  /**
-   * ⚙️ METHOD: setProjectRoot(rootPath)
-   * - Type: Static Method
-   * - Modifier: async
-   */
-  static async setProjectRoot(rootPath) {
-    return await LunoApiClient.safeJsonFetch('/api/fs/set-root', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ rootPath })
-    });
-  }
-
-  /**
-   * ⚙️ METHOD: createProject(projectPath)
-   * - Type: Static Method
-   * - Modifier: async
-   */
-  static async createProject(projectPath) {
-    return await LunoApiClient.safeJsonFetch('/api/fs/create-project', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ projectPath })
-    });
-  }
-
-  /**
-   * ⚙️ METHOD: fetchFsList(targetPath = '', project = '')
-   * - Type: Static Method
-   * - Modifier: async
-   */
-  static async fetchFsList(targetPath = '', project = '') {
-    const pParam = project ? ('&project=' + encodeURIComponent(project)) : '';
-    return await LunoApiClient.safeJsonFetch('/api/fs/ls?path=' + encodeURIComponent(targetPath) + pParam);
-  }
-
-  /**
-   * ⚙️ METHOD: fetchFsListRecursive(targetPath = '', project = '')
-   * - Type: Static Method
-   * - Modifier: async
-   */
   static async fetchFsListRecursive(targetPath = '', project = '') {
-    const pParam = project ? ('&project=' + encodeURIComponent(project)) : '';
-    return await LunoApiClient.safeJsonFetch('/api/fs/ls?recursive=true&path=' + encodeURIComponent(targetPath) + pParam);
+    if (LunoApiClient.isStaticMode()) {
+      const adapter = LunoFileSystem.getAdapter();
+      if (adapter && adapter.list) {
+        return await adapter.list(targetPath, project);
+      }
+    }
+    try {
+      const pParam = project ? ('&project=' + encodeURIComponent(project)) : '';
+      return await LunoApiClient.safeJsonFetch('/api/fs/ls?recursive=true&path=' + encodeURIComponent(targetPath) + pParam);
+    } catch(e) {
+      const adapter = LunoFileSystem.getAdapter();
+      if (adapter && adapter.list) return await adapter.list(targetPath, project);
+      return { success: true, items: [] };
+    }
   }
 
-  /**
-   * ⚙️ METHOD: fetchFsRead(filePath = '', project = '')
-   * - Type: Static Method
-   * - Modifier: async
-   */
   static async fetchFsRead(filePath = '', project = '') {
+    if (LunoApiClient.isStaticMode()) {
+      const adapter = LunoFileSystem.getAdapter();
+      if (adapter && adapter.read) {
+        const r = await adapter.read(filePath, project);
+        if (r.success) return r;
+      }
+      // Initial seed fallback: fetch base template/file from static GitHub Pages webroot
+      try {
+        const cleanPath = filePath.replace(/\\/g, '/').replace(/^\/+/, '');
+        const res = await fetch(cleanPath);
+        if (res.ok) {
+          const content = await res.text();
+          if (adapter && adapter.write) {
+            await adapter.write(filePath, content, project);
+          }
+          return { success: true, content, size: content.length };
+        }
+      } catch(fetchErr) {}
+      return { success: false, error: 'File not found in local browser storage' };
+    }
     const pParam = project ? ('&project=' + encodeURIComponent(project)) : '';
     return await LunoApiClient.safeJsonFetch('/api/fs/read?path=' + encodeURIComponent(filePath) + pParam);
   }
 
-  /**
-   * ⚙️ METHOD: fetchAllCode(project = '')
-   * - Type: Static Method
-   * - Modifier: async
-   */
-  static async fetchAllCode(project = '') {
-    const pParam = project ? ('?project=' + encodeURIComponent(project)) : '';
-    return await LunoApiClient.safeJsonFetch('/api/all-code' + pParam);
-  }
-
-  /**
-   * ⚙️ METHOD: savePayload(payload, project = '')
-   * - Type: Static Method
-   * - Modifier: async
-   */
   static async savePayload(payload, project = '') {
     let payloadObj = payload;
     if (typeof payload === 'string') {
-      try {
-        payloadObj = JSON.parse(payload);
-      } catch (e) {
-        payloadObj = { files: [], rawText: payload };
-      }
+      try { payloadObj = JSON.parse(payload); } catch (e) { payloadObj = { files: [], rawText: payload }; }
     }
     if (payloadObj && typeof payloadObj === 'object' && project) {
       payloadObj.project = project;
     }
+
+    if (LunoApiClient.isStaticMode()) {
+      const adapter = LunoFileSystem.getAdapter();
+      let modified = 0;
+      if (adapter && adapter.write && Array.isArray(payloadObj.files)) {
+        for (const file of payloadObj.files) {
+          if (file.filePath && file.content !== undefined) {
+            await adapter.write(file.filePath, file.content, project || payloadObj.project);
+            modified++;
+          }
+        }
+      }
+      return {
+        success: true,
+        count: modified,
+        modifiedCount: modified,
+        llmFeedback: `✅ Saved ${modified} file(s) directly to local IndexedDB Virtual Filesystem!`
+      };
+    }
+
     const pParam = project ? ('?project=' + encodeURIComponent(project)) : '';
     return await LunoApiClient.safeJsonFetch('/api/save' + pParam, {
       method: 'POST',
@@ -128,17 +126,17 @@ class LunoApiClient {
     });
   }
 
-  /**
-   * ⚙️ METHOD: requestContext(requests = [], project = '')
-   * - Type: Static Method
-   * - Modifier: async
-   */
-  static async requestContext(requests = [], project = '') {
-    const pParam = project ? ('?project=' + encodeURIComponent(project)) : '';
-    return await LunoApiClient.safeJsonFetch('/api/context/request' + pParam, {
+  static async forkProject(sourceProject, newProject) {
+    if (LunoApiClient.isStaticMode()) {
+      const adapter = LunoFileSystem.getAdapter();
+      if (adapter && adapter.fork) {
+        return await adapter.fork(sourceProject, newProject);
+      }
+    }
+    return await LunoApiClient.safeJsonFetch('/api/projects/fork', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ requests, project })
+      body: JSON.stringify({ sourceProject, newProjectName: newProject })
     });
   }
 }

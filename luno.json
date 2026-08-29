@@ -63,8 +63,8 @@
     "Luno/docs/BookmarkletStudioRoadmap.md"
   ],
   "patchJournal": "LunoPatchLog.html",
-  "processedCountSinceCheckpoint": 13,
-  "lastCheckpointTime": "2026-08-28T19:03:41.567Z",
+  "processedCountSinceCheckpoint": 2,
+  "lastCheckpointTime": "2026-08-28T19:06:53.130Z",
   "pendingCheckpointDescription": "Clean working tree",
   "changedMethods": {
     "Luno/luno.json": "2026-08-28T15:56:29.956Z",
@@ -83,6 +83,8 @@
     "Luno/app/LunoManifestDecisionEngine.js": "2026-08-28T19:06:49.289Z",
     "Luno/app/LunoManifestDecisionEngine.js.bak": "2026-08-28T18:48:31.874Z",
     "Luno/app/LunoLoader.js": "2026-08-28T18:50:08.060Z",
-    "Luno/app/LunoPatchConsolidator.js": "2026-08-28T18:52:40.239Z"
+    "Luno/app/LunoPatchConsolidator.js": "2026-08-28T18:52:40.239Z",
+    "Luno/app/LunoFileSystem.js": "2026-08-29T00:22:03.618Z",
+    "Luno/app/LunoApiClient.js": "2026-08-29T00:22:03.618Z"
   }
 }
