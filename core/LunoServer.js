@@ -133,7 +133,21 @@ class LunoServer {
     if (normalized.startsWith('Luno Workspace/')) normalized = normalized.slice(15).trim();
     const targetDir = baseDir || LunoServer.getRootDir();
 
-    // Direct resolution for offline node_modules assets
+    // 1. Direct resolution for core/app files (e.g. /app/LunoLoader.js, /app/acorn.js)
+    if (
+      normalized.startsWith('app/') ||
+      normalized.startsWith('core/') ||
+      normalized.startsWith('browser/') ||
+      normalized.startsWith('docs/') ||
+      normalized.startsWith('test/')
+    ) {
+      const lunoPath = path.join(LunoServer.getRootDir(), normalized);
+      if (fs.existsSync(lunoPath)) return lunoPath;
+      const webLunoPath = path.join(webRoot, 'Luno', normalized);
+      if (fs.existsSync(webLunoPath)) return webLunoPath;
+    }
+
+    // 2. Direct resolution for offline node_modules assets
     if (normalized.startsWith('node_modules/')) {
       const lunoModules = path.join(LunoServer.getRootDir(), normalized);
       if (fs.existsSync(lunoModules)) return lunoModules;
@@ -141,6 +155,7 @@ class LunoServer {
       if (fs.existsSync(webModules)) return webModules;
     }
 
+    // 3. Central Library resolution
     if (normalized.startsWith('Library/') || normalized.startsWith('library/')) {
       const localCandidate = path.join(targetDir, normalized);
       if (targetDir !== webRoot && path.basename(targetDir).toLowerCase() !== 'library') {
@@ -381,101 +396,125 @@ class LunoServer {
     });
   }
 
-  static handleAllCode(req, res, url) {
-    const projectName = (url && url.searchParams) ? (url.searchParams.get('project') || '') : '';
-    const includeLibrary = (url && url.searchParams) ? (url.searchParams.get('includeLibrary') === 'true' || url.searchParams.get('library') === 'true') : false;
-    const targetDir = LunoServer.resolveProjectBaseDir(projectName);
-    const webRoot = LunoServer.getWebRootDir();
-    const libraryDir = path.join(webRoot, 'Library');
-
-    const TEXT_EXTS = ['.js', '.json', '.html', '.css', '.md', '.txt', '.svg'];
-    const files = [];
-    const projFolder = projectName || path.basename(targetDir) || 'Luno';
-
-    const allSiblings = [];
-    try {
-      if (fs.existsSync(webRoot)) {
-        const entries = fs.readdirSync(webRoot);
-        for (const entry of entries) {
-          if (entry.startsWith('.') || entry.startsWith('_') || entry === 'node_modules') continue;
-          const full = path.join(webRoot, entry);
-          try {
-            if (fs.statSync(full).isDirectory()) allSiblings.push(entry);
-          } catch(e) {}
-        }
-      }
-    } catch(e) {}
-
-    function scan(dir, depth, prefix) {
-      if (depth > 6 || !fs.existsSync(dir)) return;
+  handleAllCode(req, res, url) {
+      const projectName = (url && url.searchParams) ? (url.searchParams.get('project') || '') : '';
+      const allLibrary = (url && url.searchParams) ? (url.searchParams.get('allLibrary') === 'true' || url.searchParams.get('includeAllLibrary') === 'true') : false;
+      const projectLibrary = (url && url.searchParams) ? (url.searchParams.get('projectLibrary') !== 'false') : true;
+      const targetDir = LunoServer.resolveProjectBaseDir(projectName);
+      const webRoot = LunoServer.getWebRootDir();
+      const libraryDir = path.join(webRoot, 'Library');
+  
+      const TEXT_EXTS = ['.js', '.json', '.html', '.css', '.md', '.txt', '.svg'];
+      const files = [];
+      const projFolder = projectName || path.basename(targetDir) || 'Luno';
+  
+      const allSiblings = [];
       try {
-        const items = fs.readdirSync(dir);
-        for (const name of items) {
-          if (
-            name.endsWith('.bak') ||
-            name.includes('.old_') ||
-            name.includes('Copy') ||
-            name === 'bundle.js' ||
-            name === 'standalone_bundler.js' ||
-            name.startsWith('.') ||
-            name.startsWith('_') ||
-            name === 'node_modules' ||
-            name === 'simpleVersion'
-          ) continue;
-
-          // Sibling exclusions only apply at the top root scan level
-          if (depth === 0) {
-            if (!includeLibrary && name.toLowerCase() === 'library' && projFolder.toLowerCase() !== 'library') {
-              continue;
-            }
-            if (projFolder === 'Luno' && allSiblings.includes(name) && name !== 'Luno') {
-              continue;
-            }
+        if (fs.existsSync(webRoot)) {
+          const entries = fs.readdirSync(webRoot);
+          for (const entry of entries) {
+            if (entry.startsWith('.') || entry.startsWith('_') || entry === 'node_modules') continue;
+            const full = path.join(webRoot, entry);
+            try {
+              if (fs.statSync(full).isDirectory()) allSiblings.push(entry);
+            } catch(e) {}
           }
-
-          const fullPath = path.join(dir, name);
-          try {
-            const stat = fs.statSync(fullPath);
-            if (stat.isDirectory()) {
-              scan(fullPath, depth + 1, prefix ? (prefix + '/' + name) : name);
-            } else if (stat.isFile() && stat.size < 500000) {
-              const ext = path.extname(name).toLowerCase();
-              if (TEXT_EXTS.includes(ext)) {
-                const relPath = prefix ? (prefix + '/' + name) : name;
-                files.push({ fullPath, relPath, name, size: stat.size });
+        }
+      } catch(e) {}
+  
+      function scan(dir, depth, prefix) {
+        if (depth > 6 || !fs.existsSync(dir)) return;
+        try {
+          const items = fs.readdirSync(dir);
+          for (const name of items) {
+            if (
+              name.endsWith('.bak') ||
+              name.includes('.old_') ||
+              name.includes('Copy') ||
+              name === 'bundle.js' ||
+              name === 'standalone_bundler.js' ||
+              name.startsWith('.') ||
+              name.startsWith('_') ||
+              name === 'node_modules' ||
+              name === 'simpleVersion'
+            ) continue;
+  
+            if (depth === 0) {
+              if (!allLibrary && name.toLowerCase() === 'library' && projFolder.toLowerCase() !== 'library') {
+                continue;
+              }
+              if (projFolder === 'Luno' && allSiblings.includes(name) && name !== 'Luno') {
+                continue;
               }
             }
-          } catch (e) {}
+  
+            const fullPath = path.join(dir, name);
+            try {
+              const stat = fs.statSync(fullPath);
+              if (stat.isDirectory()) {
+                scan(fullPath, depth + 1, prefix ? (prefix + '/' + name) : name);
+              } else if (stat.isFile() && stat.size < 500000) {
+                const ext = path.extname(name).toLowerCase();
+                if (TEXT_EXTS.includes(ext)) {
+                  const relPath = prefix ? (prefix + '/' + name) : name;
+                  files.push({ fullPath, relPath, name, size: stat.size });
+                }
+              }
+            } catch (e) {}
+          }
+        } catch (e) {}
+      }
+  
+      if (fs.existsSync(targetDir)) {
+        scan(targetDir, 0, projFolder);
+      }
+  
+      let meta = {};
+      const lunoJsonPath = path.join(targetDir, 'luno.json');
+      if (fs.existsSync(lunoJsonPath)) {
+        try {
+          meta = JSON.parse(fs.readFileSync(lunoJsonPath, 'utf8'));
+        } catch(e) {}
+      }
+  
+      // 1. Full Library Scan (When allLibrary=true or when target project is Library itself)
+      if ((allLibrary || projFolder.toLowerCase() === 'library') && fs.existsSync(libraryDir) && path.resolve(targetDir) !== path.resolve(libraryDir)) {
+        scan(libraryDir, 0, 'Library');
+      }
+      // 2. Selective Library Discovery (Default: only modules declared in project's luno.json)
+      else if (projectLibrary && Array.isArray(meta.library) && meta.library.length > 0 && fs.existsSync(libraryDir) && projFolder.toLowerCase() !== 'library') {
+        for (const libEntry of meta.library) {
+          if (!libEntry || typeof libEntry !== 'string') continue;
+          const cleanLib = libEntry.replace(/^(?:Library|library)\//, '').trim();
+          const fullLibPath = path.join(libraryDir, cleanLib);
+          if (fs.existsSync(fullLibPath) && fs.statSync(fullLibPath).isFile()) {
+            const relPath = 'Library/' + cleanLib;
+            if (!files.some(f => f.relPath === relPath)) {
+              const stat = fs.statSync(fullLibPath);
+              files.push({ fullPath: fullLibPath, relPath: relPath, name: path.basename(cleanLib), size: stat.size });
+            }
+          }
         }
-      } catch (e) {}
+      }
+  
+      const manifest = [];
+      const filesMap = {};
+      for (const item of files) {
+        try {
+          const content = fs.readFileSync(item.fullPath, 'utf8');
+          manifest.push(item.relPath);
+          filesMap[item.relPath] = content;
+        } catch(e) {}
+      }
+  
+      return LunoServer.sendJSON(res, 200, {
+        success: true,
+        activeProjectName: projFolder,
+        activeRootDir: targetDir.replace(/\\/g, '/'),
+        manifest: manifest,
+        filesMap: filesMap
+      });
     }
-
-    if (fs.existsSync(targetDir)) {
-      scan(targetDir, 0, projFolder);
-    }
-
-    if (includeLibrary && fs.existsSync(libraryDir) && path.resolve(targetDir) !== path.resolve(libraryDir)) {
-      scan(libraryDir, 0, 'Library');
-    }
-
-    const manifest = [];
-    const filesMap = {};
-    for (const item of files) {
-      try {
-        const content = fs.readFileSync(item.fullPath, 'utf8');
-        manifest.push(item.relPath);
-        filesMap[item.relPath] = content;
-      } catch(e) {}
-    }
-
-    return LunoServer.sendJSON(res, 200, {
-      success: true,
-      activeProjectName: projFolder,
-      activeRootDir: targetDir.replace(/\\/g, '/'),
-      manifest: manifest,
-      filesMap: filesMap
-    });
-  }
 
   static handleProjectsList(req, res) {
     const activeRoot = LunoServer.getRootDir();

@@ -163,7 +163,8 @@ class OutboxQueue {
     var pName = projName || 'Project';
     var maxBytes = OutboxQueue.getMaxPackageSize();
     var includeInstructions = opts.includeInstructions !== false;
-    var includeLibrary = Boolean(opts.includeLibrary);
+    var includeProjectLibrary = (opts.includeProjectLibrary !== false);
+    var includeAllLibrary = Boolean(opts.includeAllLibrary);
 
     var SCRIPT_WORD = 'scr' + 'ipt';
     var STYLE_WORD = 'sty' + 'le';
@@ -197,19 +198,13 @@ class OutboxQueue {
       var normPath = rawPath.replace(/\\/g, '/').replace(/^\/+/, '');
       var canonicalPath = normPath;
 
-      // Strict root-level library exclusion check
-      if (!includeLibrary && pName.toLowerCase() !== 'library') {
-        if (
-          canonicalPath.startsWith('Library/') ||
-          canonicalPath.startsWith('library/') ||
-          canonicalPath.startsWith(pName + '/library/') ||
-          canonicalPath.startsWith(pName + '/Library/')
-        ) {
+      // Handle root-level library module paths
+      if (canonicalPath.startsWith('Library/') || canonicalPath.startsWith('library/')) {
+        if (!includeAllLibrary && !includeProjectLibrary && pName.toLowerCase() !== 'library') {
           continue;
         }
-      }
-
-      if (!canonicalPath.startsWith('Library/') && !canonicalPath.startsWith(pName + '/')) {
+        canonicalPath = 'Library/' + canonicalPath.replace(/^(?:Library|library)\//, '');
+      } else if (!canonicalPath.startsWith(pName + '/')) {
         canonicalPath = pName + '/' + canonicalPath;
       }
 
@@ -344,7 +339,10 @@ class OutboxQueue {
 
   static async executeSmartBundle(bundleOptions) {
     try {
-      var opts = (typeof bundleOptions === 'object' && bundleOptions !== null) ? bundleOptions : { includeInstructions: true, includeLibrary: false };
+      var opts = (typeof bundleOptions === 'object' && bundleOptions !== null)
+        ? bundleOptions
+        : { includeInstructions: true, includeProjectLibrary: true, includeAllLibrary: false };
+
       var targetProj = (typeof ClientApp !== 'undefined' && ClientApp.getTargetProject) ? ClientApp.getTargetProject() : 'Luno';
       var lunoMeta = {};
       try {
@@ -353,7 +351,11 @@ class OutboxQueue {
       } catch (e) {}
 
       var projName = lunoMeta.name || targetProj || 'Project';
-      var dataCode = await LunoApiClient.fetchAllCode(targetProj, opts.includeLibrary);
+      var dataCode = await LunoApiClient.fetchAllCode(targetProj, {
+        includeProjectLibrary: opts.includeProjectLibrary !== false,
+        includeAllLibrary: Boolean(opts.includeAllLibrary)
+      });
+
       if (!dataCode || !dataCode.success || !dataCode.filesMap) {
         throw new Error((dataCode && dataCode.error) || 'Failed to fetch codebase from storage');
       }

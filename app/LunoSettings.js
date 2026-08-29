@@ -18,7 +18,8 @@ class LunoSettings {
     glowEnabled: true,
     themeWidgetExpanded: true,
     acornSource: 'auto',
-    hotPatchMemoryMode: true
+    hotPatchMemoryMode: true,
+    patchApplyMode: 'direct' // 'direct' = auto-apply to base file (default), 'patchlog' = write to LunoPatchLog.html
   };
 
   static KEYS = {
@@ -36,7 +37,8 @@ class LunoSettings {
     glowLevel: 'luno_glow_level',
     themeWidgetExpanded: 'luno_theme_widget_expanded',
     acornSource: 'luno_acorn_source',
-    hotPatchMemoryMode: 'luno_hotpatch_memory_mode'
+    hotPatchMemoryMode: 'luno_hotpatch_memory_mode',
+    patchApplyMode: 'luno_patch_apply_mode'
   };
 
   static getItem(key, fallback = null) {
@@ -64,6 +66,16 @@ class LunoSettings {
 
   static setHotPatchMemoryMode(val) {
     LunoSettings.setItem(LunoSettings.KEYS.hotPatchMemoryMode, Boolean(val));
+  }
+
+  static getPatchApplyMode() {
+    const mode = LunoSettings.getItem(LunoSettings.KEYS.patchApplyMode);
+    return (mode === 'patchlog' || mode === 'direct') ? mode : LunoSettings.DEFAULTS.patchApplyMode;
+  }
+
+  static setPatchApplyMode(mode) {
+    const validMode = (mode === 'patchlog') ? 'patchlog' : 'direct';
+    LunoSettings.setItem(LunoSettings.KEYS.patchApplyMode, validMode);
   }
 }
 

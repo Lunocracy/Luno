@@ -31,6 +31,7 @@ class LunoDeployEngine {
       'VideoPrepper': 'VideoPrepper',
       'BasicsWithDialogBox': 'BasicsWithDialogBox',
       'SimpleTest': 'SimpleTest',
+      'MathStorm': 'MathStorm',
       'Library': 'Library',
       'images': 'images',
       'MySituation': 'situation'
@@ -423,7 +424,16 @@ class LunoDeployEngine {
       }
     } catch(e) {}
 
-    var projects = (pData && Array.isArray(pData.projects)) ? pData.projects : [{ name: 'Basic3D' }, { name: 'guessTheNoteGame' }, { name: 'VideoEditor' }, { name: 'MySituation' }, { name: 'Luno' }, { name: 'Library' }, { name: 'images' }];
+    var projects = (pData && Array.isArray(pData.projects)) ? pData.projects : [
+      { name: 'Basic3D' },
+      { name: 'guessTheNoteGame' },
+      { name: 'VideoEditor' },
+      { name: 'MathStorm' },
+      { name: 'MySituation' },
+      { name: 'Luno' },
+      { name: 'Library' },
+      { name: 'images' }
+    ];
 
     listArea.innerHTML = '';
     for (var i = 0; i < projects.length; i++) {

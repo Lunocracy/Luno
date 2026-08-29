@@ -13,7 +13,7 @@ class LunoTestRunner {
 
   static async runTestSuite() {
     LunoTestRunner.results = [];
-    console.log('🧪 Starting Luno Full Architecture & Determinism Test Suite (18 Tests)...');
+    console.log('🧪 Starting Luno Full Architecture & Determinism Test Suite (21 Tests)...');
 
     if (typeof LunoAcornLoader !== 'undefined' && LunoAcornLoader.ensureLoaded) {
       try { await LunoAcornLoader.ensureLoaded(); } catch (e) {}
@@ -377,7 +377,7 @@ class LunoTestRunner {
           'Library/DomBasics.js': 'class DomBasics {}',
           'src/App.js': 'class App {}'
         };
-        var bundleRes = OutboxQueue.bundleAndQueueCodebase(mockCodebase, {}, 'SubProj', { includeInstructions: false, includeLibrary: false });
+        var bundleRes = OutboxQueue.bundleAndQueueCodebase(mockCodebase, {}, 'SubProj', { includeInstructions: false, includeProjectLibrary: false, includeAllLibrary: false });
         var queued = OutboxQueue.queue[OutboxQueue.queue.length - 1];
         var text = queued ? queued.payload : '';
 
@@ -394,6 +394,100 @@ class LunoTestRunner {
       }
     } catch (e) {
       LunoTestRunner.assert('OutboxQueue: Root Library Exclusion', false, e.message);
+    }
+
+    // Test 19: Patch Application Workflow (Direct Auto-Apply vs. Patch Log Journaling)
+    try {
+      if (typeof LunoSettings !== 'undefined' && typeof LunoManifestDecisionEngine !== 'undefined') {
+        var defaultMode = LunoSettings.getPatchApplyMode();
+        var isDefaultDirect = (defaultMode === 'direct');
+
+        // Test direct mode compilation (should produce direct file write, no LunoPatchLog.html)
+        LunoSettings.setPatchApplyMode('direct');
+        var mockPayload = {
+          files: [{
+            filePath: 'Luno/test/protocol_test.js',
+            methodSpec: 'ProtocolTest.getVersion',
+            action: 'patch',
+            content: 'getVersion() { return "direct-test-mode"; }'
+          }]
+        };
+        var resDirect = await LunoManifestDecisionEngine.processPayload(mockPayload, {}, 'Luno');
+        var hasDirectWrite = resDirect.files.some(f => f.filePath === 'Luno/test/protocol_test.js' && f.action === 'direct');
+        var noPatchLog = !resDirect.files.some(f => f.filePath === 'LunoPatchLog.html');
+
+        // Test patchlog mode journaling (should produce LunoPatchLog.html entry)
+        LunoSettings.setPatchApplyMode('patchlog');
+        var resPatchLog = await LunoManifestDecisionEngine.processPayload(mockPayload, {}, 'Luno');
+        var hasPatchLogWrite = resPatchLog.files.some(f => f.filePath === 'LunoPatchLog.html');
+
+        // Reset to direct mode
+        LunoSettings.setPatchApplyMode('direct');
+
+        LunoTestRunner.assert(
+          'LunoManifestDecisionEngine: Direct Auto-Apply vs Patch Log Journaling',
+          isDefaultDirect && hasDirectWrite && noPatchLog && hasPatchLogWrite,
+          'Defaulted to direct mode, compiled AST to file without patchlog, and journaled to patchlog when requested'
+        );
+      } else {
+        LunoTestRunner.assert('LunoManifestDecisionEngine: Direct vs Patchlog', false, 'Settings/Engine unavailable');
+      }
+    } catch (e) {
+      LunoTestRunner.assert('LunoManifestDecisionEngine: Direct Auto-Apply vs Patch Log Journaling', false, e.message);
+    }
+
+    // Test 20: Selective Project Library Manifest Discovery
+    try {
+      if (typeof LunoApiClient !== 'undefined' && LunoApiClient.fetchAllCode) {
+        var codeData = await LunoApiClient.fetchAllCode('MathStorm', { includeProjectLibrary: true, includeAllLibrary: false });
+        var hasCode = codeData && codeData.success && codeData.filesMap;
+        var mapKeys = hasCode ? Object.keys(codeData.filesMap) : [];
+
+        // MathStorm declares DomBasics.js in its luno.json
+        var includesDeclaredLib = mapKeys.some(k => k === 'Library/DomBasics.js' || k.endsWith('DomBasics.js'));
+        // MathStorm does NOT declare GraphicPiano.js
+        var excludesUnusedLib = !mapKeys.some(k => k === 'Library/GraphicPiano.js' || k.endsWith('GraphicPiano.js'));
+
+        LunoTestRunner.assert(
+          'LunoApiClient / Server: Selective Project Library Manifest Discovery',
+          hasCode && includesDeclaredLib && excludesUnusedLib,
+          'Automatically included project-declared Library/DomBasics.js while excluding unreferenced Library modules'
+        );
+      } else {
+        LunoTestRunner.assert('LunoApiClient: Selective Library Discovery', false, 'LunoApiClient unavailable');
+      }
+    } catch (e) {
+      LunoTestRunner.assert('LunoApiClient / Server: Selective Project Library Manifest Discovery', false, e.message);
+    }
+
+    // Test 21: OutboxQueue Project Library Preservation
+    try {
+      if (typeof OutboxQueue !== 'undefined' && OutboxQueue.bundleAndQueueCodebase) {
+        var mockMap = {
+          'MathStorm/src/App.js': 'class App {}',
+          'Library/DomBasics.js': 'class DomBasics {}'
+        };
+        var bundle = OutboxQueue.bundleAndQueueCodebase(mockMap, {}, 'MathStorm', {
+          includeInstructions: false,
+          includeProjectLibrary: true,
+          includeAllLibrary: false
+        });
+        var lastItem = OutboxQueue.queue[OutboxQueue.queue.length - 1];
+        var text = lastItem ? lastItem.payload : '';
+
+        var hasProjectFile = text.includes('data-file="MathStorm/src/App.js"');
+        var hasLibraryFile = text.includes('data-file="Library/DomBasics.js"');
+
+        LunoTestRunner.assert(
+          'OutboxQueue: Project Library Preservation in Code Packages',
+          hasProjectFile && hasLibraryFile,
+          'Bundled project files and declared Library dependencies with canonical Library/... paths'
+        );
+      } else {
+        LunoTestRunner.assert('OutboxQueue: Project Library Preservation', false, 'OutboxQueue unavailable');
+      }
+    } catch (e) {
+      LunoTestRunner.assert('OutboxQueue: Project Library Preservation', false, e.message);
     }
 
     return {
@@ -424,7 +518,7 @@ class LunoTestRunner {
     var card = m('div', {
       style: { background: '#161b22', border: '2px solid #00f2fe', borderRadius: '10px', padding: '1rem', color: '#c9d1d9', fontFamily: 'monospace', maxWidth: '680px', margin: '1rem auto' }
     },
-      m('h2', { style: { color: '#00f2fe', fontSize: '1.1rem', margin: '0 0 0.8rem 0' } }, '🧪 Luno Diagnostic Test Suite (18 Tests)'),
+      m('h2', { style: { color: '#00f2fe', fontSize: '1.1rem', margin: '0 0 0.8rem 0' } }, '🧪 Luno Diagnostic Test Suite (21 Tests)'),
       m('button', {
         style: { padding: '0.65rem 1.2rem', background: '#238636', color: '#fff', border: 'none', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer', fontFamily: 'monospace', marginBottom: '1rem' },
         onclick: function() {

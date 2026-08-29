@@ -107,18 +107,41 @@ class ClientAppPaster {
         finalPayload.project = targetProj;
       }
 
+      var activeMode = finalPayload.patchMode || (typeof LunoSettings !== 'undefined' && LunoSettings.getPatchApplyMode ? LunoSettings.getPatchApplyMode() : 'direct');
+      var isDirectAutoApply = (activeMode === 'direct');
+
       var clientSummary = "🔍 CLIENT BROWSER PARSER SUMMARY (HTML Container Protocol):\n";
       clientSummary += "• Target Project: " + (targetProj || "Luno") + "\n";
-      clientSummary += "• HTML Containers Found: " + finalPayload.files.length + " file(s)\n";
-      finalPayload.files.forEach(function(f, idx) {
-        var isDirect = f.action === 'direct';
-        var isPatch = f.methodSpec || f.action === 'patch';
-        clientSummary += "  " + (idx + 1) + ". <" + (f.tagName || "script") + " data-file=\"" + f.filePath + "\"" + (f.methodSpec ? (" data-method=\"" + f.methodSpec + "\"") : "") + "> (" + (f.content ? f.content.length : 0) + " bytes)" + (isDirect ? " [Client AST Direct Write]" : (isPatch ? " [Surgical Patch Log]" : "")) + "\n";
-      });
+      clientSummary += "• Patch Workflow Mode: " + (isDirectAutoApply ? "⚡ Auto-Apply to Files (Client AST Direct Merge)" : "🧩 Journal to Patch Log (LunoPatchLog.html)") + "\n";
+      clientSummary += "• HTML Containers Processed: " + (rawPayload.files ? rawPayload.files.length : finalPayload.files.length) + " container(s)\n";
+
+      if (Array.isArray(finalPayload.patchActionsSummary) && finalPayload.patchActionsSummary.length > 0) {
+        finalPayload.patchActionsSummary.forEach(function(act, idx) {
+          var badge = '[Full File Write]';
+          if (act.mode === 'direct-ast-apply') badge = '[Client AST Direct Merge -> File]';
+          else if (act.mode === 'patchlog-journal') badge = '[Patch Log Journal -> LunoPatchLog.html]';
+          else if (act.mode === 'json-merge') badge = '[Client JSON Merge]';
+
+          clientSummary += "  " + (idx + 1) + ". " + act.path + (act.target && act.target !== act.path ? (" @ " + act.target) : "") + " " + badge + "\n";
+        });
+      } else {
+        finalPayload.files.forEach(function(f, idx) {
+          var isDirect = f.action === 'direct';
+          var isPatch = f.methodSpec || f.action === 'patch';
+          var badgeText = isDirect
+            ? (isDirectAutoApply && isPatch ? " [Client AST Direct Merge -> File]" : " [Client AST Direct Write]")
+            : (isPatch ? " [Patch Log Journal -> LunoPatchLog.html]" : " [Direct File Write]");
+
+          clientSummary += "  " + (idx + 1) + ". <" + (f.tagName || "script") + " data-file=\"" + f.filePath + "\"" + (f.methodSpec ? (" data-method=\"" + f.methodSpec + "\"") : "") + "> (" + (f.content ? f.content.length : 0) + " bytes)" + badgeText + "\n";
+        });
+      }
+
       if (finalPayload.serverScript) {
         clientSummary += "• Server Script Detected (" + finalPayload.serverScript.length + " bytes)\n";
       }
-      clientSummary += "\n⚡ Persisting changes to storage...\n\n";
+
+      clientSummary += "\nℹ️ Note: All AST method parsing & patch compilation executed 100% on client browser JavaScript.\n";
+      clientSummary += "⚡ Persisting compiled files to storage...\n\n";
 
       var pasteBtn = document.getElementById('btn-paste-chatbot');
       var feedbackCard = document.getElementById('feedback-card');
@@ -137,7 +160,7 @@ class ClientAppPaster {
       }
 
       if (targetApp && targetApp.showToast) {
-        targetApp.showToast('Applying payload to project [' + (targetProj || 'Luno') + ']...', 'info', '⚡');
+        targetApp.showToast('Applying payload to [' + (targetProj || 'Luno') + '] (' + (isDirectAutoApply ? 'Auto-Apply' : 'Patch Log') + ')...', 'info', '⚡');
       }
 
       var data = null;
@@ -194,7 +217,8 @@ class ClientAppPaster {
         if (targetApp && targetApp.showToast) {
           var modCount = data.modifiedCount !== undefined ? data.modifiedCount : (data.count || 0);
           if (modCount > 0) {
-            targetApp.showToast('Saved & Applied ' + modCount + ' change(s) to [' + (targetProj || 'Luno') + ']!', 'success', '💾');
+            var modeDesc = isDirectAutoApply ? 'Directly Merged & Saved' : 'Journaled & Saved';
+            targetApp.showToast(modeDesc + ' ' + modCount + ' file(s) in [' + (targetProj || 'Luno') + ']!', 'success', '💾');
           } else {
             targetApp.showToast('Evaluated: Target(s) up-to-date.', 'info', 'ℹ️');
           }

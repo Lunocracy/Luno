@@ -63,10 +63,34 @@
     "Luno/docs/SPS7.md",
     "Luno/docs/BookmarkletStudioRoadmap.md"
   ],
-  "processedCountSinceCheckpoint": 1,
+  "processedCountSinceCheckpoint": 27,
   "lastCheckpointTime": "2026-08-29T13:00:00.000Z",
   "pendingCheckpointDescription": "Clean working tree",
   "changedMethods": {
-    "Luno/luno.json": "2026-08-29T12:59:15.619Z"
+    "Luno/luno.json": "2026-08-29T12:59:15.619Z",
+    "MathStorm/luno.json": "2026-08-29T13:18:06.652Z",
+    "MathStorm/.nojekyll": "2026-08-29T13:18:06.652Z",
+    "MathStorm/index.html": "2026-08-29T13:19:57.013Z",
+    "MathStorm/js/MathStorm.js": "2026-08-29T13:19:57.013Z",
+    "MathStorm/js/Debug.js": "2026-08-29T13:19:57.013Z",
+    "MathStorm/js/GamePiece.js": "2026-08-29T13:19:57.013Z",
+    "MathStorm/js/PieceGroup.js": "2026-08-29T13:19:57.013Z",
+    "MathStorm/js/SolvedGroupManager.js": "2026-08-29T13:19:57.013Z",
+    "MathStorm/js/EquationFactory.js": "2026-08-29T13:19:57.013Z",
+    "MathStorm/js/InteractionHandler.js": "2026-08-29T13:19:57.013Z",
+    "MathStorm/js/GameEngine.js": "2026-08-29T13:19:57.013Z",
+    "Luno/app/LunoPayloadParser.js": "2026-08-29T13:22:02.680Z",
+    "Luno/app/LunoDeployEngine.js": "2026-08-29T13:22:02.680Z",
+    "Luno/docs/MIGRATION_COMPLETE.md": "2026-08-29T13:22:02.680Z",
+    "Luno/app/LunoSettings.js": "2026-08-29T19:58:43.819Z",
+    "Luno/app/LunoManifestDecisionEngine.js": "2026-08-29T19:58:43.819Z",
+    "Luno/app/LunoCheckpointView.js": "2026-08-29T19:59:29.103Z",
+    "Luno/app/ClientAppPaster.js": "2026-08-29T20:00:01.465Z",
+    "Luno/app/LunoApiClient.js": "2026-08-29T20:01:04.049Z",
+    "Luno/core/LunoServer.js": "2026-08-29T20:03:27.318Z",
+    "LunoPatchLog.html": "2026-08-29T20:03:27.318Z",
+    "Luno/app/OutboxQueue.js": "2026-08-29T20:02:03.148Z",
+    "Luno/app/OutboxOptionsModal.js": "2026-08-29T20:02:03.148Z",
+    "Luno/test/LunoTestRunner.js": "2026-08-29T20:02:42.446Z"
   }
 }

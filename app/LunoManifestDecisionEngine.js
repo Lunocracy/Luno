@@ -76,9 +76,15 @@ class LunoManifestDecisionEngine {
     }
 
     const targetProj = projectName || (typeof ClientApp !== 'undefined' && ClientApp.getTargetProject ? ClientApp.getTargetProject() : 'Luno');
+    const patchMode = (typeof LunoSettings !== 'undefined' && LunoSettings.getPatchApplyMode)
+      ? LunoSettings.getPatchApplyMode()
+      : ((typeof localStorage !== 'undefined' && localStorage.getItem('luno_patch_apply_mode')) || 'direct');
+
+    const isDirectAutoApply = (patchMode === 'direct');
     const processedFilesList = [];
     const fullFilesMap = new Map();
     const journalPatchBlocks = [];
+    const patchActionsSummary = [];
 
     for (let i = 0; i < payloadObj.files.length; i++) {
       const f = payloadObj.files[i];
@@ -143,16 +149,18 @@ class LunoManifestDecisionEngine {
 
         const mergedContent = JSON.stringify(existingObj, null, 2) + '\n';
         fullFilesMap.set(normPath, mergedContent);
+        patchActionsSummary.push({ path: normPath, mode: 'json-merge', target: normPath });
         continue;
       }
 
       // 2. Full Direct File Write
       if (!isSurgicalPatch) {
         fullFilesMap.set(normPath, f.content || '');
+        patchActionsSummary.push({ path: normPath, mode: 'full-file', target: normPath });
         continue;
       }
 
-      // 3. Fail-Loud Surgical AST Method Patching
+      // 3. Surgical AST Method Patching / Journaling
       let baseContent = '';
       if (fullFilesMap.has(normPath)) {
         baseContent = fullFilesMap.get(normPath);
@@ -188,20 +196,35 @@ class LunoManifestDecisionEngine {
         );
       }
 
-      fullFilesMap.set(normPath, patched);
-
-      // 4. Record to patch journal ONLY after compilation succeeded
-      const tagWord = f.tagName || 'script';
-      const safeContent = (f.content || '').split('</' + tagWord + '>').join('<\\/' + tagWord + '>');
-      let block = '';
-      if (f.action === 'delete') {
-        block = '<' + tagWord + ' data-file="' + normPath + '" data-method="' + (f.methodSpec || '') + '" data-action="delete"></' + tagWord + '>';
-      } else if (f.methodSpec) {
-        block = '<' + tagWord + ' data-file="' + normPath + '" data-method="' + f.methodSpec + '" data-action="patch">\n' + safeContent + '\n</' + tagWord + '>';
+      if (isDirectAutoApply) {
+        // DEFAULT MODE: Directly update file content on disk via client AST compilation
+        fullFilesMap.set(normPath, patched);
+        patchActionsSummary.push({
+          path: normPath,
+          mode: 'direct-ast-apply',
+          target: f.methodSpec || normPath,
+          action: f.action || 'patch'
+        });
       } else {
-        block = '<' + tagWord + ' data-file="' + normPath + '" data-action="patch">\n' + safeContent + '\n</' + tagWord + '>';
+        // PATCHLOG MODE: Journal to LunoPatchLog.html for deferred manual consolidation
+        const tagWord = f.tagName || 'script';
+        const safeContent = (f.content || '').split('</' + tagWord + '>').join('<\\/' + tagWord + '>');
+        let block = '';
+        if (f.action === 'delete') {
+          block = '<' + tagWord + ' data-file="' + normPath + '" data-method="' + (f.methodSpec || '') + '" data-action="delete"></' + tagWord + '>';
+        } else if (f.methodSpec) {
+          block = '<' + tagWord + ' data-file="' + normPath + '" data-method="' + f.methodSpec + '" data-action="patch">\n' + safeContent + '\n</' + tagWord + '>';
+        } else {
+          block = '<' + tagWord + ' data-file="' + normPath + '" data-action="patch">\n' + safeContent + '\n</' + tagWord + '>';
+        }
+        journalPatchBlocks.push(block);
+        patchActionsSummary.push({
+          path: normPath,
+          mode: 'patchlog-journal',
+          target: f.methodSpec || normPath,
+          action: f.action || 'patch'
+        });
       }
-      journalPatchBlocks.push(block);
     }
 
     // Direct writes assembled for transmission to storage
@@ -214,7 +237,7 @@ class LunoManifestDecisionEngine {
       });
     });
 
-    // Append verified journal blocks to LunoPatchLog.html
+    // Append journal blocks to LunoPatchLog.html ONLY when in 'patchlog' mode
     if (journalPatchBlocks.length > 0) {
       let currentLog = '';
       try {
@@ -240,7 +263,9 @@ class LunoManifestDecisionEngine {
       serverScript: payloadObj.serverScript || '',
       requests: payloadObj.requests || [],
       debugLogs: payloadObj.debugLogs || [],
-      project: targetProj
+      project: targetProj,
+      patchMode: patchMode,
+      patchActionsSummary: patchActionsSummary
     };
   }
 }

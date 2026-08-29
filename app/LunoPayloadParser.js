@@ -4,11 +4,17 @@ LunoPayloadParser.stripMarkdownFences = function(text) {
   if (!text || typeof text !== "string") return "";
   var cleaned = text.trim();
   var FENCE = "```";
-  if (cleaned.indexOf(FENCE) === 0) {
-    var firstNL = cleaned.indexOf("\n");
-    if (firstNL !== -1) cleaned = cleaned.substring(firstNL + 1);
-    if (cleaned.lastIndexOf(FENCE) === cleaned.length - 3) {
-      cleaned = cleaned.substring(0, cleaned.length - 3).trim();
+
+  var fenceStart = cleaned.indexOf(FENCE);
+  if (fenceStart !== -1) {
+    var firstNL = cleaned.indexOf("\n", fenceStart);
+    if (firstNL !== -1) {
+      var fenceEnd = cleaned.lastIndexOf(FENCE);
+      if (fenceEnd > firstNL) {
+        return cleaned.substring(firstNL + 1, fenceEnd).trim();
+      } else {
+        return cleaned.substring(firstNL + 1).trim();
+      }
     }
   }
   return cleaned;

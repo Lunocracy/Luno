@@ -24,6 +24,12 @@ class LunoCheckpointView {
     var isServerMode = (typeof LunoFileSystem !== 'undefined') ? (LunoFileSystem.getActiveMode() === 'server') : true;
     var uncommittedCount = (typeof ClientApp !== 'undefined' && ClientApp.uncommittedCount) || 0;
 
+    var activePatchMode = (typeof LunoSettings !== 'undefined' && LunoSettings.getPatchApplyMode)
+      ? LunoSettings.getPatchApplyMode()
+      : ((typeof localStorage !== 'undefined' && localStorage.getItem('luno_patch_apply_mode')) || 'direct');
+
+    var isDirectMode = (activePatchMode === 'direct');
+
     var pendingPatchesCount = 0;
     try {
       var plRes = await LunoApiClient.fetchFsRead('LunoPatchLog.html', targetProj);
@@ -87,6 +93,101 @@ class LunoCheckpointView {
       } catch (e) {}
     }, 40);
 
+    // Patch Application Mode Setting Card (Placed directly above Consolidation)
+    var patchModeCard = m('div', {
+      style: {
+        background: isDirectMode ? 'linear-gradient(135deg, #0d2818 0%, #161b22 100%)' : 'linear-gradient(135deg, #271052 0%, #161b22 100%)',
+        border: '2px solid ' + (isDirectMode ? '#238636' : '#8257e5'),
+        borderRadius: '10px',
+        padding: '0.9rem',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '0.55rem',
+        boxShadow: isDirectMode ? '0 4px 14px rgba(35,134,54,0.25)' : '0 4px 14px rgba(130,87,229,0.25)'
+      }
+    },
+      m('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.4rem' } },
+        m('strong', { style: { color: isDirectMode ? '#3fb950' : '#d2a8ff', fontSize: '0.92rem', display: 'flex', alignItems: 'center', gap: '0.35rem' } },
+          '⚙️ PATCH APPLICATION WORKFLOW'
+        ),
+        m('span', {
+          style: {
+            fontSize: '0.7rem',
+            fontWeight: 'bold',
+            padding: '0.15rem 0.5rem',
+            borderRadius: '10px',
+            background: isDirectMode ? '#0d2818' : '#271052',
+            color: isDirectMode ? '#7ee787' : '#d2a8ff',
+            border: '1px solid ' + (isDirectMode ? '#3fb950' : '#8257e5')
+          }
+        }, isDirectMode ? '⚡ Auto-Apply (Default)' : '🧩 Patch Log (Advanced)')
+      ),
+
+      m('p', { style: { color: '#c9d1d9', margin: 0, fontSize: '0.78rem', lineHeight: '1.4' } },
+        isDirectMode
+          ? 'Surgical method patches are compiled directly into base class files in browser client JavaScript. Changes take effect on disk immediately without manual consolidation.'
+          : 'Surgical method patches are journaled into LunoPatchLog.html. You can review pending patches and merge them into base files using Step 1 below.'
+      ),
+
+      m('div', { style: { display: 'flex', gap: '0.45rem', marginTop: '0.2rem', flexWrap: 'wrap' } },
+        m('button', {
+          id: 'btn-mode-direct',
+          style: {
+            flex: '1 1 140px',
+            padding: '0.55rem 0.75rem',
+            background: isDirectMode ? '#238636' : '#21262d',
+            color: isDirectMode ? '#ffffff' : '#8b949e',
+            border: '1px solid ' + (isDirectMode ? '#3fb950' : '#30363d'),
+            borderRadius: '6px',
+            fontSize: '0.75rem',
+            fontWeight: 'bold',
+            cursor: 'pointer',
+            fontFamily: 'monospace',
+            boxShadow: isDirectMode ? '0 2px 8px rgba(35,134,54,0.4)' : 'none'
+          },
+          onclick: function() {
+            if (typeof LunoSettings !== 'undefined' && LunoSettings.setPatchApplyMode) {
+              LunoSettings.setPatchApplyMode('direct');
+            } else if (typeof localStorage !== 'undefined') {
+              localStorage.setItem('luno_patch_apply_mode', 'direct');
+            }
+            if (typeof ClientApp !== 'undefined' && ClientApp.showToast) {
+              ClientApp.showToast('Patch Workflow set to Auto-Apply to Files!', 'success', '⚡');
+            }
+            LunoCheckpointView.mountUI(container);
+          }
+        }, '⚡ Auto-Apply to Files ' + (isDirectMode ? '✓' : '')),
+
+        m('button', {
+          id: 'btn-mode-patchlog',
+          style: {
+            flex: '1 1 140px',
+            padding: '0.55rem 0.75rem',
+            background: !isDirectMode ? '#8257e5' : '#21262d',
+            color: !isDirectMode ? '#ffffff' : '#8b949e',
+            border: '1px solid ' + (!isDirectMode ? '#d2a8ff' : '#30363d'),
+            borderRadius: '6px',
+            fontSize: '0.75rem',
+            fontWeight: 'bold',
+            cursor: 'pointer',
+            fontFamily: 'monospace',
+            boxShadow: !isDirectMode ? '0 2px 8px rgba(130,87,229,0.4)' : 'none'
+          },
+          onclick: function() {
+            if (typeof LunoSettings !== 'undefined' && LunoSettings.setPatchApplyMode) {
+              LunoSettings.setPatchApplyMode('patchlog');
+            } else if (typeof localStorage !== 'undefined') {
+              localStorage.setItem('luno_patch_apply_mode', 'patchlog');
+            }
+            if (typeof ClientApp !== 'undefined' && ClientApp.showToast) {
+              ClientApp.showToast('Patch Workflow set to Journal in Patch Log!', 'info', '🧩');
+            }
+            LunoCheckpointView.mountUI(container);
+          }
+        }, '🧩 Journal to Patch Log ' + (!isDirectMode ? '✓' : ''))
+      )
+    );
+
     var consolidationCard = m('div', {
       style: {
         background: '#0d1117',
@@ -114,7 +215,9 @@ class LunoCheckpointView {
         }, pendingPatchesCount + ' pending patch(es)')
       ),
       m('p', { style: { color: '#8b949e', margin: 0, fontSize: '0.78rem', lineHeight: '1.4' } },
-        'Merges pending method patches into base class files and resets the patch log.'
+        isDirectMode
+          ? 'In Auto-Apply mode, patches are merged immediately into files on save. Pending patch count remains 0 unless switched to Patch Log journaling above.'
+          : 'Merges pending method patches from LunoPatchLog.html into base class files and resets the patch log.'
       ),
       m('button', {
         id: 'btn-consolidate-patches',
@@ -133,7 +236,7 @@ class LunoCheckpointView {
         onclick: async function() {
           if (pendingPatchesCount === 0) {
             if (typeof ClientApp !== 'undefined' && ClientApp.showToast) {
-              ClientApp.showToast('No pending patches to consolidate.', 'info', 'ℹ️');
+              ClientApp.showToast(isDirectMode ? 'Auto-Apply mode is active; files are already consolidated.' : 'No pending patches to consolidate.', 'info', 'ℹ️');
             }
             return;
           }
@@ -186,6 +289,7 @@ class LunoCheckpointView {
         }, '🏠 Workspace')
       ),
 
+      patchModeCard,
       consolidationCard,
 
       m('div', { style: { background: '#0d1117', border: '1px solid #238636', padding: '0.85rem', borderRadius: '8px', fontSize: '0.82rem' } },
