@@ -55,123 +55,164 @@ class LunoClassPatcher {
     }
 
   static parseSpec(targetSpec) {
-    if (!targetSpec || typeof targetSpec !== 'string' || !targetSpec.trim()) {
-      throw new Error('[Luno AST Guard] Cannot parse targetSpec: targetSpec is empty.');
+      if (!targetSpec || typeof targetSpec !== 'string' || !targetSpec.trim()) {
+        throw new Error('[Luno AST Guard] Cannot parse targetSpec: targetSpec is empty.');
+      }
+  
+      var clean = targetSpec.trim();
+      if (clean.includes('@')) clean = clean.split('@').pop().trim();
+      clean = clean.replace(/^(?:globalThis|window)\./, '');
+  
+      var isStatic = null;
+      if (clean.startsWith('static ') || clean.includes('.static.')) {
+        isStatic = true;
+        clean = clean.replace(/\bstatic\s+/, '').replace(/\.static\./, '.');
+      }
+  
+      var kind = 'method';
+      if (clean.startsWith('get ') || clean.includes('.get ')) {
+        kind = 'get';
+        clean = clean.replace(/\bget\s+/, '');
+      } else if (clean.startsWith('set ') || clean.includes('.set ')) {
+        kind = 'set';
+        clean = clean.replace(/\bset\s+/, '');
+      }
+  
+      var className = '';
+      var memberName = '';
+  
+      if (clean.includes('.prototype.')) {
+        var parts = clean.split('.prototype.');
+        className = parts[0].trim();
+        memberName = parts[1].trim();
+        isStatic = false;
+      } else if (clean.includes('.')) {
+        var parts2 = clean.split('.');
+        memberName = parts2.pop().trim();
+        className = parts2.join('.').trim();
+      } else {
+        memberName = clean;
+      }
+  
+      if (memberName === 'constructor') {
+        isStatic = false;
+        kind = 'constructor';
+      }
+  
+      if (!memberName) {
+        throw new Error('[Luno AST Guard] Invalid targetSpec "' + targetSpec + '": Could not extract member name.');
+      }
+  
+      return { className: className, memberName: memberName, isStatic: isStatic, kind: kind };
     }
-
-    var clean = targetSpec.trim();
-    if (clean.includes('@')) clean = clean.split('@').pop().trim();
-    clean = clean.replace(/^(?:globalThis|window)\./, '');
-
-    var kind = 'method';
-    if (clean.startsWith('get ') || clean.includes('.get ')) {
-      kind = 'get';
-      clean = clean.replace(/\bget\s+/, '');
-    } else if (clean.startsWith('set ') || clean.includes('.set ')) {
-      kind = 'set';
-      clean = clean.replace(/\bset\s+/, '');
-    }
-
-    var className = '';
-    var memberName = '';
-    var isStatic = null;
-
-    if (clean.includes('.prototype.')) {
-      var parts = clean.split('.prototype.');
-      className = parts[0].trim();
-      memberName = parts[1].trim();
-      isStatic = false;
-    } else if (clean.includes('.')) {
-      var parts2 = clean.split('.');
-      memberName = parts2.pop().trim();
-      className = parts2.join('.').trim();
-      isStatic = null;
-    } else {
-      memberName = clean;
-      isStatic = null;
-    }
-
-    if (memberName === 'constructor') {
-      isStatic = false;
-      kind = 'constructor';
-    }
-
-    if (!memberName) {
-      throw new Error('[Luno AST Guard] Invalid targetSpec "' + targetSpec + '": Could not extract member name.');
-    }
-
-    return { className: className, memberName: memberName, isStatic: isStatic, kind: kind };
-  }
 
   static normalizeMethodCode(memberName, methodCode, isStatic, targetKind) {
-    var rawStr = String(methodCode !== undefined && methodCode !== null ? methodCode : '').trim();
-    if (!rawStr) {
-      return (isStatic === true ? 'static ' : '') + memberName + '() {}';
-    }
-
-    var clean = rawStr;
-    if (clean.endsWith(';')) clean = clean.slice(0, -1).trim();
-
-    if (clean.includes('=')) {
-      var equalsIdx = clean.indexOf('=');
-      var leftPart = clean.slice(0, equalsIdx).trim();
-      if (leftPart.includes('.prototype.') || leftPart.includes('.')) {
-        clean = clean.slice(equalsIdx + 1).trim();
+      var rawStr = String(methodCode !== undefined && methodCode !== null ? methodCode : '').trim();
+      if (!rawStr) {
+        return (isStatic === true ? 'static ' : '') + memberName + '() {}';
+      }
+  
+      var clean = rawStr;
+      if (clean.endsWith(';')) clean = clean.slice(0, -1).trim();
+  
+      // Strip legacy prototype assignment if explicitly on the left side of an assignment
+      if (/^(?:globalThis\.|window\.)?[A-Za-z0-9_$]+(?:\.prototype|\.)[A-Za-z0-9_$]+\s*=/.test(clean)) {
+        var eqIdx = clean.indexOf('=');
+        clean = clean.slice(eqIdx + 1).trim();
         if (clean.endsWith(';')) clean = clean.slice(0, -1).trim();
       }
-    }
-
-    var stripped = clean;
-    var maxPasses = 20;
-    while (maxPasses > 0 && (stripped.startsWith('//') || stripped.startsWith('/*'))) {
-      maxPasses--;
-      if (stripped.startsWith('//')) {
-        var nl = stripped.indexOf('\n');
-        stripped = nl !== -1 ? stripped.slice(nl + 1).trim() : '';
-      } else if (stripped.startsWith('/*')) {
-        var endComment = stripped.indexOf('*/');
-        stripped = endComment !== -1 ? stripped.slice(endComment + 2).trim() : '';
+  
+      // Strip leading comments
+      var maxPasses = 20;
+      while (maxPasses > 0 && (clean.startsWith('//') || clean.startsWith('/*'))) {
+        maxPasses--;
+        if (clean.startsWith('//')) {
+          var nl = clean.indexOf('\n');
+          clean = nl !== -1 ? clean.slice(nl + 1).trim() : '';
+        } else if (clean.startsWith('/*')) {
+          var endComment = clean.indexOf('*/');
+          clean = endComment !== -1 ? clean.slice(endComment + 2).trim() : '';
+        }
       }
+      if (!clean) return (isStatic === true ? 'static ' : '') + memberName + '() {}';
+  
+      var openParenIdx = clean.indexOf('(');
+      var firstBraceIdx = clean.indexOf('{');
+  
+      if (firstBraceIdx === -1) {
+        var prefix = (isStatic === true ? 'static ' : '');
+        if (memberName === 'constructor') return 'constructor() { ' + clean + ' }';
+        return prefix + memberName + '() { ' + clean + ' }';
+      }
+  
+      // Balanced parenthesis scanner to accurately locate parameter boundaries and body opening brace
+      var bodyStartIdx = firstBraceIdx;
+      var headerPart = clean.slice(0, firstBraceIdx).trim();
+      var bodyPart = clean.slice(firstBraceIdx).trim();
+  
+      if (openParenIdx !== -1 && openParenIdx < firstBraceIdx) {
+        var depth = 0;
+        var inStr = false;
+        var strChar = '';
+        var closeParenIdx = -1;
+  
+        for (var i = openParenIdx; i < clean.length; i++) {
+          var ch = clean[i];
+          var prev = i > 0 ? clean[i - 1] : '';
+  
+          if (inStr) {
+            if (ch === strChar && prev !== '\\') inStr = false;
+          } else if (ch === '"' || ch === "'" || ch === '`') {
+            inStr = true;
+            strChar = ch;
+          } else if (ch === '(') {
+            depth++;
+          } else if (ch === ')') {
+            depth--;
+            if (depth === 0) {
+              closeParenIdx = i;
+              break;
+            }
+          }
+        }
+  
+        if (closeParenIdx !== -1) {
+          var searchBrace = clean.indexOf('{', closeParenIdx);
+          if (searchBrace !== -1) {
+            bodyStartIdx = searchBrace;
+            headerPart = clean.slice(0, bodyStartIdx).trim();
+            bodyPart = clean.slice(bodyStartIdx).trim();
+          }
+        }
+      }
+  
+      var hasStatic = /\bstatic\b/.test(headerPart) || (isStatic === true);
+      var hasAsync = /\basync\b/.test(headerPart);
+      var isGenerator = headerPart.includes('*');
+      var isGet = /\bget\b/.test(headerPart) || targetKind === 'get';
+      var isSet = /\bset\b/.test(headerPart) || targetKind === 'set';
+  
+      var params = '()';
+      var pStart = headerPart.indexOf('(');
+      var pEnd = headerPart.lastIndexOf(')');
+      if (pStart !== -1 && pEnd !== -1 && pEnd > pStart) {
+        params = headerPart.slice(pStart, pEnd + 1);
+      }
+  
+      if (memberName === 'constructor') {
+        return 'constructor' + params + ' ' + bodyPart;
+      }
+  
+      var out = '';
+      if (hasStatic) out += 'static ';
+      if (hasAsync && !isGet && !isSet) out += 'async ';
+      if (isGenerator) out += '*';
+      if (isGet) out += 'get ';
+      if (isSet) out += 'set ';
+  
+      out += memberName + params + ' ' + bodyPart;
+      return String(out).trim();
     }
-    clean = stripped || clean;
-
-    var firstBraceIdx = clean.indexOf('{');
-    if (firstBraceIdx === -1) {
-      var prefix = (isStatic === true ? 'static ' : '');
-      if (memberName === 'constructor') return 'constructor() { ' + clean + ' }';
-      return prefix + memberName + '() { ' + clean + ' }';
-    }
-
-    var headerPart = clean.slice(0, firstBraceIdx).trim();
-    var bodyPart = clean.slice(firstBraceIdx).trim();
-
-    var hasStatic = /\bstatic\b/.test(headerPart) || (isStatic === true);
-    var hasAsync = /\basync\b/.test(headerPart) || bodyPart.includes('await ');
-    var isGenerator = headerPart.includes('*');
-    var isGet = /\bget\b/.test(headerPart) || targetKind === 'get';
-    var isSet = /\bset\b/.test(headerPart) || targetKind === 'set';
-
-    var params = '()';
-    var openParenIdx = headerPart.indexOf('(');
-    var closeParenIdx = headerPart.lastIndexOf(')');
-    if (openParenIdx !== -1 && closeParenIdx !== -1 && closeParenIdx > openParenIdx) {
-      params = headerPart.slice(openParenIdx, closeParenIdx + 1);
-    }
-
-    if (memberName === 'constructor') {
-      return 'constructor' + params + ' ' + bodyPart;
-    }
-
-    var out = '';
-    if (hasStatic) out += 'static ';
-    if (hasAsync && !isGet && !isSet) out += 'async ';
-    if (isGenerator) out += '*';
-    if (isGet) out += 'get ';
-    if (isSet) out += 'set ';
-
-    out += memberName + params + ' ' + bodyPart;
-    return String(out).trim();
-  }
 
   static findClassNodes(ast, targetClassName) {
     var results = [];
@@ -328,9 +369,6 @@ class LunoClassPatcher {
       var isStatic = parsed.isStatic;
       var targetKind = parsed.kind;
   
-      var cleanMethod = String(LunoClassPatcher.normalizeMethodCode(memberName, methodCode, isStatic, targetKind) || '').trim();
-      if (!cleanMethod) return existingSource;
-  
       var ast = LunoClassPatcher.parseAST(existingSource);
       var classNodes = LunoClassPatcher.findClassNodes(ast, className);
   
@@ -376,32 +414,118 @@ class LunoClassPatcher {
         }
       }
   
+      // Determine effective staticness: preserve existing member's static modifier if unspecified in targetSpec
+      var effectiveStatic = isStatic;
+      if (effectiveStatic === null) {
+        if (existingMemberNode) {
+          effectiveStatic = Boolean(existingMemberNode.static);
+        } else {
+          effectiveStatic = /\bstatic\b/.test(methodCode);
+        }
+      }
+  
+      var cleanMethod = String(LunoClassPatcher.normalizeMethodCode(memberName, methodCode, effectiveStatic, targetKind) || '').trim();
+      if (!cleanMethod) return existingSource;
+  
+      // Dedent incoming code to 0-level first to prevent compounding indentation drift
+      var rawLines = cleanMethod.split('\n');
+      var minIndent = Infinity;
+      for (var l = 0; l < rawLines.length; l++) {
+        var line = rawLines[l];
+        if (line.trim().length > 0) {
+          var match = line.match(/^([ \t]*)/);
+          if (match && match[1].length < minIndent) {
+            minIndent = match[1].length;
+          }
+        }
+      }
+      if (minIndent === Infinity) minIndent = 0;
+  
       var baseIndentation = '  ';
+      var formattedMethod = rawLines.map(function(line) {
+        if (line.trim().length === 0) return '';
+        var relativeLine = line.slice(Math.min(line.length, minIndent));
+        return baseIndentation + relativeLine;
+      }).join('\n');
   
       if (existingMemberNode && existingMemberNode.range) {
         var startIdx = existingMemberNode.range[0];
         var endIdx = existingMemberNode.range[1];
   
-        var indentedMethod = baseIndentation + cleanMethod.split('\n').map(function(line, idx) {
-          return idx === 0 ? line : (baseIndentation + line);
-        }).join('\n');
+        // Scan backwards to consume any immediately preceding JSDoc comment attached to the old method
+        var scanIdx = startIdx - 1;
+        while (scanIdx >= 0 && (existingSource[scanIdx] === ' ' || existingSource[scanIdx] === '\t')) {
+          scanIdx--;
+        }
+        if (scanIdx >= 0 && (existingSource[scanIdx] === '\n' || existingSource[scanIdx] === '\r')) {
+          var commentScan = scanIdx;
+          while (commentScan >= 0 && (existingSource[commentScan] === ' ' || existingSource[commentScan] === '\t' || existingSource[commentScan] === '\r' || existingSource[commentScan] === '\n')) {
+            commentScan--;
+          }
+          if (commentScan >= 1 && existingSource[commentScan] === '/' && existingSource[commentScan - 1] === '*') {
+            var commentStart = existingSource.lastIndexOf('/*', commentScan);
+            if (commentStart !== -1) {
+              var preCommentIdx = commentStart - 1;
+              while (preCommentIdx >= 0 && (existingSource[preCommentIdx] === ' ' || existingSource[preCommentIdx] === '\t')) {
+                preCommentIdx--;
+              }
+              if (preCommentIdx < 0 || existingSource[preCommentIdx] === '\n' || existingSource[preCommentIdx] === '\r') {
+                startIdx = Math.max(0, preCommentIdx + 1);
+              }
+            }
+          }
+        }
   
-        return existingSource.slice(0, startIdx) + indentedMethod.trimStart() + existingSource.slice(endIdx);
+        var before = existingSource.slice(0, startIdx).trimEnd();
+        var after = existingSource.slice(endIdx).replace(/^[\r\n]+/, '');
+  
+        return before + '\n\n' + formattedMethod + '\n' + after;
+      }
+  
+      // Similarity check to alert on potential typos of existing member names
+      var closeMatch = null;
+      var targetLower = memberName.toLowerCase();
+      for (var a = 0; a < availableMembers.length; a++) {
+        var cleanAvail = availableMembers[a].replace(/^static\s+/, '');
+        var availLower = cleanAvail.toLowerCase();
+        if (availLower === targetLower) {
+          closeMatch = cleanAvail;
+          break;
+        }
+        if (availLower.startsWith(targetLower) && availLower.length - targetLower.length <= 3) {
+          closeMatch = cleanAvail;
+          break;
+        }
+        if (targetLower.startsWith(availLower) && targetLower.length - availLower.length <= 3) {
+          closeMatch = cleanAvail;
+          break;
+        }
+      }
+  
+      if (closeMatch) {
+        var notice = '[Luno AST Guard] Notice: Member "' + memberName + '" not found in class "' + className + '", but similar member "' + closeMatch + '" exists in class body.';
+        console.warn(notice);
+        if (typeof LunoPlaybackLogger !== 'undefined' && LunoPlaybackLogger.warn) {
+          LunoPlaybackLogger.warn('AST Member Similarity Notice', 'Target: ' + memberName + ' | Existing: ' + closeMatch + ' in class ' + className);
+        }
       }
   
       if (!allowInsert) {
         throw new Error(
-          '[Luno AST Guard] Target member "' + (isStatic ? 'static ' : '') + memberName + '" was not found in class "' + className + '". ' +
+          '[Luno AST Guard] Target member "' + (effectiveStatic ? 'static ' : '') + memberName + '" was not found in class "' + className + '". ' +
+          (closeMatch ? ('(Did you mean "' + closeMatch + '"?) ') : '') +
           'Available members: [' + availableMembers.join(', ') + '].'
         );
       }
   
-      var closeBraceIdx = classBody.range[1] - 1;
-      var indentedNewMethod = '\n' + baseIndentation + cleanMethod.split('\n').map(function(line, idx) {
-        return idx === 0 ? line : (baseIndentation + line);
-      }).join('\n') + '\n';
+      // Safe insertion anchored after the last member in class body
+      var lastMember = (classBody.body && classBody.body.length > 0) ? classBody.body[classBody.body.length - 1] : null;
+      var insertPos = (lastMember && lastMember.range) ? lastMember.range[1] : (classBody.range[0] + 1);
   
-      return existingSource.slice(0, closeBraceIdx) + indentedNewMethod + existingSource.slice(closeBraceIdx);
+      var beforeInsert = existingSource.slice(0, insertPos).trimEnd();
+      var afterInsert = existingSource.slice(insertPos);
+  
+      return beforeInsert + '\n\n' + formattedMethod + '\n' + afterInsert.trimStart();
     }
 }
 

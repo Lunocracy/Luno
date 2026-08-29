@@ -90,13 +90,7 @@ class LunoManifestDecisionEngine {
         const f = payloadObj.files[i];
         if (!f || !f.filePath) continue;
   
-        let normPath = f.filePath.replace(/\\/g, '/').replace(/^\/+/, '').trim();
-        if (normPath.startsWith('Luno Workspace/')) normPath = normPath.slice(15).trim();
-        if (normPath.startsWith('./')) normPath = normPath.slice(2).trim();
-  
-        if (!normPath.includes('/') && normPath !== 'LunoPatchLog.html') {
-          normPath = targetProj + '/' + normPath;
-        }
+        let normPath = await LunoManifestDecisionEngine.resolveCanonicalFilePath(f.filePath, manifestObj, targetProj);
   
         const isSurgicalPatch = Boolean(f.methodSpec || f.action === 'patch' || f.action === 'delete');
         const isExplicitMerge = (f.action === 'merge');
@@ -196,7 +190,7 @@ class LunoManifestDecisionEngine {
           );
         }
   
-        // Post-splice AST validation pass right in browser memory
+        // Post-splice AST validation pass in browser memory
         if (normPath.endsWith('.js') || normPath.endsWith('.mjs')) {
           try {
             globalThis.LunoClassPatcher.parseAST(patched);
@@ -275,6 +269,79 @@ class LunoManifestDecisionEngine {
         patchMode: patchMode,
         patchActionsSummary: patchActionsSummary
       };
+    }
+
+  static async resolveCanonicalFilePath(rawPath, manifestObj, targetProj) {
+      if (!rawPath || typeof rawPath !== 'string') return '';
+      let norm = rawPath.replace(/\\/g, '/').replace(/^\/+/, '').trim();
+      if (norm.startsWith('Luno Workspace/')) norm = norm.slice(15).trim();
+      if (norm.startsWith('./')) norm = norm.slice(2).trim();
+  
+      if (norm === 'LunoPatchLog.html') return norm;
+  
+      // Handle shared Library root paths
+      if (norm.startsWith('Library/') || norm.startsWith('library/')) {
+        return 'Library/' + norm.replace(/^(?:Library|library)\//, '');
+      }
+  
+      if (!norm.startsWith(targetProj + '/')) {
+        norm = targetProj + '/' + norm;
+      }
+  
+      // 1. Direct hit check
+      if (typeof LunoApiClient !== 'undefined' && LunoApiClient.fetchFsRead) {
+        try {
+          let testRead = await LunoApiClient.fetchFsRead(norm, targetProj);
+          if (testRead && testRead.success && testRead.content !== undefined) {
+            return norm;
+          }
+        } catch (e) {}
+      }
+  
+      // 2. Manifest declaration match
+      const baseName = norm.split('/').pop();
+      const manifestPaths = [];
+      if (manifestObj) {
+        [].concat(manifestObj.main || []).forEach(p => p && manifestPaths.push(p));
+        [].concat(manifestObj.files || manifestObj.local || []).forEach(p => p && manifestPaths.push(p));
+        [].concat(manifestObj.styles || []).forEach(p => p && manifestPaths.push(p));
+        [].concat(manifestObj.docs || []).forEach(p => p && manifestPaths.push(p));
+        if (manifestObj.entrypoint && manifestObj.entrypoint.file) manifestPaths.push(manifestObj.entrypoint.file);
+      }
+  
+      for (let mPath of manifestPaths) {
+        let cleanM = mPath.replace(/\\/g, '/').replace(/^\/+/, '').trim();
+        if (cleanM.endsWith('/' + baseName) || cleanM === baseName) {
+          let candidate = cleanM;
+          if (!candidate.startsWith(targetProj + '/') && !candidate.startsWith('Library/')) {
+            candidate = targetProj + '/' + candidate;
+          }
+          if (typeof LunoApiClient !== 'undefined' && LunoApiClient.fetchFsRead) {
+            try {
+              let mRead = await LunoApiClient.fetchFsRead(candidate, targetProj);
+              if (mRead && mRead.success && mRead.content !== undefined) {
+                return candidate;
+              }
+            } catch(e) {}
+          }
+        }
+      }
+  
+      // 3. Standard subfolder probing (app, core, browser, docs, src, test)
+      const candidateFolders = ['app', 'core', 'browser', 'docs', 'src', 'test'];
+      for (let folder of candidateFolders) {
+        let candidate = targetProj + '/' + folder + '/' + baseName;
+        if (typeof LunoApiClient !== 'undefined' && LunoApiClient.fetchFsRead) {
+          try {
+            let subRead = await LunoApiClient.fetchFsRead(candidate, targetProj);
+            if (subRead && subRead.success && subRead.content !== undefined) {
+              return candidate;
+            }
+          } catch(e) {}
+        }
+      }
+  
+      return norm;
     }
 }
 

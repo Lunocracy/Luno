@@ -53,15 +53,26 @@ class LunoPromptInstructions {
         '  to the workspace root (e.g. data-file="ProjectName/src/App.js", data-file="Luno/app/ClientApp.js",',
         '  or data-file="Library/DomBasics.js"). Never write ambiguous bare relative paths like data-file="src/App.js".',
         '',
-        '• 1. Surgical ES6 Class Method Patch (UPDATES OR ADDS SPECIFIC METHODS):',
+        '• 1. Surgical ES6 Class Method Patch (INSTANCE METHOD):',
         '  <' + scr + ' data-file="ProjectName/path/to/file.js" data-method="ClassName.methodName" data-action="patch">',
         '  methodName(args) {',
         '    // Complete updated or new method code only...',
         '  }',
         '  </' + scr + '>',
-        '  (Note: If adding a brand new method to ClassName, use this exact patch syntax — Luno will automatically insert it into the class body).',
         '',
-        '• 2. Multiple Patches in One Response (Group all patches in the single code fence):',
+        '• 2. Static & Async Methods (Include static/async directly in signature):',
+        '  <' + scr + ' data-file="ProjectName/path/to/file.js" data-method="ClassName.staticMethod" data-action="patch">',
+        '  static async staticMethod(args) {',
+        '    // Complete static async method code...',
+        '  }',
+        '  </' + scr + '>',
+        '',
+        '• 3. Getters & Setters:',
+        '  <' + scr + ' data-file="ProjectName/path/to/file.js" data-method="ClassName.propName" data-action="patch">',
+        '  get propName() { return this._val; }',
+        '  </' + scr + '>',
+        '',
+        '• 4. Multiple Patches in One Response (Group all patches in the single html code fence):',
         '  <' + scr + ' data-file="ProjectName/path/to/FileA.js" data-method="ClassA.methodOne" data-action="patch">',
         '  methodOne() { ... }',
         '  </' + scr + '>',
@@ -69,7 +80,7 @@ class LunoPromptInstructions {
         '  methodTwo() { ... }',
         '  </' + scr + '>',
         '',
-        '• 3. Full File Write / Replacement (ONLY FOR BRAND NEW FILES):',
+        '• 5. Full File Write / Replacement (ONLY FOR BRAND NEW FILES):',
         '  <' + scr + ' data-file="ProjectName/path/to/NewFile.js">',
         '  // Full file source code here...',
         '  </' + scr + '>',
@@ -77,7 +88,6 @@ class LunoPromptInstructions {
         '• Stylesheets (<' + 'style data-file="ProjectName/css/style.css">) and Templates (<' + 'template data-file="ProjectName/view.html">).'
       ].join('\n');
     }
-
   static getSyntaxSafetyRules() {
     return [
       'SYNTAX & PARSER SAFETY RULES:',
