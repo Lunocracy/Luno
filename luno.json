@@ -62,9 +62,9 @@
     "Luno/docs/SPS7.md",
     "Luno/docs/BookmarkletStudioRoadmap.md"
   ],
-  "processedCountSinceCheckpoint": 2,
-  "lastCheckpointTime": "2026-08-29T00:38:00.000Z",
-  "pendingCheckpointDescription": "Clean working tree - Pure client-side AST patching and static VFS parity",
+  "processedCountSinceCheckpoint": 0,
+  "lastCheckpointTime": "2026-08-29T07:45:56.431Z",
+  "pendingCheckpointDescription": "Clean working tree",
   "changedMethods": {
     "Luno/app/LunoSpaDock.js": "2026-08-29T07:41:18.160Z",
     "Luno/luno.json": "2026-08-29T07:41:18.160Z"
