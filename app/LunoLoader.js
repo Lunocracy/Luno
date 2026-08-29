@@ -16,9 +16,6 @@ var LunoLoader = globalThis.LunoLoader = class LunoLoader {
   ]);
   static loadedStyles = new Set();
 
-  /**
-   * Detects if running on GitHub Pages, Cloudflare Pages, or static file protocol.
-   */
   static isStaticHosting() {
     try {
       if (typeof window !== 'undefined' && window.location) {
@@ -29,20 +26,19 @@ var LunoLoader = globalThis.LunoLoader = class LunoLoader {
     return false;
   }
 
-  /**
-   * Normalizes script paths:
-   * - Local Node server: Preserves '/Luno/app/...' format expected by LunoServer.
-   * - GitHub Pages: Strips redundant 'Luno/' prefix so it cleanly loads './app/...'.
-   */
-  static normalizeScriptPath(rawPath) {
+  static normalizeScriptPath(rawPath, projectContext) {
     if (!rawPath || typeof rawPath !== 'string') return '';
     if (rawPath.startsWith('http://') || rawPath.startsWith('https://')) return rawPath;
 
-    var clean = rawPath.replace(/\\/g, '/').replace(/^\/+/, '');
+    var clean = rawPath.replace(/\\/g, '/').replace(/^\/+/, '').trim();
+    if (clean.startsWith('Luno Workspace/')) clean = clean.slice(15).trim();
+    if (clean.startsWith('./')) clean = clean.slice(2).trim();
 
     if (LunoLoader.isStaticHosting()) {
-      // In standalone GitHub repository, strip leading 'Luno/' prefix if present
-      if (clean.startsWith('Luno/')) {
+      var proj = projectContext || (typeof ClientApp !== 'undefined' && ClientApp.getTargetProject ? ClientApp.getTargetProject() : 'Luno');
+      if (clean.startsWith(proj + '/')) {
+        clean = clean.slice(proj.length + 1);
+      } else if (clean.startsWith('Luno/')) {
         clean = clean.slice(5);
       }
       if (!clean.startsWith('./') && !clean.startsWith('../')) {
@@ -51,7 +47,6 @@ var LunoLoader = globalThis.LunoLoader = class LunoLoader {
       return clean;
     }
 
-    // Local Node server mode: absolute slash path
     return clean.startsWith('/') ? clean : ('/' + clean);
   }
 
@@ -82,9 +77,9 @@ var LunoLoader = globalThis.LunoLoader = class LunoLoader {
     });
   }
 
-  static loadScript(jsPath) {
+  static loadScript(jsPath, projectContext) {
     return new Promise(function(resolve, reject) {
-      var fullUrl = LunoLoader.normalizeScriptPath(jsPath);
+      var fullUrl = LunoLoader.normalizeScriptPath(jsPath, projectContext);
       var cleanName = jsPath.split('?')[0].split('/').pop();
 
       if (cleanName === 'LunoLoader.js' && typeof globalThis.LunoLoader !== 'undefined') {
@@ -105,7 +100,6 @@ var LunoLoader = globalThis.LunoLoader = class LunoLoader {
         resolve({ url: fullUrl, cached: false });
       };
       script.onerror = function() {
-        // Fallback: If './subfolder/file.js' failed on static host, try './app/file.js'
         var altPath = './app/' + cleanName + '?v=' + Date.now();
         var altScript = document.createElement('script');
         altScript.src = altPath;
@@ -202,6 +196,7 @@ var LunoLoader = globalThis.LunoLoader = class LunoLoader {
       console.warn('[LunoLoader] Manifest load notice:', e);
     }
 
+    var projName = lunoMeta.name || 'Luno';
     var libs = Array.isArray(lunoMeta.library) ? lunoMeta.library : [];
     var main = Array.isArray(lunoMeta.main) ? lunoMeta.main : [];
     var styles = Array.isArray(lunoMeta.styles) ? lunoMeta.styles : [];
@@ -224,7 +219,7 @@ var LunoLoader = globalThis.LunoLoader = class LunoLoader {
       var scriptName = main[m].split('/').pop();
       updateBootStatus('Loading [' + (m + 1) + '/' + main.length + ']: ' + scriptName);
       try {
-        await LunoLoader.loadScript(main[m]);
+        await LunoLoader.loadScript(main[m], projName);
       } catch (err) {
         console.error('[LunoLoader] Error loading module:', main[m], err);
         updateBootStatus('⚠️ Failed to load ' + scriptName + ': ' + err.message);
@@ -232,7 +227,7 @@ var LunoLoader = globalThis.LunoLoader = class LunoLoader {
     }
 
     try {
-      await LunoLoader.applyPatchLog(lunoMeta.name || 'Luno');
+      await LunoLoader.applyPatchLog(projName);
     } catch(e) {}
 
     updateBootStatus('Launching ClientApp...');

@@ -108,13 +108,11 @@ class LunoManifestDecisionEngine {
         continue;
       }
 
-      // Full file replacements ALWAYS write directly to disk
       if (!isSurgicalPatch) {
         fullFilesMap.set(normPath, f.content || '');
         continue;
       }
 
-      // For surgical patches, apply AST patching in browser client memory
       let baseContent = '';
       if (fullFilesMap.has(normPath)) {
         baseContent = fullFilesMap.get(normPath);
@@ -126,26 +124,17 @@ class LunoManifestDecisionEngine {
       }
 
       if (!baseContent || !baseContent.trim()) {
-        processedFilesList.push({
-          tagName: 'script',
-          filePath: normPath,
-          methodSpec: f.methodSpec || '',
-          action: f.action || 'patch',
-          content: f.content || ''
-        });
-        continue;
+        throw new Error(
+          '[Luno AST Guard] Cannot surgically patch "' + normPath + '" (' + (f.methodSpec || 'method') + '): ' +
+          'Target file does not exist in storage or is empty. Please provide the full file contents.'
+        );
       }
 
       let classPatcher = globalThis.LunoClassPatcher;
       if (!classPatcher) {
-        processedFilesList.push({
-          tagName: 'script',
-          filePath: normPath,
-          methodSpec: f.methodSpec || '',
-          action: f.action || 'patch',
-          content: f.content || ''
-        });
-        continue;
+        throw new Error(
+          '[Luno AST Guard] LunoClassPatcher is not registered in global scope. Cannot execute AST method patch.'
+        );
       }
 
       let consolidatedContent = baseContent;

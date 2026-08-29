@@ -29,21 +29,16 @@ class DiskBrowser {
     return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
   }
 
-  /**
-   * ⚙️ METHOD: formatTailPath
-   * Returns empty string for root files. Returns clean subfolder tail (no parens) for child files.
-   */
   static formatTailPath(fullPath, maxChars) {
     if (!fullPath || typeof fullPath !== 'string') return '';
     var limit = maxChars || 28;
     var norm = fullPath.replace(/\\/g, '/').replace(/^\/+/, '');
 
-    // Strip project prefix if present
     if (norm.startsWith('Luno/')) norm = norm.slice(5);
 
     var parts = norm.split('/');
     if (parts.length <= 1) {
-      return ''; // Root files show NOTHING
+      return '';
     }
 
     var dirPart = parts.slice(0, -1).join('/');
@@ -222,40 +217,39 @@ class DiskBrowser {
   static async loadDirectory() {
     var container = document.getElementById('item-list-container');
     if (!container) return;
-  
+
     var isLibMode = (DiskBrowser.browserMode === 'library');
     var queryTarget = isLibMode ? 'Library' : ((typeof ClientApp !== 'undefined' && ClientApp.getTargetProject) ? ClientApp.getTargetProject() : '');
-  
+
     try {
       container.innerHTML = '<div style="padding:1rem; text-align:center; color:#00f2fe; font-family:monospace;">⚡ Indexing project files for flat view...</div>';
-  
+
       var data = await LunoApiClient.fetchFsListRecursive('', queryTarget);
       var rawItems = (data && data.items) || [];
-  
+
       var files = [];
       var dirsMap = new Map();
-  
+
       for (var i = 0; i < rawItems.length; i++) {
         var it = rawItems[i];
         var rel = it.relativePath || it.name;
         var norm = rel.replace(/\\/g, '/').replace(/^\/+/, '');
-  
+
         if (queryTarget && norm.startsWith(queryTarget + '/')) {
           norm = norm.slice(queryTarget.length + 1);
         }
-  
-        // Skip project-local nested library files from contaminating the project view
+
         if (!isLibMode && (norm.toLowerCase().startsWith('library/') || norm.toLowerCase().startsWith('library\\'))) {
           continue;
         }
-  
+
         if (it.isDirectory) {
           dirsMap.set(norm, { name: it.name, relativePath: norm, size: it.size || 0 });
         } else {
           var parts = norm.split('/');
           var fileName = parts.pop();
           var dirPath = parts.join('/');
-  
+
           files.push({
             name: fileName,
             relativePath: norm,
@@ -263,18 +257,18 @@ class DiskBrowser {
             size: it.size || 0,
             mtimeMs: it.mtimeMs || 0
           });
-  
+
           if (dirPath && !dirsMap.has(dirPath)) {
             dirsMap.set(dirPath, { name: parts[parts.length - 1], relativePath: dirPath, size: 0 });
           }
         }
       }
-  
+
       DiskBrowser.flatFilesList = files;
       DiskBrowser.directoriesList = Array.from(dirsMap.values()).sort(function(a, b) {
         return a.relativePath.localeCompare(b.relativePath);
       });
-  
+
       DiskBrowser.renderFlatLayout(container, queryTarget);
     } catch (err) {
       container.innerHTML = '<div style="padding:0.75rem; color:#ff7b72; background:#3c1418; border-radius:6px; font-family:monospace;">❌ Load Error: ' + err.message + '</div>';
@@ -370,7 +364,7 @@ class DiskBrowser {
         textarea.value = initialContent;
         var statusEl = document.getElementById('editor-file-status');
         if (statusEl) {
-          statusEl.textContent = '● New file (Unsaved - Click Save to write to disk)';
+          statusEl.textContent = '● New file (Unsaved - Click Save to write to storage)';
           statusEl.style.color = '#00f2fe';
         }
       }
@@ -502,20 +496,15 @@ class DiskBrowser {
           project: targetProj
         };
 
-        var res = await fetch('/api/save?project=' + encodeURIComponent(targetProj), {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(savePayload)
-        });
-        var data = await res.json();
+        var data = await LunoApiClient.savePayload(savePayload, targetProj);
 
-        if (res.ok && data && data.success) {
+        if (data && data.success) {
           var statusEl = document.getElementById('editor-file-status');
           if (statusEl) {
-            statusEl.textContent = '✓ Saved to disk';
+            statusEl.textContent = '✓ Saved to storage';
             statusEl.style.color = '#3fb950';
           }
-          DiskBrowser.showToast('Saved ' + fileName + ' to disk!', 'success', '💾');
+          DiskBrowser.showToast('Saved ' + fileName + ' successfully!', 'success', '💾');
 
           var fItem = DiskBrowser.flatFilesList.find(function(f) { return f.relativePath === filePath; });
           if (fItem) {
@@ -524,7 +513,7 @@ class DiskBrowser {
             if (container) DiskBrowser.renderFlatLayout(container, targetProj);
           }
         } else {
-          alert('Save failed: ' + ((data && data.error) || 'Server error'));
+          alert('Save failed: ' + ((data && data.error) || 'Storage error'));
         }
       } catch(err) {
         alert('Save exception: ' + err.message);
@@ -649,9 +638,8 @@ class DiskBrowser {
     DiskBrowser.setupFloatingEditorDrag(card, titleBar, savedGeo);
 
     try {
-      var res = await fetch('/api/fs/read?path=' + encodeURIComponent(filePath) + '&project=' + encodeURIComponent(targetProj));
-      var data = await res.json();
-      if (res.ok && data && data.content !== undefined) {
+      var data = await LunoApiClient.fetchFsRead(filePath, targetProj);
+      if (data && data.success && data.content !== undefined) {
         textarea.value = data.content;
         var statusEl = document.getElementById('editor-file-status');
         if (statusEl) {
@@ -664,7 +652,7 @@ class DiskBrowser {
         textarea.value = '// Error loading file: ' + ((data && data.error) || 'Not found');
       }
     } catch(err) {
-      textarea.value = '// Network exception: ' + err.message;
+      textarea.value = '// Load exception: ' + err.message;
     }
   }
 
@@ -850,7 +838,7 @@ class DiskBrowser {
       if (res && res.content !== undefined) {
         var fileName = relPath.split('/').pop();
         var ext = (fileName.split('.').pop() || '').toLowerCase();
-        var closeTag = (ext === 'css') ? '</style>' : (ext === 'html' || ext === 'htm' ? '</template>' : (ext === 'svg' ? '</svg>' : '</' + 'script>'));
+        var closeTag = (ext === 'css') ? ('</' + 'style>') : (ext === 'html' || ext === 'htm' ? ('</' + 'template>') : (ext === 'svg' ? ('</' + 'svg>') : ('</' + 'script>')));
         var openTag = (ext === 'css') ? '<style' : (ext === 'html' || ext === 'htm' ? '<template' : (ext === 'svg' ? '<svg' : '<script'));
 
         var filePathPrefix = isLibMode ? ('Library/' + relPath.replace(/^Library\//i, '')) : (target ? (target + '/' + relPath.replace(new RegExp('^' + target + '/'), '')) : relPath);

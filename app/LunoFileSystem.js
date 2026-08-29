@@ -31,10 +31,15 @@ class LunoIndexedDbAdapter {
   }
 
   static normalizeKey(filePath, projectName) {
-    const proj = projectName || 'Luno';
-    let clean = (filePath || '').replace(/\\/g, '/').replace(/^\/+/, '');
-    if (clean.startsWith(proj + '/')) clean = clean.slice(proj.length + 1);
-    return { id: `${proj}::${clean}`, project: proj, path: clean };
+    const proj = projectName || (typeof ClientApp !== 'undefined' && ClientApp.getTargetProject ? ClientApp.getTargetProject() : 'Luno');
+    let clean = (filePath || '').replace(/\\/g, '/').replace(/^\/+/, '').trim();
+    if (clean.startsWith('Luno Workspace/')) clean = clean.slice(15).trim();
+    if (clean.startsWith('./')) clean = clean.slice(2).trim();
+
+    if (clean.startsWith(proj + '/')) {
+      clean = clean.slice(proj.length + 1);
+    }
+    return { id: proj + '::' + clean, project: proj, path: clean };
   }
 
   static async read(filePath, projectName) {
@@ -66,8 +71,8 @@ class LunoIndexedDbAdapter {
         id: key.id,
         project: key.project,
         path: key.path,
-        content: content,
-        size: content.length,
+        content: content !== undefined ? content : '',
+        size: content ? content.length : 0,
         updatedAt: Date.now()
       });
 
@@ -83,7 +88,7 @@ class LunoIndexedDbAdapter {
 
   static async list(targetPath = '', projectName = '') {
     const db = await LunoIndexedDbAdapter.getDb();
-    const proj = projectName || 'Luno';
+    const proj = projectName || (typeof ClientApp !== 'undefined' && ClientApp.getTargetProject ? ClientApp.getTargetProject() : 'Luno');
     return new Promise((resolve) => {
       const tx = db.transaction(LunoIndexedDbAdapter.STORE_FILES, 'readonly');
       const store = tx.objectStore(LunoIndexedDbAdapter.STORE_FILES);
@@ -92,7 +97,12 @@ class LunoIndexedDbAdapter {
 
       req.onsuccess = () => {
         const files = req.result || [];
-        const items = files.map(f => ({
+        const cleanTarget = (targetPath || '').replace(/\\/g, '/').replace(/^\/+/, '').trim();
+        const filtered = cleanTarget
+          ? files.filter(f => f.path.startsWith(cleanTarget))
+          : files;
+
+        const items = filtered.map(f => ({
           name: f.path.split('/').pop(),
           relativePath: f.path,
           isDirectory: false,
@@ -112,15 +122,16 @@ class LunoIndexedDbAdapter {
       const req = tx.objectStore(LunoIndexedDbAdapter.STORE_PROJECTS).getAll();
       req.onsuccess = () => {
         const projs = req.result || [];
-        resolve({
-          success: true,
-          projects: projs.map(p => ({
-            name: p.name,
-            version: '1.0.0',
-            description: 'Local IndexedDB application',
-            fileCount: 0
-          }))
-        });
+        const results = projs.map(p => ({
+          name: p.name,
+          version: '1.0.0',
+          description: 'Local IndexedDB application',
+          fileCount: 0
+        }));
+        if (results.length === 0) {
+          results.push({ name: 'Luno', version: '1.0.0', description: 'Workspace core', fileCount: 0 });
+        }
+        resolve({ success: true, projects: results });
       };
       req.onerror = () => resolve({ success: false, projects: [] });
     });
@@ -137,9 +148,9 @@ class LunoIndexedDbAdapter {
 
     let copiedCount = 0;
     for (const f of sourceFiles) {
-      const oldKey = `${sourceProject}::${f.relativePath}`;
-      const newKey = `${newProject}::${f.relativePath}`;
-      
+      const oldKey = sourceProject + '::' + f.relativePath;
+      const newKey = newProject + '::' + f.relativePath;
+
       const fileData = await new Promise(res => {
         fileStore.get(oldKey).onsuccess = (e) => res(e.target.result);
       });
@@ -258,6 +269,33 @@ class LunoFileSystem {
     if (mode === 'webFsApi') return LunoWebFsApiAdapter;
     if (mode === 'indexedDb') return LunoIndexedDbAdapter;
     return null;
+  }
+
+  static normalizeRelativePath(filePath, projectName) {
+    if (!filePath || typeof filePath !== 'string') return '';
+    let clean = filePath.replace(/\\/g, '/').replace(/^\/+/, '').trim();
+    if (clean.startsWith('Luno Workspace/')) clean = clean.slice(15).trim();
+    if (clean.startsWith('./')) clean = clean.slice(2).trim();
+
+    const proj = projectName || (typeof ClientApp !== 'undefined' && ClientApp.getTargetProject ? ClientApp.getTargetProject() : 'Luno');
+
+    if (LunoFileSystem.isStaticHosting()) {
+      if (clean.startsWith(proj + '/')) {
+        clean = clean.slice(proj.length + 1);
+      }
+      if (clean.startsWith('Luno/')) {
+        clean = clean.slice(5);
+      }
+    }
+    return clean;
+  }
+
+  static resolveStaticUrl(filePath, projectName) {
+    const clean = LunoFileSystem.normalizeRelativePath(filePath, projectName);
+    if (!clean.startsWith('./') && !clean.startsWith('../') && !clean.startsWith('http://') && !clean.startsWith('https://')) {
+      return './' + clean;
+    }
+    return clean;
   }
 }
 

@@ -72,10 +72,12 @@ class LunoApiClient {
         const r = await adapter.read(filePath, project);
         if (r.success) return r;
       }
-      // Initial seed fallback: fetch base template/file from static GitHub Pages webroot
       try {
-        const cleanPath = filePath.replace(/\\/g, '/').replace(/^\/+/, '');
-        const res = await fetch(cleanPath);
+        const fetchUrl = (typeof LunoFileSystem !== 'undefined' && LunoFileSystem.resolveStaticUrl)
+          ? LunoFileSystem.resolveStaticUrl(filePath, project)
+          : ('./' + filePath.replace(/\\/g, '/').replace(/^\/+/, ''));
+
+        const res = await fetch(fetchUrl);
         if (res.ok) {
           const content = await res.text();
           if (adapter && adapter.write) {
@@ -88,6 +90,55 @@ class LunoApiClient {
     }
     const pParam = project ? ('&project=' + encodeURIComponent(project)) : '';
     return await LunoApiClient.safeJsonFetch('/api/fs/read?path=' + encodeURIComponent(filePath) + pParam);
+  }
+
+  static async fetchAllCode(project = '', includeLibrary = false) {
+    if (LunoApiClient.isStaticMode()) {
+      const adapter = LunoFileSystem.getAdapter();
+      const proj = project || (typeof ClientApp !== 'undefined' && ClientApp.getTargetProject ? ClientApp.getTargetProject() : 'Luno');
+      const manifest = [];
+      const filesMap = {};
+
+      if (adapter && adapter.list) {
+        const listRes = await adapter.list('', proj);
+        const items = (listRes && listRes.items) || [];
+        for (const item of items) {
+          const relPath = proj + '/' + item.relativePath;
+          const readRes = await adapter.read(item.relativePath, proj);
+          if (readRes && readRes.success) {
+            manifest.push(relPath);
+            filesMap[relPath] = readRes.content;
+          }
+        }
+      }
+
+      if (includeLibrary && adapter && adapter.list && proj.toLowerCase() !== 'library') {
+        const libListRes = await adapter.list('', 'Library');
+        const libItems = (libListRes && libListRes.items) || [];
+        for (const libItem of libItems) {
+          const libRelPath = 'Library/' + libItem.relativePath;
+          const libReadRes = await adapter.read(libItem.relativePath, 'Library');
+          if (libReadRes && libReadRes.success) {
+            manifest.push(libRelPath);
+            filesMap[libRelPath] = libReadRes.content;
+          }
+        }
+      }
+
+      return {
+        success: true,
+        activeProjectName: proj,
+        activeRootDir: 'IndexedDB Virtual Root',
+        manifest: manifest,
+        filesMap: filesMap
+      };
+    }
+
+    const params = [];
+    if (project) params.push('project=' + encodeURIComponent(project));
+    if (includeLibrary) params.push('includeLibrary=true');
+    const q = params.length > 0 ? ('?' + params.join('&')) : '';
+    return await LunoApiClient.safeJsonFetch('/api/all-code' + q);
   }
 
   static async savePayload(payload, project = '') {
@@ -114,7 +165,7 @@ class LunoApiClient {
         success: true,
         count: modified,
         modifiedCount: modified,
-        llmFeedback: `✅ Saved ${modified} file(s) directly to local IndexedDB Virtual Filesystem!`
+        llmFeedback: '✅ Saved ' + modified + ' file(s) directly to local IndexedDB Virtual Filesystem!'
       };
     }
 
