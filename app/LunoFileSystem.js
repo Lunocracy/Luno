@@ -44,7 +44,8 @@ class LunoIndexedDbAdapter {
       const res = await fetch(lunoUrl);
       if (res.ok) {
         const text = await res.text();
-        if (!text.trim().startsWith('<') && !text.includes('<!DOCTYPE')) {
+        const trimmed = text.trim();
+        if (!trimmed.startsWith('<') && !trimmed.startsWith('<!DOCTYPE')) {
           const meta = JSON.parse(text);
           const discovered = new Set(['luno.json', 'index.html']);
 
@@ -146,7 +147,6 @@ class LunoIndexedDbAdapter {
       req.onsuccess = async () => {
         let files = req.result || [];
 
-        // On static hosting with an empty IndexedDB, populate discovery list from luno.json
         if (files.length === 0 && LunoFileSystem.isStaticHosting()) {
           const manifestItems = await LunoIndexedDbAdapter.loadProjectManifest(proj);
           if (Array.isArray(manifestItems) && manifestItems.length > 0) {

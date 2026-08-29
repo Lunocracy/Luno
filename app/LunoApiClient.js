@@ -2,14 +2,11 @@ class LunoApiClient {
   constructor() {}
 
   static isStaticMode() {
-    if (typeof LunoFileSystem !== 'undefined' && LunoFileSystem.isStaticHosting()) {
-      return true;
+    if (typeof LunoFileSystem !== 'undefined') {
+      return LunoFileSystem.isStaticHosting();
     }
-    if (typeof LunoLoader !== 'undefined' && LunoLoader.isStaticHosting()) {
-      return true;
-    }
-    if (typeof LunoFileSystem !== 'undefined' && LunoFileSystem.getActiveMode() !== 'server') {
-      return true;
+    if (typeof LunoLoader !== 'undefined') {
+      return LunoLoader.isStaticHosting();
     }
     return false;
   }
@@ -17,25 +14,27 @@ class LunoApiClient {
   static async safeJsonFetch(url, options) {
     const res = await fetch(url, options);
     const text = await res.text();
+    const trimmed = text.trim();
+
+    if (trimmed.startsWith('<') || trimmed.startsWith('<!DOCTYPE') || trimmed.startsWith('<html')) {
+      throw new Error('Endpoint returned HTML document instead of JSON (' + res.status + ') for: ' + url);
+    }
+
     try {
-      if (text.trim().startsWith('<') || text.includes('<!DOCTYPE')) {
-        throw new Error('Static host returned HTML instead of JSON (' + res.status + ') for endpoint: ' + url);
-      }
       return JSON.parse(text);
     } catch (e) {
-      if (e.message.includes('Static host returned HTML')) throw e;
       throw new Error('Server returned non-JSON response (' + res.status + '): ' + text.slice(0, 100));
     }
   }
 
   static async ping() {
     if (LunoApiClient.isStaticMode()) {
-      return { status: 'online', mode: 'indexedDb-static', rootDir: 'IndexedDB Virtual Root', version: 'v3.6.6-static' };
+      return { status: 'online', mode: 'indexedDb-static', rootDir: 'Project Root', version: 'v3.6.6' };
     }
     try {
       return await LunoApiClient.safeJsonFetch('/api/ping');
     } catch(e) {
-      return { status: 'offline', mode: 'indexedDb-static', rootDir: 'IndexedDB Virtual Root', version: 'v3.6.6-static' };
+      return { status: 'offline', mode: 'indexedDb-static', rootDir: 'Project Root', version: 'v3.6.6' };
     }
   }
 
@@ -87,8 +86,10 @@ class LunoApiClient {
         const res = await fetch(fetchUrl);
         if (res.ok) {
           const content = await res.text();
-          if (content.trim().startsWith('<!DOCTYPE') || content.trim().startsWith('<html')) {
-            return { success: false, error: 'Static host returned 404 HTML for: ' + filePath };
+          const trimmed = content.trim();
+          const isHtmlFile = filePath.toLowerCase().endsWith('.html') || filePath.toLowerCase().endsWith('.htm');
+          if (!isHtmlFile && (trimmed.startsWith('<!DOCTYPE') || trimmed.startsWith('<html'))) {
+            return { success: false, error: 'File not found: ' + filePath };
           }
           if (adapter && adapter.write) {
             await adapter.write(filePath, content, project);
@@ -96,59 +97,78 @@ class LunoApiClient {
           return { success: true, content, size: content.length };
         }
       } catch(fetchErr) {}
-      return { success: false, error: 'File not found in local storage: ' + filePath };
+      return { success: false, error: 'File not found in storage: ' + filePath };
     }
     const pParam = project ? ('&project=' + encodeURIComponent(project)) : '';
     return await LunoApiClient.safeJsonFetch('/api/fs/read?path=' + encodeURIComponent(filePath) + pParam);
   }
 
   static async fetchAllCode(project = '', includeLibrary = false) {
-    if (LunoApiClient.isStaticMode()) {
-      const adapter = LunoFileSystem.getAdapter();
-      const proj = project || (typeof ClientApp !== 'undefined' && ClientApp.getTargetProject ? ClientApp.getTargetProject() : 'Luno');
-      const manifest = [];
-      const filesMap = {};
+    const proj = project || (typeof ClientApp !== 'undefined' && ClientApp.getTargetProject ? ClientApp.getTargetProject() : 'Luno');
 
-      if (adapter && adapter.list) {
-        const listRes = await adapter.list('', proj);
-        const items = (listRes && listRes.items) || [];
-        for (const item of items) {
-          const relPath = proj + '/' + item.relativePath;
-          const readRes = await LunoApiClient.fetchFsRead(item.relativePath, proj);
-          if (readRes && readRes.success && readRes.content !== undefined) {
-            manifest.push(relPath);
-            filesMap[relPath] = readRes.content;
-          }
+    if (!LunoApiClient.isStaticMode()) {
+      try {
+        const params = [];
+        if (proj) params.push('project=' + encodeURIComponent(proj));
+        if (includeLibrary) params.push('includeLibrary=true');
+        const q = params.length > 0 ? ('?' + params.join('&')) : '';
+        const data = await LunoApiClient.safeJsonFetch('/api/all-code' + q);
+        if (data && data.success && data.filesMap && Object.keys(data.filesMap).length > 0) {
+          return data;
         }
+      } catch (serverErr) {
+        console.warn('[LunoApiClient] /api/all-code fallback to manifest assembly:', serverErr.message);
       }
-
-      if (includeLibrary && adapter && adapter.list && proj.toLowerCase() !== 'library') {
-        const libListRes = await adapter.list('', 'Library');
-        const libItems = (libListRes && libListRes.items) || [];
-        for (const libItem of libItems) {
-          const libRelPath = 'Library/' + libItem.relativePath;
-          const libReadRes = await LunoApiClient.fetchFsRead(libItem.relativePath, 'Library');
-          if (libReadRes && libReadRes.success && libReadRes.content !== undefined) {
-            manifest.push(libRelPath);
-            filesMap[libRelPath] = libReadRes.content;
-          }
-        }
-      }
-
-      return {
-        success: true,
-        activeProjectName: proj,
-        activeRootDir: 'IndexedDB Virtual Root',
-        manifest: manifest,
-        filesMap: filesMap
-      };
     }
 
-    const params = [];
-    if (project) params.push('project=' + encodeURIComponent(project));
-    if (includeLibrary) params.push('includeLibrary=true');
-    const q = params.length > 0 ? ('?' + params.join('&')) : '';
-    return await LunoApiClient.safeJsonFetch('/api/all-code' + q);
+    const manifest = [];
+    const filesMap = {};
+
+    let meta = {};
+    try {
+      const metaRes = await LunoApiClient.fetchFsRead('luno.json', proj);
+      if (metaRes && metaRes.content) {
+        meta = JSON.parse(metaRes.content);
+      }
+    } catch(e) {}
+
+    const discovered = new Set(['luno.json', 'index.html']);
+    [].concat(meta.main || []).forEach(p => { if (p) discovered.add(p); });
+    [].concat(meta.styles || []).forEach(p => { if (p) discovered.add(p); });
+    [].concat(meta.docs || []).forEach(p => { if (p) discovered.add(p); });
+    [].concat(meta.files || []).forEach(p => { if (p) discovered.add(p); });
+    if (meta.entrypoint && meta.entrypoint.file) discovered.add(meta.entrypoint.file);
+
+    if (includeLibrary || proj.toLowerCase() === 'library') {
+      [].concat(meta.library || []).forEach(p => {
+        if (p) discovered.add(p.startsWith('Library/') ? p : ('Library/' + p));
+      });
+    }
+
+    const fileList = Array.from(discovered);
+    for (const rawFile of fileList) {
+      let cleanRel = rawFile.replace(/\\/g, '/').replace(/^\/+/, '');
+      if (cleanRel.startsWith('Luno Workspace/')) cleanRel = cleanRel.slice(15).trim();
+      if (cleanRel.startsWith('./')) cleanRel = cleanRel.slice(2).trim();
+
+      const readRes = await LunoApiClient.fetchFsRead(cleanRel, proj);
+      if (readRes && readRes.success && readRes.content !== undefined) {
+        let canonicalKey = cleanRel;
+        if (!canonicalKey.startsWith('Library/') && !canonicalKey.startsWith(proj + '/')) {
+          canonicalKey = proj + '/' + canonicalKey;
+        }
+        manifest.push(canonicalKey);
+        filesMap[canonicalKey] = readRes.content;
+      }
+    }
+
+    return {
+      success: true,
+      activeProjectName: proj,
+      activeRootDir: LunoApiClient.isStaticMode() ? 'IndexedDB Storage' : 'Project Root',
+      manifest: manifest,
+      filesMap: filesMap
+    };
   }
 
   static async savePayload(payload, project = '') {
@@ -175,7 +195,7 @@ class LunoApiClient {
         success: true,
         count: modified,
         modifiedCount: modified,
-        llmFeedback: '✅ Saved ' + modified + ' file(s) directly to local IndexedDB Virtual Filesystem!'
+        llmFeedback: '✅ Saved ' + modified + ' file(s) successfully.'
       };
     }
 
@@ -203,4 +223,4 @@ class LunoApiClient {
 }
 
 globalThis.LunoApiClient = LunoApiClient;
-if (typeof module !== "undefined" && module.exports) module.exports = LunoApiClient;
+if (typeof module !== 'undefined' && module.exports) module.exports = LunoApiClient;

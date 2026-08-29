@@ -78,18 +78,15 @@ class LunoManifestDecisionEngine {
     const targetProj = projectName || (typeof ClientApp !== 'undefined' && ClientApp.getTargetProject ? ClientApp.getTargetProject() : 'Luno');
     const processedFilesList = [];
     const fullFilesMap = new Map();
+    const journalPatchBlocks = [];
 
     for (let i = 0; i < payloadObj.files.length; i++) {
       const f = payloadObj.files[i];
       if (!f || !f.filePath) continue;
 
       let normPath = f.filePath.replace(/\\/g, '/').replace(/^\/+/, '').trim();
-
-      if (normPath.startsWith('Luno Workspace/')) {
-        normPath = normPath.slice(15).trim();
-      } else if (normPath.startsWith('./')) {
-        normPath = normPath.slice(2).trim();
-      }
+      if (normPath.startsWith('Luno Workspace/')) normPath = normPath.slice(15).trim();
+      if (normPath.startsWith('./')) normPath = normPath.slice(2).trim();
 
       if (!normPath.includes('/') && normPath !== 'LunoPatchLog.html') {
         normPath = targetProj + '/' + normPath;
@@ -113,6 +110,20 @@ class LunoManifestDecisionEngine {
         continue;
       }
 
+      // Surgical method patch: Record to patch journal block
+      const tagWord = f.tagName || 'script';
+      const safeContent = (f.content || '').split('</' + tagWord + '>').join('<\\/' + tagWord + '>');
+      let block = '';
+      if (f.action === 'delete') {
+        block = '<' + tagWord + ' data-file="' + normPath + '" data-method="' + (f.methodSpec || '') + '" data-action="delete"></' + tagWord + '>';
+      } else if (f.methodSpec) {
+        block = '<' + tagWord + ' data-file="' + normPath + '" data-method="' + f.methodSpec + '" data-action="patch">\n' + safeContent + '\n</' + tagWord + '>';
+      } else {
+        block = '<' + tagWord + ' data-file="' + normPath + '" data-action="patch">\n' + safeContent + '\n</' + tagWord + '>';
+      }
+      journalPatchBlocks.push(block);
+
+      // Perform runtime memory AST patch
       let baseContent = '';
       if (fullFilesMap.has(normPath)) {
         baseContent = fullFilesMap.get(normPath);
@@ -123,30 +134,22 @@ class LunoManifestDecisionEngine {
         }
       }
 
-      if (!baseContent || !baseContent.trim()) {
-        throw new Error(
-          '[Luno AST Guard] Cannot surgically patch "' + normPath + '" (' + (f.methodSpec || 'method') + '): ' +
-          'Target file does not exist in storage or is empty. Please provide the full file contents.'
-        );
+      if (baseContent && baseContent.trim() && globalThis.LunoClassPatcher) {
+        try {
+          let patched = baseContent;
+          if (f.action === 'delete') {
+            patched = globalThis.LunoClassPatcher.deleteMethodInSource(baseContent, f.methodSpec || normPath);
+          } else {
+            patched = globalThis.LunoClassPatcher.patchMethodInSource(baseContent, f.methodSpec || normPath, f.content);
+          }
+          fullFilesMap.set(normPath, patched);
+        } catch(astErr) {
+          console.warn('[LunoManifestDecisionEngine] AST memory patch notice:', astErr.message);
+        }
       }
-
-      let classPatcher = globalThis.LunoClassPatcher;
-      if (!classPatcher) {
-        throw new Error(
-          '[Luno AST Guard] LunoClassPatcher is not registered in global scope. Cannot execute AST method patch.'
-        );
-      }
-
-      let consolidatedContent = baseContent;
-      if (f.action === 'delete') {
-        consolidatedContent = classPatcher.deleteMethodInSource(baseContent, f.methodSpec || normPath);
-      } else {
-        consolidatedContent = classPatcher.patchMethodInSource(baseContent, f.methodSpec || normPath, f.content);
-      }
-
-      fullFilesMap.set(normPath, consolidatedContent);
     }
 
+    // Write updated base files
     fullFilesMap.forEach((content, filePath) => {
       processedFilesList.push({
         tagName: 'script',
@@ -155,6 +158,27 @@ class LunoManifestDecisionEngine {
         content: content
       });
     });
+
+    // Journal patches into LunoPatchLog.html
+    if (journalPatchBlocks.length > 0) {
+      let currentLog = '';
+      try {
+        if (typeof LunoApiClient !== 'undefined' && LunoApiClient.fetchFsRead) {
+          let logRes = await LunoApiClient.fetchFsRead('LunoPatchLog.html', targetProj);
+          if (logRes && logRes.success && logRes.content) {
+            currentLog = logRes.content.trimEnd();
+          }
+        }
+      } catch(e) {}
+
+      const newLogContent = (currentLog ? currentLog + '\n\n' : '') + journalPatchBlocks.join('\n\n') + '\n';
+      processedFilesList.push({
+        tagName: 'script',
+        filePath: 'LunoPatchLog.html',
+        action: 'direct',
+        content: newLogContent
+      });
+    }
 
     return {
       files: processedFilesList,

@@ -8,16 +8,13 @@ class LunoPatchConsolidator {
   static async consolidate(projectOverride) {
     try {
       var targetProj = projectOverride || (typeof ClientApp !== 'undefined' && ClientApp.getTargetProject ? ClientApp.getTargetProject() : 'Luno');
-      var pParam = targetProj ? ('&project=' + encodeURIComponent(targetProj)) : '';
 
       if (typeof LunoAcornLoader !== 'undefined' && LunoAcornLoader.ensureLoaded) {
         try { await LunoAcornLoader.ensureLoaded(); } catch(e){}
       }
 
-      var logRes = await fetch('/api/fs/read?path=LunoPatchLog.html' + pParam + '&v=' + Date.now());
-      var logData = await logRes.json();
-
-      if (!logRes.ok || !logData || !logData.content || !logData.content.trim()) {
+      var logRes = await LunoApiClient.fetchFsRead('LunoPatchLog.html', targetProj);
+      if (!logRes || !logRes.success || !logRes.content || !logRes.content.trim()) {
         if (typeof LunoPlaybackLogger !== 'undefined') {
           LunoPlaybackLogger.boot('Consolidation Skipped', 'LunoPatchLog.html is already clean.');
         }
@@ -29,14 +26,13 @@ class LunoPatchConsolidator {
         throw new Error('[Luno Consolidation Guard] Container parser unavailable in browser scope.');
       }
 
-      var parsed = parser.parsePatchLog(logData.content);
+      var parsed = parser.parsePatchLog(logRes.content);
       var allFiles = parsed.files || [];
       if (allFiles.length === 0) {
-        await fetch('/api/save' + (targetProj ? ('?project=' + encodeURIComponent(targetProj)) : ''), {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ files: [{ filePath: 'LunoPatchLog.html', action: 'direct', content: '' }], project: targetProj })
-        });
+        await LunoApiClient.savePayload({
+          files: [{ filePath: 'LunoPatchLog.html', action: 'direct', content: '' }],
+          project: targetProj
+        }, targetProj);
         return { success: true, consolidatedCount: 0, modifiedFiles: [], note: 'No valid patch blocks.' };
       }
 
@@ -79,7 +75,6 @@ class LunoPatchConsolidator {
         return { success: true, consolidatedCount: 0, modifiedFiles: [], note: 'No pending patches for ' + targetProj };
       }
 
-      // Group patches by target file preserving sequence
       var fileMap = new Map();
       targetFiles.forEach(function(f) {
         var key = f.canonicalPath || f.filePath;
@@ -99,10 +94,9 @@ class LunoPatchConsolidator {
         var isNewFile = false;
 
         try {
-          var baseRes = await fetch('/api/fs/read?path=' + encodeURIComponent(canonicalPath) + pParam);
-          var baseData = await baseRes.json();
-          if (baseRes.ok && baseData && baseData.content !== undefined) {
-            currentSource = baseData.content;
+          var baseRes = await LunoApiClient.fetchFsRead(canonicalPath, targetProj);
+          if (baseRes && baseRes.success && baseRes.content !== undefined) {
+            currentSource = baseRes.content;
           }
         } catch(e){}
 
@@ -116,31 +110,17 @@ class LunoPatchConsolidator {
           throw new Error('[Luno Consolidation Guard] Cannot consolidate patches into missing base file: ' + canonicalPath);
         }
 
-        // Backup existing file content before modifying
-        if (!isNewFile) {
-          filesToWrite.push({
-            filePath: canonicalPath + '.bak',
-            action: 'direct',
-            content: currentSource
-          });
-        }
-
         for (var p = 0; p < patchSequence.length; p++) {
           var item = patchSequence[p];
           if (!item) continue;
 
-          // 1. Full-file override block
           if (!item.methodSpec && item.action !== 'patch' && item.content) {
             currentSource = item.content;
-          }
-          // 2. Member deletion block
-          else if (item.action === 'delete' && item.methodSpec) {
+          } else if (item.action === 'delete' && item.methodSpec) {
             if (typeof LunoClassPatcher !== 'undefined' && LunoClassPatcher.deleteMethodInSource) {
               currentSource = LunoClassPatcher.deleteMethodInSource(currentSource, item.methodSpec);
             }
-          }
-          // 3. Surgical method patch
-          else if (item.methodSpec || item.action === 'patch') {
+          } else if (item.methodSpec || item.action === 'patch') {
             if (typeof LunoClassPatcher !== 'undefined' && LunoClassPatcher.patchMethodInSource) {
               currentSource = LunoClassPatcher.patchMethodInSource(currentSource, item.methodSpec || canonicalPath, item.content);
             } else {
@@ -149,7 +129,6 @@ class LunoPatchConsolidator {
           }
         }
 
-        // Client-Side AST Syntax Pre-Validation
         if (canonicalPath.endsWith('.js') || canonicalPath.endsWith('.mjs')) {
           if (typeof LunoClassPatcher !== 'undefined' && LunoClassPatcher.parseAST) {
             try {
@@ -175,14 +154,9 @@ class LunoPatchConsolidator {
       });
 
       var savePayloadObj = { files: filesToWrite, serverScript: '', project: targetProj };
-      var saveRes = await fetch('/api/save?project=' + encodeURIComponent(targetProj), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(savePayloadObj)
-      });
-      var saveData = await saveRes.json();
+      var saveData = await LunoApiClient.savePayload(savePayloadObj, targetProj);
 
-      if (saveRes.ok && saveData.success) {
+      if (saveData && saveData.success) {
         if (typeof LunoPlaybackLogger !== 'undefined') {
           LunoPlaybackLogger.boot('Consolidation Complete', 'Consolidated ' + targetFiles.length + ' patch(es) across ' + modifiedFilesList.length + ' file(s) for [' + targetProj + '].');
         }
@@ -196,7 +170,7 @@ class LunoPatchConsolidator {
           project: targetProj
         };
       } else {
-        throw new Error((saveData && saveData.error) || 'Server write failed during consolidation');
+        throw new Error((saveData && saveData.error) || 'Storage write failed during consolidation');
       }
     } catch (err) {
       if (typeof LunoPlaybackLogger !== 'undefined') {
@@ -211,4 +185,4 @@ class LunoPatchConsolidator {
 }
 
 globalThis.LunoPatchConsolidator = LunoPatchConsolidator;
-if (typeof module !== 'undefined' && module.exports) module.exports = LunoPatchConsolidator;
+if (typeof module !== "undefined" && module.exports) module.exports = LunoPatchConsolidator;

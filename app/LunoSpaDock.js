@@ -43,8 +43,8 @@ class LunoSpaDock {
       '<body>',
       '  <div id="app-root">',
       '    <div style="padding: 1.5rem; background: #161b22; border: 2px solid #00f2fe; border-radius: 8px; text-align: center; max-width: 540px; margin: 2rem auto; box-shadow: 0 4px 16px rgba(0,242,254,0.25);">',
-      '      <h3 style="color: #00f2fe; margin-top: 0;">📱 Virtual Sandbox: [' + pName + ']</h3>',
-      '      <p style="font-size: 0.82rem; color: #8b949e; line-height: 1.4;">Running in browser-local storage mode. Save files in the Files view to update this preview.</p>',
+      '      <h3 style="color: #00f2fe; margin-top: 0;">📱 App Preview: [' + pName + ']</h3>',
+      '      <p style="font-size: 0.82rem; color: #8b949e; line-height: 1.4;">Ready for preview. Save files to update this view.</p>',
       '    </div>',
       '  </div>',
       '</' + 'body>',
@@ -192,7 +192,7 @@ class LunoSpaDock {
 
       var leftInfo = document.createElement('div');
       leftInfo.style.cssText = 'display:flex; align-items:center; gap:0.4rem; font-size:0.8rem;';
-      leftInfo.innerHTML = '<span style="color:#00f2fe; font-weight:bold;">📱 App Preview:</span> <span style="color:#3fb950; font-weight:bold;">' + targetProj + '</span>' + (isStatic ? ' <span style="font-size:0.7rem; color:#8b949e;">(Virtual Sandbox)</span>' : '');
+      leftInfo.innerHTML = '<span style="color:#00f2fe; font-weight:bold;">📱 App Preview:</span> <span style="color:#3fb950; font-weight:bold;">' + targetProj + '</span>';
 
       var btnRow = document.createElement('div');
       btnRow.style.cssText = 'display:flex; gap:0.4rem; align-items:center;';

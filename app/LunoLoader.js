@@ -19,8 +19,13 @@ var LunoLoader = globalThis.LunoLoader = class LunoLoader {
   static isStaticHosting() {
     try {
       if (typeof window !== 'undefined' && window.location) {
-        var host = window.location.hostname || '';
-        return host.endsWith('github.io') || host.endsWith('pages.dev') || window.location.protocol === 'file:';
+        var host = (window.location.hostname || '').toLowerCase();
+        var proto = window.location.protocol || '';
+        if (proto === 'file:') return true;
+        if (host === 'localhost' || host === '127.0.0.1' || host.startsWith('192.168.') || host.startsWith('10.') || host.endsWith('.local')) {
+          return false;
+        }
+        return true;
       }
     } catch (e) {}
     return false;
@@ -119,15 +124,20 @@ var LunoLoader = globalThis.LunoLoader = class LunoLoader {
   }
 
   static async applyPatchLog(projectName) {
-    if (LunoLoader.isStaticHosting()) {
-      return { appliedCount: 0, note: 'Static hosting mode' };
-    }
-
     try {
-      var targetProj = projectName || 'Luno';
-      var res = await fetch('/api/fs/read?path=LunoPatchLog.html&project=' + encodeURIComponent(targetProj) + '&v=' + Date.now());
-      var data = await res.json();
-      if (!res.ok || !data || !data.content || !data.content.trim()) return { appliedCount: 0, note: 'Patch log empty' };
+      var targetProj = projectName || (typeof ClientApp !== 'undefined' && ClientApp.getTargetProject ? ClientApp.getTargetProject() : 'Luno');
+      var data = null;
+
+      if (typeof LunoApiClient !== 'undefined' && LunoApiClient.fetchFsRead) {
+        data = await LunoApiClient.fetchFsRead('LunoPatchLog.html', targetProj);
+      } else {
+        var res = await fetch('/api/fs/read?path=LunoPatchLog.html&project=' + encodeURIComponent(targetProj) + '&v=' + Date.now());
+        data = await res.json();
+      }
+
+      if (!data || !data.success || !data.content || !data.content.trim()) {
+        return { appliedCount: 0, note: 'Patch log empty' };
+      }
 
       var parser = globalThis.LunoPayloadParser || globalThis.LunoContainerParser;
       if (!parser || typeof parser.parsePatchLog !== 'function') return { appliedCount: 0, error: 'Parser unavailable' };
@@ -197,14 +207,6 @@ var LunoLoader = globalThis.LunoLoader = class LunoLoader {
     }
 
     var projName = lunoMeta.name || 'Luno';
-
-    if (LunoLoader.isStaticHosting()) {
-      try {
-        if (typeof LunoIndexedDbAdapter !== 'undefined' && LunoIndexedDbAdapter.loadStaticManifest) {
-          await LunoIndexedDbAdapter.loadStaticManifest(projName);
-        }
-      } catch(e) {}
-    }
 
     var libs = Array.isArray(lunoMeta.library) ? lunoMeta.library : [];
     var main = Array.isArray(lunoMeta.main) ? lunoMeta.main : [];

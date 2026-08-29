@@ -100,7 +100,7 @@ class LunoServer {
     } catch (e) {}
   }
 
-  static getAllFiles(dir, fileList = [], ignoreDirs = ["node_modules", ".git", "dist", "build", ".checkpoints", "_claude_salvage", "simpleVersion"], maxDepth = 5, currentDepth = 0, rootScanDir = null) {
+  static getAllFiles(dir, fileList = [], ignoreDirs = ["node_modules", ".git", "dist", "build", ".checkpoints", "_claude_salvage", "simpleVersion"], maxDepth = 6, currentDepth = 0, rootScanDir = null) {
     const baseScanDir = rootScanDir || dir;
     if (currentDepth > maxDepth || !fs.existsSync(dir)) return fileList;
     try {
@@ -130,6 +130,7 @@ class LunoServer {
     }
 
     let normalized = relPath.replace(/\\/g, '/').replace(/^\/+/, '').trim();
+    if (normalized.startsWith('Luno Workspace/')) normalized = normalized.slice(15).trim();
     const targetDir = baseDir || LunoServer.getRootDir();
 
     if (normalized.startsWith('Library/') || normalized.startsWith('library/')) {
@@ -191,7 +192,8 @@ class LunoServer {
 
       const action = (f.action || 'write').toLowerCase();
       const ext = filePath.split('.').pop().toLowerCase();
-      const canonicalPath = filePath.replace(/\\/g, '/').replace(/^\/+/, '');
+      let canonicalPath = filePath.replace(/\\/g, '/').replace(/^\/+/, '');
+      if (canonicalPath.startsWith('Luno Workspace/')) canonicalPath = canonicalPath.slice(15).trim();
 
       if (f.methodSpec || action === 'patch' || action === 'delete') {
         throw new Error(
@@ -414,8 +416,7 @@ class LunoServer {
 
     const TEXT_EXTS = ['.js', '.json', '.html', '.css', '.md', '.txt', '.svg'];
     const files = [];
-
-    const projFolder = path.basename(targetDir);
+    const projFolder = projectName || path.basename(targetDir) || 'Luno';
 
     const allSiblings = [];
     try {
@@ -432,43 +433,45 @@ class LunoServer {
     } catch(e) {}
 
     function scan(dir, depth, prefix) {
-      if (depth > 5 || !fs.existsSync(dir)) return;
-      const items = fs.readdirSync(dir);
-      for (const name of items) {
-        if (
-          name.endsWith('.bak') ||
-          name.includes('.old_') ||
-          name.includes('Copy') ||
-          name === 'bundle.js' ||
-          name === 'standalone_bundler.js' ||
-          name.startsWith('.') ||
-          name.startsWith('_') ||
-          name === 'node_modules' ||
-          name === 'simpleVersion'
-        ) continue;
+      if (depth > 6 || !fs.existsSync(dir)) return;
+      try {
+        const items = fs.readdirSync(dir);
+        for (const name of items) {
+          if (
+            name.endsWith('.bak') ||
+            name.includes('.old_') ||
+            name.includes('Copy') ||
+            name === 'bundle.js' ||
+            name === 'standalone_bundler.js' ||
+            name.startsWith('.') ||
+            name.startsWith('_') ||
+            name === 'node_modules' ||
+            name === 'simpleVersion'
+          ) continue;
 
-        if (!includeLibrary && (name.toLowerCase() === 'library') && projFolder.toLowerCase() !== 'library') {
-          continue;
-        }
-
-        if (projFolder === 'Luno' && allSiblings.includes(name) && name !== 'Luno') {
-          continue;
-        }
-
-        const fullPath = path.join(dir, name);
-        try {
-          const stat = fs.statSync(fullPath);
-          if (stat.isDirectory()) {
-            scan(fullPath, depth + 1, prefix ? (prefix + '/' + name) : name);
-          } else if (stat.isFile() && stat.size < 500000) {
-            const ext = path.extname(name).toLowerCase();
-            if (TEXT_EXTS.includes(ext)) {
-              const relPath = prefix ? (prefix + '/' + name) : name;
-              files.push({ fullPath, relPath, name, size: stat.size });
-            }
+          if (!includeLibrary && name.toLowerCase() === 'library' && projFolder.toLowerCase() !== 'library') {
+            continue;
           }
-        } catch (e) {}
-      }
+
+          if (projFolder === 'Luno' && allSiblings.includes(name) && name !== 'Luno') {
+            continue;
+          }
+
+          const fullPath = path.join(dir, name);
+          try {
+            const stat = fs.statSync(fullPath);
+            if (stat.isDirectory()) {
+              scan(fullPath, depth + 1, prefix ? (prefix + '/' + name) : name);
+            } else if (stat.isFile() && stat.size < 500000) {
+              const ext = path.extname(name).toLowerCase();
+              if (TEXT_EXTS.includes(ext)) {
+                const relPath = prefix ? (prefix + '/' + name) : name;
+                files.push({ fullPath, relPath, name, size: stat.size });
+              }
+            }
+          } catch (e) {}
+        }
+      } catch (e) {}
     }
 
     if (fs.existsSync(targetDir)) {
@@ -799,7 +802,7 @@ class LunoServer {
         return LunoServer.handleFsRead(req, res, url);
       }
 
-      if (method === 'GET' && url.pathname === '/api/all-code') {
+      if (method === 'GET' && (url.pathname === '/api/all-code' || url.pathname === '/api/all-code/')) {
         return LunoServer.handleAllCode(req, res, url);
       }
 
