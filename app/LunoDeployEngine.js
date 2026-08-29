@@ -192,16 +192,6 @@ class LunoDeployEngine {
         '  } catch(e) {}',
         '}',
         '',
-        '// 5. Generate deploy-time files.json manifest for static hosting bulk-discovery',
-        'const allFiles = LunoServer.getAllFiles(projRoot);',
-        'const manifestItems = allFiles.map(f => ({',
-        '  path: f.relPath,',
-        '  size: f.size,',
-        '  name: f.name',
-        '}));',
-        'fs.writeFileSync(path.join(projRoot, "files.json"), JSON.stringify(manifestItems, null, 2) + "\\n", "utf8");',
-        'actions.push("Generated files.json with " + manifestItems.length + " entries in [" + pName + "]");',
-        '',
         'return actions.length > 0 ? actions.join("\\n") : "GitHub Pages assets verified cleanly.";'
       ].join('\n');
 
@@ -411,7 +401,7 @@ class LunoDeployEngine {
         m('span', { style: { fontSize: '0.72rem', color: '#00f2fe', background: '#003847', border: '1px solid #00f2fe', padding: '0.2rem 0.6rem', borderRadius: '12px', fontWeight: 'bold' } }, 'Org: ' + LunoDeployEngine.GITHUB_ORG)
       ),
       m('p', { style: { fontSize: '0.78rem', color: '#c9d1d9', margin: 0, lineHeight: '1.4' } },
-        'Deploy each sibling project to its own independent GitHub repository under <strong style="color:#00f2fe;">' + LunoDeployEngine.GITHUB_ORG + '</strong>. Required libraries and files.json manifests are automatically bundled during deployment.'
+        'Deploy each sibling project to its own independent GitHub repository under <strong style="color:#00f2fe;">' + LunoDeployEngine.GITHUB_ORG + '</strong>.'
       )
     );
 
@@ -516,7 +506,7 @@ class LunoDeployEngine {
         btnDeploy.textContent = '🚀 Deploying...';
         outputBox.style.display = 'block';
         outputBox.style.color = '#00f2fe';
-        outputBox.textContent = '⚡ Bundling library dependencies, generating files.json manifest, staging, committing, and pushing to ' + (remoteInput.value.trim() || 'origin/main') + '...';
+        outputBox.textContent = '⚡ Bundling library dependencies, staging, committing, and pushing to ' + (remoteInput.value.trim() || 'origin/main') + '...';
 
         try {
           var targetRemote = remoteInput.value.trim();

@@ -18,11 +18,12 @@ class LunoApiClient {
     const res = await fetch(url, options);
     const text = await res.text();
     try {
-      return JSON.parse(text);
-    } catch (e) {
       if (text.trim().startsWith('<') || text.includes('<!DOCTYPE')) {
         throw new Error('Static host returned HTML instead of JSON (' + res.status + ') for endpoint: ' + url);
       }
+      return JSON.parse(text);
+    } catch (e) {
+      if (e.message.includes('Static host returned HTML')) throw e;
       throw new Error('Server returned non-JSON response (' + res.status + '): ' + text.slice(0, 100));
     }
   }
@@ -86,10 +87,13 @@ class LunoApiClient {
         const res = await fetch(fetchUrl);
         if (res.ok) {
           const content = await res.text();
+          if (content.trim().startsWith('<!DOCTYPE') || content.trim().startsWith('<html')) {
+            return { success: false, error: 'Static host returned 404 HTML for: ' + filePath };
+          }
           if (adapter && adapter.write) {
             await adapter.write(filePath, content, project);
           }
-          return { success: true, content: content, size: content.length };
+          return { success: true, content, size: content.length };
         }
       } catch(fetchErr) {}
       return { success: false, error: 'File not found in local storage: ' + filePath };
@@ -199,4 +203,4 @@ class LunoApiClient {
 }
 
 globalThis.LunoApiClient = LunoApiClient;
-if (typeof module !== 'undefined' && module.exports) module.exports = LunoApiClient;
+if (typeof module !== "undefined" && module.exports) module.exports = LunoApiClient;

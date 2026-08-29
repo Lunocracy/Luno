@@ -31,24 +31,49 @@ class LunoIndexedDbAdapter {
     });
   }
 
-  static async loadStaticManifest(projectName) {
+  static async loadProjectManifest(projectName) {
     const proj = projectName || (typeof ClientApp !== 'undefined' && ClientApp.getTargetProject ? ClientApp.getTargetProject() : 'Luno');
     if (LunoIndexedDbAdapter.manifestCache.has(proj)) {
       return LunoIndexedDbAdapter.manifestCache.get(proj);
     }
+
     try {
-      const manifestUrl = (typeof LunoFileSystem !== 'undefined' && LunoFileSystem.resolveStaticUrl)
-        ? LunoFileSystem.resolveStaticUrl('files.json', proj)
-        : './files.json';
-      const res = await fetch(manifestUrl);
+      const lunoUrl = (typeof LunoFileSystem !== 'undefined' && LunoFileSystem.resolveStaticUrl)
+        ? LunoFileSystem.resolveStaticUrl('luno.json', proj)
+        : './luno.json';
+      const res = await fetch(lunoUrl);
       if (res.ok) {
-        const items = await res.json();
-        if (Array.isArray(items)) {
-          LunoIndexedDbAdapter.manifestCache.set(proj, items);
-          return items;
+        const text = await res.text();
+        if (!text.trim().startsWith('<') && !text.includes('<!DOCTYPE')) {
+          const meta = JSON.parse(text);
+          const discovered = new Set(['luno.json', 'index.html']);
+
+          [].concat(meta.main || []).forEach(p => discovered.add(p));
+          [].concat(meta.styles || []).forEach(p => discovered.add(p));
+          [].concat(meta.docs || []).forEach(p => discovered.add(p));
+          [].concat(meta.files || []).forEach(p => discovered.add(p));
+          [].concat(meta.library || []).forEach(p => discovered.add('library/' + p.replace(/^(?:Library|library)\//, '')));
+
+          if (meta.entrypoint && meta.entrypoint.file) discovered.add(meta.entrypoint.file);
+
+          const items = Array.from(discovered).map(filePath => {
+            const cleanPath = filePath.replace(/\\/g, '/').replace(/^\/+/, '').replace(new RegExp('^' + proj + '/'), '');
+            return {
+              name: cleanPath.split('/').pop(),
+              path: cleanPath,
+              size: 1024,
+              mtimeMs: Date.now()
+            };
+          });
+
+          if (items.length > 0) {
+            LunoIndexedDbAdapter.manifestCache.set(proj, items);
+            return items;
+          }
         }
       }
     } catch(e) {}
+
     return null;
   }
 
@@ -121,15 +146,16 @@ class LunoIndexedDbAdapter {
       req.onsuccess = async () => {
         let files = req.result || [];
 
+        // On static hosting with an empty IndexedDB, populate discovery list from luno.json
         if (files.length === 0 && LunoFileSystem.isStaticHosting()) {
-          const staticManifest = await LunoIndexedDbAdapter.loadStaticManifest(proj);
-          if (Array.isArray(staticManifest) && staticManifest.length > 0) {
+          const manifestItems = await LunoIndexedDbAdapter.loadProjectManifest(proj);
+          if (Array.isArray(manifestItems) && manifestItems.length > 0) {
             const cleanTarget = (targetPath || '').replace(/\\/g, '/').replace(/^\/+/, '').trim();
-            const filteredManifest = cleanTarget
-              ? staticManifest.filter(f => (f.path || f.relativePath || '').startsWith(cleanTarget))
-              : staticManifest;
+            const filtered = cleanTarget
+              ? manifestItems.filter(f => (f.path || f.relativePath || '').startsWith(cleanTarget))
+              : manifestItems;
 
-            const items = filteredManifest.map(f => {
+            const items = filtered.map(f => {
               const p = f.path || f.relativePath || f.name;
               return {
                 name: f.name || p.split('/').pop(),

@@ -144,120 +144,118 @@ class OutboxQueue {
     }
   }
 
-      static bundleAndQueueCodebase(filesMap, manifest, projName, options) {
-        var opts = options || {};
-        var pName = projName || 'Project';
-        var maxBytes = 500000;
-        var includeInstructions = opts.includeInstructions !== false;
-        var includeLibrary = Boolean(opts.includeLibrary);
-  
-        var SCRIPT_WORD = 'scr' + 'ipt';
-        var STYLE_WORD = 'sty' + 'le';
-        var TEMPLATE_WORD = 'temp' + 'late';
-        var SVG_WORD = 'sv' + 'g';
-  
-        var closeStyle = '</' + STYLE_WORD + '>';
-        var closeTemplate = '</' + TEMPLATE_WORD + '>';
-        var closeScript = '</' + SCRIPT_WORD + '>';
-        var closeSvg = '</' + SVG_WORD + '>';
-  
-        var escapeStyle = '<\\/' + STYLE_WORD + '>';
-        var escapeTemplate = '<\\/' + TEMPLATE_WORD + '>';
-        var escapeScript = '<\\/' + SCRIPT_WORD + '>';
-        var escapeSvg = '<\\/' + SVG_WORD + '>';
-  
-        var instructionPreamble = '';
-        if (includeInstructions && typeof LunoPromptInstructions !== 'undefined') {
-          instructionPreamble = LunoPromptInstructions.assembleFullInstructions() + '\n';
+  static bundleAndQueueCodebase(filesMap, manifest, projName, options) {
+    var opts = options || {};
+    var pName = projName || 'Project';
+    var maxBytes = 500000;
+    var includeInstructions = opts.includeInstructions !== false;
+    var includeLibrary = Boolean(opts.includeLibrary);
+
+    var SCRIPT_WORD = 'scr' + 'ipt';
+    var STYLE_WORD = 'sty' + 'le';
+    var TEMPLATE_WORD = 'temp' + 'late';
+    var SVG_WORD = 'sv' + 'g';
+
+    var closeStyle = '</' + STYLE_WORD + '>';
+    var closeTemplate = '</' + TEMPLATE_WORD + '>';
+    var closeScript = '</' + SCRIPT_WORD + '>';
+    var closeSvg = '</' + SVG_WORD + '>';
+
+    var escapeStyle = '<\\/' + STYLE_WORD + '>';
+    var escapeTemplate = '<\\/' + TEMPLATE_WORD + '>';
+    var escapeScript = '<\\/' + SCRIPT_WORD + '>';
+    var escapeSvg = '<\\/' + SVG_WORD + '>';
+
+    var instructionPreamble = '';
+    if (includeInstructions && typeof LunoPromptInstructions !== 'undefined') {
+      instructionPreamble = LunoPromptInstructions.assembleFullInstructions() + '\n';
+    }
+
+    var baseHeader = instructionPreamble;
+    var parts = [];
+    var currentPartText = baseHeader;
+    var currentPartFiles = 0;
+    var totalFiles = 0;
+
+    for (var rawPath in filesMap) {
+      if (!Object.prototype.hasOwnProperty.call(filesMap, rawPath)) continue;
+
+      var normPath = rawPath.replace(/\\/g, '/').replace(/^\/+/, '');
+      var canonicalPath = normPath;
+
+      if (!includeLibrary && pName.toLowerCase() !== 'library') {
+        if (
+          canonicalPath.startsWith('Library/') ||
+          canonicalPath.startsWith('library/') ||
+          canonicalPath.includes('/library/') ||
+          canonicalPath.includes('/Library/')
+        ) {
+          continue;
         }
-  
-        var baseHeader = instructionPreamble;
-        var parts = [];
-        var currentPartText = baseHeader;
-        var currentPartFiles = 0;
-        var totalFiles = 0;
-  
-        for (var rawPath in filesMap) {
-          if (!Object.prototype.hasOwnProperty.call(filesMap, rawPath)) continue;
-  
-          var normPath = rawPath.replace(/\\/g, '/').replace(/^\/+/, '');
-          var canonicalPath = normPath;
-  
-          // If library is not explicitly included, skip library assets
-          if (!includeLibrary && pName.toLowerCase() !== 'library') {
-            if (
-              canonicalPath.startsWith('Library/') ||
-              canonicalPath.startsWith('library/') ||
-              canonicalPath.includes('/library/') ||
-              canonicalPath.includes('/Library/')
-            ) {
-              continue;
-            }
-          }
-  
-          // Ensure path is strictly qualified with project prefix if missing
-          if (!canonicalPath.startsWith('Library/') && !canonicalPath.startsWith(pName + '/')) {
-            canonicalPath = pName + '/' + canonicalPath;
-          }
-  
-          var content = filesMap[rawPath];
-          var ext = canonicalPath.split('.').pop().toLowerCase();
-          var safeContent = content || '';
-          var block = '';
-  
-          if (ext === 'css') {
-            safeContent = safeContent.split(closeStyle).join(escapeStyle);
-            block = '<' + STYLE_WORD + ' data-file="' + canonicalPath + '">\n' + safeContent + '\n' + closeStyle + '\n\n';
-          } else if (ext === 'html' || ext === 'htm') {
-            safeContent = safeContent.split(closeTemplate).join(escapeTemplate);
-            block = '<' + TEMPLATE_WORD + ' data-file="' + canonicalPath + '">\n' + safeContent + '\n' + closeTemplate + '\n\n';
-          } else if (ext === 'json') {
-            safeContent = safeContent.split(closeScript).join(escapeScript);
-            block = '<' + SCRIPT_WORD + ' type="application/json" data-file="' + canonicalPath + '">\n' + safeContent + '\n' + closeScript + '\n\n';
-          } else if (ext === 'md' || ext === 'txt') {
-            safeContent = safeContent.split(closeScript).join(escapeScript);
-            block = '<' + SCRIPT_WORD + ' type="text/plain" data-file="' + canonicalPath + '">\n' + safeContent + '\n' + closeScript + '\n\n';
-          } else if (ext === 'svg') {
-            safeContent = safeContent.split(closeSvg).join(escapeSvg);
-            block = '<' + SVG_WORD + ' data-file="' + canonicalPath + '">\n' + safeContent + '\n' + closeSvg + '\n\n';
-          } else {
-            safeContent = safeContent.split(closeScript).join(escapeScript);
-            block = '<' + SCRIPT_WORD + ' data-file="' + canonicalPath + '">\n' + safeContent + '\n' + closeScript + '\n\n';
-          }
-  
-          totalFiles++;
-  
-          if ((currentPartText.length + block.length) > maxBytes && currentPartFiles > 0) {
-            parts.push(currentPartText.trim() + '\n\n');
-            currentPartText = baseHeader + block;
-            currentPartFiles = 1;
-          } else {
-            currentPartText += block;
-            currentPartFiles++;
-          }
-        }
-  
-        if (currentPartFiles > 0) {
-          parts.push(currentPartText.trim() + '\n\n');
-        }
-  
-        OutboxQueue.queue = OutboxQueue.queue.filter(function(i) {
-          if (!i || !i.title) return false;
-          var isThisProjectPackage = i.title.startsWith('Codebase Package: ' + pName) || i.title.startsWith('Smart Bundle: ' + pName);
-          return !isThisProjectPackage;
-        });
-  
-        for (var i = 0; i < parts.length; i++) {
-          var partTitle = 'Codebase Package: ' + pName + (parts.length > 1 ? (' (Part ' + (i + 1) + '/' + parts.length + ')') : '');
-          OutboxQueue.addBundle(partTitle, parts[i], { priority: 'high' });
-        }
-  
-        return {
-          fileCount: totalFiles,
-          totalParts: parts.length,
-          projTitle: pName
-        };
       }
+
+      if (!canonicalPath.startsWith('Library/') && !canonicalPath.startsWith(pName + '/')) {
+        canonicalPath = pName + '/' + canonicalPath;
+      }
+
+      var content = filesMap[rawPath];
+      var ext = canonicalPath.split('.').pop().toLowerCase();
+      var safeContent = content || '';
+      var block = '';
+
+      if (ext === 'css') {
+        safeContent = safeContent.split(closeStyle).join(escapeStyle);
+        block = '<' + STYLE_WORD + ' data-file="' + canonicalPath + '">\n' + safeContent + '\n' + closeStyle + '\n\n';
+      } else if (ext === 'html' || ext === 'htm') {
+        safeContent = safeContent.split(closeTemplate).join(escapeTemplate);
+        block = '<' + TEMPLATE_WORD + ' data-file="' + canonicalPath + '">\n' + safeContent + '\n' + closeTemplate + '\n\n';
+      } else if (ext === 'json') {
+        safeContent = safeContent.split(closeScript).join(escapeScript);
+        block = '<' + SCRIPT_WORD + ' type="application/json" data-file="' + canonicalPath + '">\n' + safeContent + '\n' + closeScript + '\n\n';
+      } else if (ext === 'md' || ext === 'txt') {
+        safeContent = safeContent.split(closeScript).join(escapeScript);
+        block = '<' + SCRIPT_WORD + ' type="text/plain" data-file="' + canonicalPath + '">\n' + safeContent + '\n' + closeScript + '\n\n';
+      } else if (ext === 'svg') {
+        safeContent = safeContent.split(closeSvg).join(escapeSvg);
+        block = '<' + SVG_WORD + ' data-file="' + canonicalPath + '">\n' + safeContent + '\n' + closeSvg + '\n\n';
+      } else {
+        safeContent = safeContent.split(closeScript).join(escapeScript);
+        block = '<' + SCRIPT_WORD + ' data-file="' + canonicalPath + '">\n' + safeContent + '\n' + closeScript + '\n\n';
+      }
+
+      totalFiles++;
+
+      if ((currentPartText.length + block.length) > maxBytes && currentPartFiles > 0) {
+        parts.push(currentPartText.trim() + '\n\n');
+        currentPartText = baseHeader + block;
+        currentPartFiles = 1;
+      } else {
+        currentPartText += block;
+        currentPartFiles++;
+      }
+    }
+
+    if (currentPartFiles > 0) {
+      parts.push(currentPartText.trim() + '\n\n');
+    }
+
+    OutboxQueue.queue = OutboxQueue.queue.filter(function(i) {
+      if (!i || !i.title) return false;
+      var isThisProjectPackage = i.title.startsWith('Codebase Package: ' + pName) || i.title.startsWith('Smart Bundle: ' + pName);
+      return !isThisProjectPackage;
+    });
+
+    for (var i = 0; i < parts.length; i++) {
+      var partTitle = 'Codebase Package: ' + pName + (parts.length > 1 ? (' (Part ' + (i + 1) + '/' + parts.length + ')') : '');
+      OutboxQueue.addBundle(partTitle, parts[i], { priority: 'high' });
+    }
+
+    return {
+      fileCount: totalFiles,
+      totalParts: parts.length,
+      projTitle: pName
+    };
+  }
 
   static getCombinedPackageText(itemId) {
     if (OutboxQueue.queue.length === 0) return '';
@@ -335,21 +333,14 @@ class OutboxQueue {
       var targetProj = (typeof ClientApp !== 'undefined' && ClientApp.getTargetProject) ? ClientApp.getTargetProject() : 'Luno';
       var lunoMeta = {};
       try {
-        var resMeta = await fetch('/api/fs/read?path=luno.json' + (targetProj ? '&project=' + encodeURIComponent(targetProj) : ''));
-        var dataMeta = await resMeta.json();
+        var dataMeta = await LunoApiClient.fetchFsRead('luno.json', targetProj);
         if (dataMeta && dataMeta.content) lunoMeta = JSON.parse(dataMeta.content);
       } catch (e) {}
 
       var projName = lunoMeta.name || targetProj || 'Project';
-      var pParams = [];
-      if (targetProj) pParams.push('project=' + encodeURIComponent(targetProj));
-      if (opts.includeLibrary) pParams.push('includeLibrary=true');
-      var queryString = pParams.length > 0 ? ('?' + pParams.join('&')) : '';
-
-      var resCode = await fetch('/api/all-code' + queryString);
-      var dataCode = await resCode.json();
-      if (!resCode.ok || !dataCode || !dataCode.filesMap) {
-        throw new Error((dataCode && dataCode.error) || 'Failed to fetch codebase from server');
+      var dataCode = await LunoApiClient.fetchAllCode(targetProj, opts.includeLibrary);
+      if (!dataCode || !dataCode.success || !dataCode.filesMap) {
+        throw new Error((dataCode && dataCode.error) || 'Failed to fetch codebase from storage');
       }
 
       var filesMap = dataCode.filesMap || {};
