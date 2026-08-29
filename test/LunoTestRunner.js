@@ -13,7 +13,7 @@ class LunoTestRunner {
 
   static async runTestSuite() {
     LunoTestRunner.results = [];
-    console.log('🧪 Starting Luno Full Architecture & Determinism Test Suite (14 Tests)...');
+    console.log('🧪 Starting Luno Full Architecture & Determinism Test Suite (15 Tests)...');
 
     if (typeof LunoAcornLoader !== 'undefined' && LunoAcornLoader.ensureLoaded) {
       try { await LunoAcornLoader.ensureLoaded(); } catch (e) {}
@@ -34,7 +34,32 @@ class LunoTestRunner {
       LunoTestRunner.assert('LunoClassPatcher: ES6 Class Body AST Method Replacement', false, e.message);
     }
 
-    // Test 2: DiskBrowser Tail-Anchored Path Formatting
+    // Test 2: Fail-Loud Error on Non-Existent Method Patch
+    try {
+      if (typeof LunoClassPatcher !== 'undefined' && typeof LunoClassPatcher.patchMethodInSource === 'function') {
+        var sampleSource2 = 'class DemoApp {\n  constructor() {}\n  realMethod() {\n    return 1;\n  }\n}';
+        var threwExpectedError = false;
+        var errorMsg = '';
+        try {
+          LunoClassPatcher.patchMethodInSource(sampleSource2, 'DemoApp.fakeMethod', 'fakeMethod() { return 2; }');
+        } catch(err) {
+          threwExpectedError = true;
+          errorMsg = err.message;
+        }
+        var includesAvailableList = errorMsg.includes('Available members: [') && errorMsg.includes('realMethod');
+        LunoTestRunner.assert(
+          'LunoClassPatcher: Fail-Loud Error on Missing Method Patch',
+          threwExpectedError && includesAvailableList,
+          'Threw structured error and listed available class members'
+        );
+      } else {
+        LunoTestRunner.assert('LunoClassPatcher: Fail-Loud Error on Missing Method Patch', false, 'LunoClassPatcher unavailable');
+      }
+    } catch (e) {
+      LunoTestRunner.assert('LunoClassPatcher: Fail-Loud Error on Missing Method Patch', false, e.message);
+    }
+
+    // Test 3: DiskBrowser Tail-Anchored Path Formatting
     try {
       if (typeof DiskBrowser !== 'undefined' && typeof DiskBrowser.formatTailPath === 'function') {
         var longPath = 'Luno/very/deep/nested/directory/subfolder/MyComponent.js';
@@ -53,7 +78,7 @@ class LunoTestRunner {
       LunoTestRunner.assert('DiskBrowser: Path Formatting Test', false, e.message);
     }
 
-    // Test 3: DiskBrowser Size Sorting
+    // Test 4: DiskBrowser Size Sorting
     try {
       if (typeof DiskBrowser !== 'undefined' && typeof DiskBrowser.sortItems === 'function') {
         var sampleItems = [{ name: 'small.js', size: 100 }, { name: 'huge.js', size: 50000 }, { name: 'medium.js', size: 2000 }];
@@ -73,7 +98,7 @@ class LunoTestRunner {
       LunoTestRunner.assert('DiskBrowser: Size Sorting Test', false, e.message);
     }
 
-    // Test 4: Container Parser HTML Extraction
+    // Test 5: Container Parser HTML Extraction
     try {
       if (typeof LunoPayloadParser !== 'undefined' && typeof LunoPayloadParser.parse === 'function') {
         var closeScript = '</' + 'script>';
@@ -91,7 +116,7 @@ class LunoTestRunner {
       LunoTestRunner.assert('LunoPayloadParser: HTML Extraction', false, e.message);
     }
 
-    // Test 5: Strict Outbox Bundler Path Prefixing
+    // Test 6: Strict Outbox Bundler Path Prefixing
     try {
       if (typeof OutboxQueue !== 'undefined' && typeof OutboxQueue.bundleAndQueueCodebase === 'function') {
         var sampleFiles = { 'src/App.js': 'class App {}' };
@@ -110,7 +135,7 @@ class LunoTestRunner {
       LunoTestRunner.assert('OutboxQueue: Path Prefixing', false, e.message);
     }
 
-    // Test 6: Demand-Paged Context Fulfillment
+    // Test 7: Demand-Paged Context Fulfillment
     try {
       var res = await fetch('/api/context/request', {
         method: 'POST',
@@ -127,13 +152,13 @@ class LunoTestRunner {
       LunoTestRunner.assert('LunoContextExtractor: /api/context/request Fulfillment', false, e.message);
     }
 
-    // Test 7: Universal GitHub Pages Standalone Parity Engine
+    // Test 8: Universal GitHub Pages Standalone Parity Engine
     try {
       if (typeof LunoDeployEngine !== 'undefined' && typeof LunoDeployEngine.ensureGitHubPagesParity === 'function') {
         LunoTestRunner.assert(
           'LunoDeployEngine: GitHub Pages Standalone Parity Engine',
           true,
-          'LunoDeployEngine is ready to generate .nojekyll and standalone loader shells'
+          'LunoDeployEngine is ready to generate .nojekyll, files.json, and standalone loader shells'
         );
       } else {
         LunoTestRunner.assert('LunoDeployEngine: GitHub Pages Parity', false, 'LunoDeployEngine not found');
@@ -142,7 +167,7 @@ class LunoTestRunner {
       LunoTestRunner.assert('LunoDeployEngine: GitHub Pages Parity', false, e.message);
     }
 
-    // Test 8: Deterministic Multi-Project Recursive File Listing
+    // Test 9: Deterministic Multi-Project Recursive File Listing
     try {
       var resList = await fetch('/api/fs/ls?recursive=true&project=Basic3D');
       var dataList = await resList.json();
@@ -155,12 +180,12 @@ class LunoTestRunner {
       LunoTestRunner.assert('LunoServer: Multi-Project Recursive Listing', false, e.message);
     }
 
-    // Test 9: LunoClassPatcher Getters, Setters & Accessor AST Patching
+    // Test 10: LunoClassPatcher Getters, Setters & Accessor AST Patching
     try {
       if (typeof LunoClassPatcher !== 'undefined') {
         var baseSrc = 'class ItemState {\n  constructor() {\n    this._val = 10;\n  }\n}';
-        var withGetter = LunoClassPatcher.patchMethodInSource(baseSrc, 'ItemState.get val', 'get val() {\n  return this._val * 2;\n}');
-        var withSetter = LunoClassPatcher.patchMethodInSource(withGetter, 'ItemState.set val', 'set val(v) {\n  this._val = v;\n}');
+        var withGetter = LunoClassPatcher.patchMethodInSource(baseSrc, 'ItemState.get val', 'get val() {\n  return this._val * 2;\n}', { allowInsert: true });
+        var withSetter = LunoClassPatcher.patchMethodInSource(withGetter, 'ItemState.set val', 'set val(v) {\n  this._val = v;\n}', { allowInsert: true });
         var hasGetter = withSetter.includes('get val()') && withSetter.includes('return this._val * 2');
         var hasSetter = withSetter.includes('set val(v)') && withSetter.includes('this._val = v');
         var detailMsg = (hasGetter && hasSetter)
@@ -178,7 +203,7 @@ class LunoTestRunner {
       LunoTestRunner.assert('LunoClassPatcher: Accessor Get/Set AST Integration', false, e.message);
     }
 
-    // Test 10: Method Normalization with Leading JSDoc/Comments
+    // Test 11: Method Normalization with Leading JSDoc/Comments
     try {
       if (typeof LunoClassPatcher !== 'undefined' && LunoClassPatcher.normalizeMethodCode) {
         var rawCommentedMethod = '/**\n * Some documentation\n */\nmyMethod(alpha, beta) {\n  return alpha + beta;\n}';
@@ -197,7 +222,7 @@ class LunoTestRunner {
       LunoTestRunner.assert('LunoClassPatcher: Method Normalization', false, e.message);
     }
 
-    // Test 11: Clean Method Deletion & JSDoc Header Cleanup
+    // Test 12: Clean Method Deletion & JSDoc Header Cleanup
     try {
       if (typeof LunoClassPatcher !== 'undefined' && LunoClassPatcher.deleteMethodInSource) {
         var classWithDoc = 'class Sample {\n  /**\n   * Old method doc\n   */\n  oldMethod() {\n    return 1;\n  }\n  nextMethod() {\n    return 2;\n  }\n}';
@@ -216,7 +241,7 @@ class LunoTestRunner {
       LunoTestRunner.assert('LunoClassPatcher: Clean Method Deletion', false, e.message);
     }
 
-    // Test 12: Strict Name Validation Guard on /api/projects/fork
+    // Test 13: Strict Name Validation Guard on /api/projects/fork
     try {
       var forkInvalidRes = await fetch('/api/projects/fork', {
         method: 'POST',
@@ -233,7 +258,7 @@ class LunoTestRunner {
       LunoTestRunner.assert('LunoServer: Strict Name Validation Guard on /api/projects/fork', false, e.message);
     }
 
-    // Test 13: End-to-End Staging Fork Pipeline & Manifest Path Remapping
+    // Test 14: End-to-End Staging Fork Pipeline & Manifest Path Remapping
     try {
       var testForkName = 'test_e2e_fork_' + Date.now();
       var forkExecRes = await fetch('/api/projects/fork', {
@@ -257,7 +282,6 @@ class LunoTestRunner {
           }
         }
 
-        // Clean up the temporary test fork from disk
         await fetch('/api/save', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -277,7 +301,7 @@ class LunoTestRunner {
       LunoTestRunner.assert('LunoServer: End-to-End Staging Fork Pipeline & Manifest Path Remapping', false, e.message);
     }
 
-    // Test 14: ES6 Module Syntax Verification & Validation
+    // Test 15: ES6 Module Syntax Verification & Validation
     try {
       var sampleEs6Module = 'import { useState } from "react";\nexport class ModuleApp {\n  static run() { return "active"; }\n}';
       if (typeof LunoClassPatcher !== 'undefined' && LunoClassPatcher.parseAST) {
@@ -322,7 +346,7 @@ class LunoTestRunner {
     var card = m('div', {
       style: { background: '#161b22', border: '2px solid #00f2fe', borderRadius: '10px', padding: '1rem', color: '#c9d1d9', fontFamily: 'monospace', maxWidth: '680px', margin: '1rem auto' }
     },
-      m('h2', { style: { color: '#00f2fe', fontSize: '1.1rem', margin: '0 0 0.8rem 0' } }, '🧪 Luno Diagnostic Test Suite (14 Tests)'),
+      m('h2', { style: { color: '#00f2fe', fontSize: '1.1rem', margin: '0 0 0.8rem 0' } }, '🧪 Luno Diagnostic Test Suite (15 Tests)'),
       m('button', {
         style: { padding: '0.65rem 1.2rem', background: '#238636', color: '#fff', border: 'none', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer', fontFamily: 'monospace', marginBottom: '1rem' },
         onclick: function() {

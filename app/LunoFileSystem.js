@@ -3,6 +3,7 @@ class LunoIndexedDbAdapter {
   static STORE_FILES = 'files';
   static STORE_PROJECTS = 'projects';
   static db = null;
+  static manifestCache = new Map();
 
   static async getDb() {
     if (LunoIndexedDbAdapter.db) return LunoIndexedDbAdapter.db;
@@ -28,6 +29,27 @@ class LunoIndexedDbAdapter {
       };
       req.onerror = (e) => reject(e.target.error);
     });
+  }
+
+  static async loadStaticManifest(projectName) {
+    const proj = projectName || (typeof ClientApp !== 'undefined' && ClientApp.getTargetProject ? ClientApp.getTargetProject() : 'Luno');
+    if (LunoIndexedDbAdapter.manifestCache.has(proj)) {
+      return LunoIndexedDbAdapter.manifestCache.get(proj);
+    }
+    try {
+      const manifestUrl = (typeof LunoFileSystem !== 'undefined' && LunoFileSystem.resolveStaticUrl)
+        ? LunoFileSystem.resolveStaticUrl('files.json', proj)
+        : './files.json';
+      const res = await fetch(manifestUrl);
+      if (res.ok) {
+        const items = await res.json();
+        if (Array.isArray(items)) {
+          LunoIndexedDbAdapter.manifestCache.set(proj, items);
+          return items;
+        }
+      }
+    } catch(e) {}
+    return null;
   }
 
   static normalizeKey(filePath, projectName) {
@@ -89,14 +111,38 @@ class LunoIndexedDbAdapter {
   static async list(targetPath = '', projectName = '') {
     const db = await LunoIndexedDbAdapter.getDb();
     const proj = projectName || (typeof ClientApp !== 'undefined' && ClientApp.getTargetProject ? ClientApp.getTargetProject() : 'Luno');
-    return new Promise((resolve) => {
+
+    return new Promise(async (resolve) => {
       const tx = db.transaction(LunoIndexedDbAdapter.STORE_FILES, 'readonly');
       const store = tx.objectStore(LunoIndexedDbAdapter.STORE_FILES);
       const index = store.index('project');
       const req = index.getAll(proj);
 
-      req.onsuccess = () => {
-        const files = req.result || [];
+      req.onsuccess = async () => {
+        let files = req.result || [];
+
+        if (files.length === 0 && LunoFileSystem.isStaticHosting()) {
+          const staticManifest = await LunoIndexedDbAdapter.loadStaticManifest(proj);
+          if (Array.isArray(staticManifest) && staticManifest.length > 0) {
+            const cleanTarget = (targetPath || '').replace(/\\/g, '/').replace(/^\/+/, '').trim();
+            const filteredManifest = cleanTarget
+              ? staticManifest.filter(f => (f.path || f.relativePath || '').startsWith(cleanTarget))
+              : staticManifest;
+
+            const items = filteredManifest.map(f => {
+              const p = f.path || f.relativePath || f.name;
+              return {
+                name: f.name || p.split('/').pop(),
+                relativePath: p,
+                isDirectory: false,
+                size: f.size || 0,
+                mtimeMs: f.mtimeMs || Date.now()
+              };
+            });
+            return resolve({ success: true, items });
+          }
+        }
+
         const cleanTarget = (targetPath || '').replace(/\\/g, '/').replace(/^\/+/, '').trim();
         const filtered = cleanTarget
           ? files.filter(f => f.path.startsWith(cleanTarget))

@@ -197,6 +197,15 @@ var LunoLoader = globalThis.LunoLoader = class LunoLoader {
     }
 
     var projName = lunoMeta.name || 'Luno';
+
+    if (LunoLoader.isStaticHosting()) {
+      try {
+        if (typeof LunoIndexedDbAdapter !== 'undefined' && LunoIndexedDbAdapter.loadStaticManifest) {
+          await LunoIndexedDbAdapter.loadStaticManifest(projName);
+        }
+      } catch(e) {}
+    }
+
     var libs = Array.isArray(lunoMeta.library) ? lunoMeta.library : [];
     var main = Array.isArray(lunoMeta.main) ? lunoMeta.main : [];
     var styles = Array.isArray(lunoMeta.styles) ? lunoMeta.styles : [];
