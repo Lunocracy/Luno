@@ -2,10 +2,13 @@ class LunoApiClient {
   constructor() {}
 
   static isStaticMode() {
-    if (typeof LunoFileSystem !== 'undefined' && LunoFileSystem.getActiveMode() !== 'server') {
+    if (typeof LunoFileSystem !== 'undefined' && LunoFileSystem.isStaticHosting()) {
       return true;
     }
     if (typeof LunoLoader !== 'undefined' && LunoLoader.isStaticHosting()) {
+      return true;
+    }
+    if (typeof LunoFileSystem !== 'undefined' && LunoFileSystem.getActiveMode() !== 'server') {
       return true;
     }
     return false;
@@ -17,18 +20,21 @@ class LunoApiClient {
     try {
       return JSON.parse(text);
     } catch (e) {
+      if (text.trim().startsWith('<') || text.includes('<!DOCTYPE')) {
+        throw new Error('Static host returned HTML instead of JSON (' + res.status + ') for endpoint: ' + url);
+      }
       throw new Error('Server returned non-JSON response (' + res.status + '): ' + text.slice(0, 100));
     }
   }
 
   static async ping() {
     if (LunoApiClient.isStaticMode()) {
-      return { status: 'online', mode: 'indexedDb-static', rootDir: 'IndexedDB Virtual Root', version: 'v3.6.5-browser' };
+      return { status: 'online', mode: 'indexedDb-static', rootDir: 'IndexedDB Virtual Root', version: 'v3.6.6-static' };
     }
     try {
       return await LunoApiClient.safeJsonFetch('/api/ping');
     } catch(e) {
-      return { status: 'offline', mode: 'indexedDb-static', rootDir: 'IndexedDB Virtual Root' };
+      return { status: 'offline', mode: 'indexedDb-static', rootDir: 'IndexedDB Virtual Root', version: 'v3.6.6-static' };
     }
   }
 
@@ -83,10 +89,10 @@ class LunoApiClient {
           if (adapter && adapter.write) {
             await adapter.write(filePath, content, project);
           }
-          return { success: true, content, size: content.length };
+          return { success: true, content: content, size: content.length };
         }
       } catch(fetchErr) {}
-      return { success: false, error: 'File not found in local browser storage' };
+      return { success: false, error: 'File not found in local storage: ' + filePath };
     }
     const pParam = project ? ('&project=' + encodeURIComponent(project)) : '';
     return await LunoApiClient.safeJsonFetch('/api/fs/read?path=' + encodeURIComponent(filePath) + pParam);
@@ -104,8 +110,8 @@ class LunoApiClient {
         const items = (listRes && listRes.items) || [];
         for (const item of items) {
           const relPath = proj + '/' + item.relativePath;
-          const readRes = await adapter.read(item.relativePath, proj);
-          if (readRes && readRes.success) {
+          const readRes = await LunoApiClient.fetchFsRead(item.relativePath, proj);
+          if (readRes && readRes.success && readRes.content !== undefined) {
             manifest.push(relPath);
             filesMap[relPath] = readRes.content;
           }
@@ -117,8 +123,8 @@ class LunoApiClient {
         const libItems = (libListRes && libListRes.items) || [];
         for (const libItem of libItems) {
           const libRelPath = 'Library/' + libItem.relativePath;
-          const libReadRes = await adapter.read(libItem.relativePath, 'Library');
-          if (libReadRes && libReadRes.success) {
+          const libReadRes = await LunoApiClient.fetchFsRead(libItem.relativePath, 'Library');
+          if (libReadRes && libReadRes.success && libReadRes.content !== undefined) {
             manifest.push(libRelPath);
             filesMap[libRelPath] = libReadRes.content;
           }
@@ -193,4 +199,4 @@ class LunoApiClient {
 }
 
 globalThis.LunoApiClient = LunoApiClient;
-if (typeof module !== "undefined" && module.exports) module.exports = LunoApiClient;
+if (typeof module !== 'undefined' && module.exports) module.exports = LunoApiClient;

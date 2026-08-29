@@ -296,16 +296,27 @@ class LunoFileSystem {
   }
 
   static isStaticHosting() {
-    if (typeof window !== 'undefined' && window.location) {
-      const host = window.location.hostname || '';
-      return host.endsWith('github.io') || host.endsWith('pages.dev') || window.location.protocol === 'file:';
-    }
+    try {
+      if (typeof window !== 'undefined' && window.location) {
+        const host = (window.location.hostname || '').toLowerCase();
+        const proto = window.location.protocol || '';
+        if (proto === 'file:') return true;
+        if (host === 'localhost' || host === '127.0.0.1' || host.startsWith('192.168.') || host.startsWith('10.') || host.endsWith('.local')) {
+          return false;
+        }
+        return true;
+      }
+    } catch (e) {}
     return false;
   }
 
   static getActiveMode() {
+    if (LunoFileSystem.isStaticHosting()) {
+      if (LunoFileSystem.activeMode === 'webFsApi') return 'webFsApi';
+      return 'indexedDb';
+    }
     if (LunoFileSystem.activeMode === 'auto') {
-      return LunoFileSystem.isStaticHosting() ? 'indexedDb' : 'server';
+      return 'server';
     }
     return LunoFileSystem.activeMode;
   }

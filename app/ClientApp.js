@@ -10,10 +10,6 @@ class ClientApp {
   static uncommittedCount = 0;
   static lastMemoryHotPatch = null;
 
-  /**
-   * ⚙️ METHOD: setTargetProject(name, options)
-   * Unified single source of truth for active project switching across all views.
-   */
   static setTargetProject(name, options) {
     var opts = options || {};
     var pName = name || 'Luno';
@@ -42,9 +38,6 @@ class ClientApp {
     }
   }
 
-  /**
-   * ⚙️ METHOD: getTargetProject()
-   */
   static getTargetProject() {
     if (ClientApp.targetProjectName) return ClientApp.targetProjectName;
     if (ClientApp.activeRootDir) {
@@ -53,9 +46,6 @@ class ClientApp {
     return 'Luno';
   }
 
-  /**
-   * ⚙️ METHOD: init()
-   */
   static async init() {
     console.log('[Luno] Workspace online.');
     try {
@@ -91,94 +81,91 @@ class ClientApp {
     }
   }
 
-    static showToast(message, type, icon) {
-      var toastType = type || 'success';
-      var toastIcon = icon || '✨';
-      var msgText = String(message || '');
-  
-      if (typeof LunoPlaybackLogger !== 'undefined') {
-        if (toastType === 'error') LunoPlaybackLogger.error('Toast Error', msgText);
-        else if (toastType === 'info') LunoPlaybackLogger.boot('Toast Notice', msgText);
-        else LunoPlaybackLogger.patch('Toast Success', msgText);
-      }
-  
-      var container = document.getElementById('toast-box');
-      if (!container) {
-        container = document.createElement('div');
-        container.id = 'toast-box';
-        container.style.cssText = 'position:fixed; top:1rem; left:50%; transform:translateX(-50%); z-index:99999; display:flex; flex-direction:column; gap:0.5rem; max-width:92vw; width:max-content; pointer-events:auto;';
-        document.body.appendChild(container);
-      }
-  
-      var t = document.createElement('div');
-      var isErr = toastType === 'error';
-      var isInfo = toastType === 'info';
-      var bg = isErr ? '#2c080a' : (isInfo ? '#0d2d4a' : '#0d2818');
-      var color = isErr ? '#ff7b72' : (isInfo ? '#58a6ff' : '#3fb950');
-      var border = isErr ? '#f85149' : (isInfo ? '#0088cc' : '#238636');
-  
-      t.style.cssText = [
-        'background:' + bg + ';',
-        'color:' + color + ';',
-        'border:2px solid ' + border + ';',
-        'padding:0.75rem 1.2rem;',
-        'border-radius:10px;',
-        'font-family:monospace;',
-        'font-size:0.85rem;',
-        'font-weight:bold;',
-        'box-shadow:0 8px 24px rgba(0,0,0,0.9);',
-        'cursor:pointer;',
-        'user-select:none;',
-        'display:flex;',
-        'align-items:center;',
-        'justify-content:space-between;',
-        'gap:0.75rem;',
-        'word-break:break-word;',
-        'transform: translateY(-12px) scale(0.95);',
-        'opacity: 0;',
-        'transition: transform 0.24s cubic-bezier(0.34, 1.56, 0.64, 1), opacity 0.2s ease-out;'
-      ].join('\n');
-  
-      t.title = 'Tap to copy error message';
-      t.innerHTML = '<span>' + toastIcon + ' ' + msgText + '</span><span style="font-size:0.72rem; opacity:0.7; margin-left:0.5rem;">[Tap to Copy / Dismiss]</span>';
-  
-      t.onclick = function() {
-        if (navigator.clipboard && navigator.clipboard.writeText) {
-          navigator.clipboard.writeText(msgText);
-        }
-        t.style.borderColor = '#00f2fe';
-        setTimeout(function() {
-          if (t.parentNode) t.remove();
-        }, 350);
-      };
-  
-      container.appendChild(t);
-  
-      requestAnimationFrame(function() {
-        t.style.transform = 'translateY(0) scale(1)';
-        t.style.opacity = '1';
-      });
-  
-      // Error toasts stay for 60 seconds; normal toasts stay for 3.5s
-      var dismissTimeout = isErr ? 60000 : (isInfo ? 3500 : 2200);
-  
-      setTimeout(function() {
-        if (t.parentNode) {
-          t.style.transform = 'translateY(-10px) scale(0.92)';
-          t.style.opacity = '0';
-          setTimeout(function() { if (t.parentNode) t.remove(); }, 240);
-        }
-      }, dismissTimeout);
+  static showToast(message, type, icon) {
+    var toastType = type || 'success';
+    var toastIcon = icon || '✨';
+    var msgText = String(message || '');
+
+    if (typeof LunoPlaybackLogger !== 'undefined') {
+      if (toastType === 'error') LunoPlaybackLogger.error('Toast Error', msgText);
+      else if (toastType === 'info') LunoPlaybackLogger.boot('Toast Notice', msgText);
+      else LunoPlaybackLogger.patch('Toast Success', msgText);
     }
+
+    var container = document.getElementById('toast-box');
+    if (!container) {
+      container = document.createElement('div');
+      container.id = 'toast-box';
+      container.style.cssText = 'position:fixed; top:1rem; left:50%; transform:translateX(-50%); z-index:99999; display:flex; flex-direction:column; gap:0.5rem; max-width:92vw; width:max-content; pointer-events:auto;';
+      document.body.appendChild(container);
+    }
+
+    var t = document.createElement('div');
+    var isErr = toastType === 'error';
+    var isInfo = toastType === 'info';
+    var bg = isErr ? '#2c080a' : (isInfo ? '#0d2d4a' : '#0d2818');
+    var color = isErr ? '#ff7b72' : (isInfo ? '#58a6ff' : '#3fb950');
+    var border = isErr ? '#f85149' : (isInfo ? '#0088cc' : '#238636');
+
+    t.style.cssText = [
+      'background:' + bg + ';',
+      'color:' + color + ';',
+      'border:2px solid ' + border + ';',
+      'padding:0.75rem 1.2rem;',
+      'border-radius:10px;',
+      'font-family:monospace;',
+      'font-size:0.85rem;',
+      'font-weight:bold;',
+      'box-shadow:0 8px 24px rgba(0,0,0,0.9);',
+      'cursor:pointer;',
+      'user-select:none;',
+      'display:flex;',
+      'align-items:center;',
+      'justify-content:space-between;',
+      'gap:0.75rem;',
+      'word-break:break-word;',
+      'transform: translateY(-12px) scale(0.95);',
+      'opacity: 0;',
+      'transition: transform 0.24s cubic-bezier(0.34, 1.56, 0.64, 1), opacity 0.2s ease-out;'
+    ].join('\n');
+
+    t.title = 'Tap to copy error message';
+    t.innerHTML = '<span>' + toastIcon + ' ' + msgText + '</span><span style="font-size:0.72rem; opacity:0.7; margin-left:0.5rem;">[Tap to Copy / Dismiss]</span>';
+
+    t.onclick = function() {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(msgText);
+      }
+      t.style.borderColor = '#00f2fe';
+      setTimeout(function() {
+        if (t.parentNode) t.remove();
+      }, 350);
+    };
+
+    container.appendChild(t);
+
+    requestAnimationFrame(function() {
+      t.style.transform = 'translateY(0) scale(1)';
+      t.style.opacity = '1';
+    });
+
+    var dismissTimeout = isErr ? 60000 : (isInfo ? 3500 : 2200);
+
+    setTimeout(function() {
+      if (t.parentNode) {
+        t.style.transform = 'translateY(-10px) scale(0.92)';
+        t.style.opacity = '0';
+        setTimeout(function() { if (t.parentNode) t.remove(); }, 240);
+      }
+    }, dismissTimeout);
+  }
 
   static async fetchCodebaseMetrics(projectOverride) {
     var proj = projectOverride || ClientApp.getTargetProject() || 'Luno';
-    var pParam = '?project=' + encodeURIComponent(proj);
 
     try {
-      var res = await fetch('/api/all-code' + pParam);
-      var data = await res.json();
-      if (res.ok && data.manifest) {
+      var data = await LunoApiClient.fetchAllCode(proj);
+      if (data && data.manifest) {
         ClientApp.outboxMetricsText = '📊 Outbox (' + proj + '): ' + data.manifest.length + ' files';
         var badge = document.getElementById('outbox-metrics-badge');
         if (badge) badge.textContent = ClientApp.outboxMetricsText;
@@ -186,9 +173,7 @@ class ClientApp {
     } catch (e) {}
 
     try {
-      var mUrl = '/api/fs/read?path=luno.json' + pParam;
-      var mRes = await fetch(mUrl);
-      var mData = await mRes.json();
+      var mData = await LunoApiClient.fetchFsRead('luno.json', proj);
       if (mData && mData.content) {
         var meta = JSON.parse(mData.content);
         ClientApp.uncommittedCount = meta.processedCountSinceCheckpoint || 0;
@@ -202,12 +187,11 @@ class ClientApp {
 
   static async checkPing() {
     try {
-      var res = await fetch('/api/ping');
-      var data = await res.json();
+      var data = await LunoApiClient.ping();
       ClientApp.activeRootDir = data.rootDir || '';
 
       var verBadge = document.getElementById('luno-version-tag');
-      if (verBadge) verBadge.textContent = data.version || 'v3.6.4';
+      if (verBadge) verBadge.textContent = data.version || 'v3.6.6';
       var rootLabel = document.getElementById('active-root-label');
       if (rootLabel) rootLabel.textContent = ClientApp.activeRootDir;
     } catch (e) {}
@@ -254,7 +238,7 @@ class ClientApp {
     if (btnOutbox) {
       btnOutbox.onclick = function() {
         if (text && typeof OutboxQueue !== 'undefined' && OutboxQueue.addBundle) {
-          OutboxQueue.addBundle('Server Execution Response Output', text, { priority: 'high' });
+          OutboxQueue.addBundle('Storage Execution Response Output', text, { priority: 'high' });
           ClientApp.showToast('Sent execution feedback directly to Outbox!', 'success', '📤');
         }
       };
