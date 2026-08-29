@@ -13,7 +13,7 @@ class LunoTestRunner {
 
   static async runTestSuite() {
       LunoTestRunner.results = [];
-      console.log('🧪 Starting Luno Full Architecture & Determinism Test Suite (28 Tests)...');
+      console.log('🧪 Starting Luno Full Architecture & Determinism Test Suite (33 Tests)...');
 
       if (typeof LunoAcornLoader !== 'undefined' && LunoAcornLoader.ensureLoaded) {
         try { await LunoAcornLoader.ensureLoaded(); } catch (e) {}
@@ -622,56 +622,202 @@ class LunoTestRunner {
         LunoTestRunner.assert('OutboxQueue: Class & Method Topology Index Generation', false, e.message);
       }
 
+      // Test 29: Tolerant Parentheses Handling in parseSpec
+      try {
+        if (typeof LunoClassPatcher !== 'undefined' && LunoClassPatcher.parseSpec) {
+          var parsedWithArgs = LunoClassPatcher.parseSpec('ClientApp.showToast(message, type, icon)');
+          var parsedEmptyParens = LunoClassPatcher.parseSpec('App.init()');
+          var isCleanMember = (parsedWithArgs.memberName === 'showToast') && (parsedEmptyParens.memberName === 'init');
+          LunoTestRunner.assert(
+            'LunoClassPatcher: Tolerant data-method Parentheses Sanitization',
+            isCleanMember,
+            'Correctly stripped "(message, type, icon)" and "()" from targetSpec memberName'
+          );
+        } else {
+          LunoTestRunner.assert('LunoClassPatcher: Parentheses Sanitization', false, 'Patcher unavailable');
+        }
+      } catch (e) {
+        LunoTestRunner.assert('LunoClassPatcher: Tolerant data-method Parentheses Sanitization', false, e.message);
+      }
+
+      // Test 30: Static Property Field AST Patching (No Method Mangling)
+      try {
+        if (typeof LunoClassPatcher !== 'undefined' && LunoClassPatcher.patchMethodInSource) {
+          var classWithStaticProp = 'class StorageKeys {\n  static DB_NAME = "old_db";\n  constructor() {}\n}';
+          var patchedProp = LunoClassPatcher.patchMethodInSource(classWithStaticProp, 'StorageKeys.DB_NAME', 'static DB_NAME = "new_v2_db";');
+          var hasNewVal = patchedProp.includes('static DB_NAME = "new_v2_db";');
+          var isNotMangledMethod = !patchedProp.includes('DB_NAME()');
+          LunoTestRunner.assert(
+            'LunoClassPatcher: Static Property Field AST Patching',
+            hasNewVal && isNotMangledMethod,
+            'Successfully replaced static property value without mangling into a method declaration'
+          );
+        } else {
+          LunoTestRunner.assert('LunoClassPatcher: Static Property Patching', false, 'Patcher unavailable');
+        }
+      } catch (e) {
+        LunoTestRunner.assert('LunoClassPatcher: Static Property Field AST Patching', false, e.message);
+      }
+
+      // Test 31: Template Literal & String Script-Tag Collision Immunity
+      try {
+        if (typeof LunoPayloadParser !== 'undefined' && LunoPayloadParser.parse) {
+          var scrTag = 'scr' + 'ipt';
+          var scriptContainingPayload = '<' + scrTag + ' data-file="Luno/app/Helper.js" data-method="Helper.render" data-action="patch">\n' +
+            'render() {\n' +
+            '  const html = "<' + scrTag + ' src=\\"external.js\\"></' + scrTag + '>";\n' +
+            '  return html;\n' +
+            '}\n' +
+            '</' + scrTag + '>';
+          var parsedScript = LunoPayloadParser.parse(scriptContainingPayload);
+          var isComplete = parsedScript && parsedScript.files.length === 1 && parsedScript.files[0].content.includes('return html;');
+          LunoTestRunner.assert(
+            'LunoPayloadParser: String & Template Literal Script-Tag Collision Immunity',
+            Boolean(isComplete),
+            'Successfully parsed container without premature closure on inner script string'
+          );
+        } else {
+          LunoTestRunner.assert('LunoPayloadParser: Script Collision Immunity', false, 'Parser unavailable');
+        }
+      } catch (e) {
+        LunoTestRunner.assert('LunoPayloadParser: String & Template Literal Script-Tag Collision Immunity', false, e.message);
+      }
+
+      // Test 32: Backslash Parity in Escaped Quotes
+      try {
+        if (typeof LunoPayloadParser !== 'undefined' && LunoPayloadParser.parse) {
+          var scrTag2 = 'scr' + 'ipt';
+          var backslashPayload = '<' + scrTag2 + ' data-file="Luno/app/PathHelper.js" data-method="PathHelper.normalize" data-action="patch">\n' +
+            'normalize() {\n' +
+            '  const winPath = "C:\\\\Users\\\\AppData\\\\";\n' +
+            '  return winPath;\n' +
+            '}\n' +
+            '</' + scrTag2 + '>';
+          var parsedBk = LunoPayloadParser.parse(backslashPayload);
+          var isBkComplete = parsedBk && parsedBk.files.length === 1 && parsedBk.files[0].content.includes('return winPath;');
+          LunoTestRunner.assert(
+            'LunoPayloadParser: Escaped Backslash Parity in Quoted Literals',
+            Boolean(isBkComplete),
+            'Correctly handled escaped double backslashes before quotes without desyncing string states'
+          );
+        } else {
+          LunoTestRunner.assert('LunoPayloadParser: Backslash Parity', false, 'Parser unavailable');
+        }
+      } catch (e) {
+        LunoTestRunner.assert('LunoPayloadParser: Escaped Backslash Parity in Quoted Literals', false, e.message);
+      }
+
+      // Test 33: Single-Class Fallback Resolution
+      try {
+        if (typeof LunoClassPatcher !== 'undefined' && LunoClassPatcher.findClassNodes) {
+          var singleClassSrc = 'class AutonomousWorker {\n  constructor() {}\n  work() { return true; }\n}';
+          var ast = LunoClassPatcher.parseAST(singleClassSrc);
+          var matched = LunoClassPatcher.findClassNodes(ast, 'DifferentName');
+          var isSingleResolved = matched.length === 1 && matched[0].name === 'AutonomousWorker';
+          LunoTestRunner.assert(
+            'LunoClassPatcher: Single-Class Fallback Resolution',
+            isSingleResolved,
+            'Resolved lone class in file when patch spec specified generic or mismatched class name'
+          );
+        } else {
+          LunoTestRunner.assert('LunoClassPatcher: Single-Class Fallback', false, 'Patcher unavailable');
+        }
+      } catch (e) {
+        LunoTestRunner.assert('LunoClassPatcher: Single-Class Fallback Resolution', false, e.message);
+      }
+
       return {
         total: LunoTestRunner.results.length,
         passed: LunoTestRunner.results.filter(function(r) { return r.success; }).length,
         failed: LunoTestRunner.results.filter(function(r) { return !r.success; }).length,
         details: LunoTestRunner.results
       };
-    }
-  static mountUI(container) {
-    if (!container || typeof document === 'undefined') return;
-    container.innerHTML = '';
-    var m = (typeof LunoUIComponents !== 'undefined' && LunoUIComponents.makeElement)
-      ? LunoUIComponents.makeElement
-      : function(tag, attrs) {
-          var el = document.createElement(tag || 'div');
-          if (attrs && typeof attrs === 'object') Object.assign(el, attrs);
-          for (var i = 2; i < arguments.length; i++) {
-            var c = arguments[i];
-            if (c) el.appendChild(typeof c === 'string' ? document.createTextNode(c) : c);
-          }
-          return el;
-        };
-
-    var resultsContainer = m('div', { id: 'test-results-list', style: { display: 'flex', flexDirection: 'column', gap: '0.5rem' } });
-
-    var card = m('div', {
-      style: { background: '#161b22', border: '2px solid #00f2fe', borderRadius: '10px', padding: '1rem', color: '#c9d1d9', fontFamily: 'monospace', maxWidth: '680px', margin: '1rem auto' }
-    },
-      m('h2', { style: { color: '#00f2fe', fontSize: '1.1rem', margin: '0 0 0.8rem 0' } }, '🧪 Luno Diagnostic Test Suite (23 Tests)'),
-      m('button', {
-        style: { padding: '0.65rem 1.2rem', background: '#238636', color: '#fff', border: 'none', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer', fontFamily: 'monospace', marginBottom: '1rem' },
-        onclick: function() {
-          LunoTestRunner.runTestSuite().then(function() {
-            LunoTestRunner.mountUI(container);
-          });
-        }
-      }, '▶ Run Diagnostic Suite'),
-      resultsContainer
-    );
-
-    container.appendChild(card);
-
-    LunoTestRunner.runTestSuite().then(function() {
-      resultsContainer.innerHTML = '';
-      LunoTestRunner.results.forEach(function(r) {
-        resultsContainer.appendChild(m('div', {
-          style: { background: '#0d1117', border: '1px solid ' + (r.success ? '#238636' : '#da3633'), borderRadius: '6px', padding: '0.6rem', fontSize: '0.8rem', color: r.success ? '#7ee787' : '#ff7b72' }
-        }, (r.success ? '✅ ' : '❌ ') + r.title + (r.detail ? (' - ' + r.detail) : '')));
-      });
-    });
   }
+
+  static mountUI(container) {
+      if (!container || typeof document === 'undefined') return;
+      container.innerHTML = '';
+      var m = (typeof LunoUIComponents !== 'undefined' && LunoUIComponents.makeElement)
+        ? LunoUIComponents.makeElement
+        : function(tag, attrs) {
+            var el = document.createElement(tag || 'div');
+            if (attrs && typeof attrs === 'object') Object.assign(el, attrs);
+            for (var i = 2; i < arguments.length; i++) {
+              var c = arguments[i];
+              if (c) el.appendChild(typeof c === 'string' ? document.createTextNode(c) : c);
+            }
+            return el;
+          };
+
+      var resultsContainer = m('div', { id: 'test-results-list', style: { display: 'flex', flexDirection: 'column', gap: '0.5rem' } });
+      var summaryBadge = m('span', {
+        id: 'test-summary-badge',
+        style: { fontSize: '0.75rem', color: '#00f2fe', background: '#003847', border: '1px solid #00f2fe', padding: '0.2rem 0.6rem', borderRadius: '12px', fontWeight: 'bold' }
+      }, '⚡ Running suite...');
+
+      var headerRow = m('div', {
+        style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.8rem', flexWrap: 'wrap', gap: '0.4rem' }
+      },
+        m('h2', { id: 'test-suite-header-title', style: { color: '#00f2fe', fontSize: '1.1rem', margin: 0 } }, '🧪 Luno Diagnostic Test Suite'),
+        summaryBadge
+      );
+
+      var card = m('div', {
+        style: { background: '#161b22', border: '2px solid #00f2fe', borderRadius: '10px', padding: '1rem', color: '#c9d1d9', fontFamily: 'monospace', maxWidth: '720px', margin: '1rem auto', boxShadow: '0 4px 16px rgba(0,242,254,0.2)' }
+      },
+        headerRow,
+        m('button', {
+          id: 'btn-rerun-test-suite',
+          style: { padding: '0.65rem 1.2rem', background: '#238636', color: '#fff', border: 'none', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer', fontFamily: 'monospace', marginBottom: '1rem', boxShadow: '0 2px 8px rgba(35,134,54,0.3)' },
+          onclick: function() {
+            LunoTestRunner.runTestSuite().then(function() {
+              LunoTestRunner.mountUI(container);
+            });
+          }
+        }, '▶ Run Diagnostic Suite'),
+        resultsContainer
+      );
+
+      container.appendChild(card);
+
+      LunoTestRunner.runTestSuite().then(function(summary) {
+        resultsContainer.innerHTML = '';
+        var passedCount = summary ? summary.passed : LunoTestRunner.results.filter(function(r) { return r.success; }).length;
+        var totalCount = summary ? summary.total : LunoTestRunner.results.length;
+        var allPassed = (passedCount === totalCount && totalCount > 0);
+
+        var titleEl = document.getElementById('test-suite-header-title');
+        if (titleEl) titleEl.textContent = '🧪 Luno Diagnostic Test Suite (' + totalCount + ' Tests)';
+
+        var badgeEl = document.getElementById('test-summary-badge');
+        if (badgeEl) {
+          badgeEl.textContent = allPassed ? ('✅ ' + passedCount + '/' + totalCount + ' Passed (100%)') : ('⚠️ ' + passedCount + '/' + totalCount + ' Passed');
+          badgeEl.style.color = allPassed ? '#3fb950' : '#ff7b72';
+          badgeEl.style.background = allPassed ? '#0d2818' : '#3c1418';
+          badgeEl.style.borderColor = allPassed ? '#238636' : '#da3633';
+        }
+
+        LunoTestRunner.results.forEach(function(r) {
+          resultsContainer.appendChild(m('div', {
+            style: {
+              background: '#0d1117',
+              border: '1px solid ' + (r.success ? '#238636' : '#da3633'),
+              borderRadius: '6px',
+              padding: '0.55rem 0.75rem',
+              fontSize: '0.78rem',
+              color: r.success ? '#7ee787' : '#ff7b72',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              gap: '0.4rem'
+            }
+          },
+            m('span', {}, (r.success ? '✅ ' : '❌ ') + r.title),
+            r.detail ? m('span', { style: { color: '#8b949e', fontSize: '0.72rem', flexShrink: 0 } }, r.detail) : null
+          ));
+        });
+      });
+    }
 }
 
 globalThis.LunoTestRunner = LunoTestRunner;
