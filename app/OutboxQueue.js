@@ -144,10 +144,24 @@ class OutboxQueue {
     }
   }
 
+  static getMaxPackageSize() {
+    var maxBytes = 500000;
+    try {
+      if (typeof LunoSettings !== 'undefined') {
+        var settingVal = parseInt(LunoSettings.getItem(LunoSettings.KEYS.maxPackageSize, '500000'), 10);
+        if (!isNaN(settingVal) && settingVal >= 20000) maxBytes = settingVal;
+      } else if (typeof localStorage !== 'undefined') {
+        var lsVal = parseInt(localStorage.getItem('luno_max_pkg_size') || '500000', 10);
+        if (!isNaN(lsVal) && lsVal >= 20000) maxBytes = lsVal;
+      }
+    } catch (e) {}
+    return maxBytes;
+  }
+
   static bundleAndQueueCodebase(filesMap, manifest, projName, options) {
     var opts = options || {};
     var pName = projName || 'Project';
-    var maxBytes = 500000;
+    var maxBytes = OutboxQueue.getMaxPackageSize();
     var includeInstructions = opts.includeInstructions !== false;
     var includeLibrary = Boolean(opts.includeLibrary);
 
@@ -183,12 +197,13 @@ class OutboxQueue {
       var normPath = rawPath.replace(/\\/g, '/').replace(/^\/+/, '');
       var canonicalPath = normPath;
 
+      // Strict root-level library exclusion check
       if (!includeLibrary && pName.toLowerCase() !== 'library') {
         if (
           canonicalPath.startsWith('Library/') ||
           canonicalPath.startsWith('library/') ||
-          canonicalPath.includes('/library/') ||
-          canonicalPath.includes('/Library/')
+          canonicalPath.startsWith(pName + '/library/') ||
+          canonicalPath.startsWith(pName + '/Library/')
         ) {
           continue;
         }
@@ -351,7 +366,8 @@ class OutboxQueue {
       }
 
       if (typeof ClientApp !== 'undefined' && ClientApp.showToast) {
-        ClientApp.showToast('Bundled ' + result.fileCount + ' file(s) for [' + projName + '] into Outbox!', 'success', '⚡');
+        var partNotice = result.totalParts > 1 ? (' (Split into ' + result.totalParts + ' parts)') : '';
+        ClientApp.showToast('Bundled ' + result.fileCount + ' file(s) for [' + projName + ']' + partNotice + ' into Outbox!', 'success', '⚡');
       }
       return result;
     } catch (err) {

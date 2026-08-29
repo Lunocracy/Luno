@@ -95,22 +95,102 @@ class LunoManifestDecisionEngine {
       const isSurgicalPatch = Boolean(f.methodSpec || f.action === 'patch' || f.action === 'delete');
       const isExplicitMerge = (f.action === 'merge');
 
-      if (isExplicitMerge) {
-        processedFilesList.push({
-          tagName: f.tagName || 'script',
-          filePath: normPath,
-          action: 'merge',
-          content: f.content || ''
-        });
+      // 1. Client-Side JSON Merging
+      if (isExplicitMerge && (normPath.endsWith('.json') || normPath.endsWith('.jsonc'))) {
+        let baseJsonContent = '';
+        if (fullFilesMap.has(normPath)) {
+          baseJsonContent = fullFilesMap.get(normPath);
+        } else if (typeof LunoApiClient !== 'undefined' && LunoApiClient.fetchFsRead) {
+          try {
+            let res = await LunoApiClient.fetchFsRead(normPath, targetProj);
+            if (res && res.content !== undefined) {
+              baseJsonContent = res.content;
+            }
+          } catch (e) {}
+        }
+
+        let existingObj = {};
+        if (baseJsonContent && baseJsonContent.trim()) {
+          try {
+            existingObj = JSON.parse(baseJsonContent);
+          } catch (e) {
+            existingObj = {};
+          }
+        }
+
+        let incomingObj = {};
+        try {
+          incomingObj = JSON.parse(f.content || '{}');
+        } catch (e) {
+          throw new Error('[Luno JSON Merge Guard] Invalid JSON syntax in merge payload for "' + normPath + '": ' + e.message);
+        }
+
+        for (const [k, v] of Object.entries(incomingObj)) {
+          if (v === '__luno_delete__') {
+            delete existingObj[k];
+          } else if (Array.isArray(v) && Array.isArray(existingObj[k])) {
+            const set = new Set(existingObj[k]);
+            v.forEach(item => {
+              if (item !== '__luno_delete__') set.add(item);
+            });
+            existingObj[k] = Array.from(set);
+          } else if (v && typeof v === 'object' && !Array.isArray(v) && existingObj[k] && typeof existingObj[k] === 'object' && !Array.isArray(existingObj[k])) {
+            Object.assign(existingObj[k], v);
+          } else {
+            existingObj[k] = v;
+          }
+        }
+
+        const mergedContent = JSON.stringify(existingObj, null, 2) + '\n';
+        fullFilesMap.set(normPath, mergedContent);
         continue;
       }
 
+      // 2. Full Direct File Write
       if (!isSurgicalPatch) {
         fullFilesMap.set(normPath, f.content || '');
         continue;
       }
 
-      // Surgical method patch: Record to patch journal block
+      // 3. Fail-Loud Surgical AST Method Patching
+      let baseContent = '';
+      if (fullFilesMap.has(normPath)) {
+        baseContent = fullFilesMap.get(normPath);
+      } else if (typeof LunoApiClient !== 'undefined' && LunoApiClient.fetchFsRead) {
+        let res = await LunoApiClient.fetchFsRead(normPath, targetProj);
+        if (res && res.content !== undefined) {
+          baseContent = res.content;
+        }
+      }
+
+      if (!baseContent || !baseContent.trim()) {
+        throw new Error(
+          '[Luno AST Guard] Cannot surgically patch "' + (f.methodSpec || normPath) + '": Base file "' + normPath + '" was not found in storage. Please output the full file rewrite.'
+        );
+      }
+
+      if (!globalThis.LunoClassPatcher) {
+        throw new Error(
+          '[Luno AST Guard] LunoClassPatcher is not loaded in client runtime. Cannot apply surgical patch for "' + (f.methodSpec || normPath) + '".'
+        );
+      }
+
+      let patched = baseContent;
+      try {
+        if (f.action === 'delete') {
+          patched = globalThis.LunoClassPatcher.deleteMethodInSource(baseContent, f.methodSpec || normPath);
+        } else {
+          patched = globalThis.LunoClassPatcher.patchMethodInSource(baseContent, f.methodSpec || normPath, f.content);
+        }
+      } catch (astErr) {
+        throw new Error(
+          '[Luno AST Patch Failure] Failed to patch "' + (f.methodSpec || normPath) + '" in file "' + normPath + '":\n' + astErr.message
+        );
+      }
+
+      fullFilesMap.set(normPath, patched);
+
+      // 4. Record to patch journal ONLY after compilation succeeded
       const tagWord = f.tagName || 'script';
       const safeContent = (f.content || '').split('</' + tagWord + '>').join('<\\/' + tagWord + '>');
       let block = '';
@@ -122,34 +202,9 @@ class LunoManifestDecisionEngine {
         block = '<' + tagWord + ' data-file="' + normPath + '" data-action="patch">\n' + safeContent + '\n</' + tagWord + '>';
       }
       journalPatchBlocks.push(block);
-
-      // Perform runtime memory AST patch
-      let baseContent = '';
-      if (fullFilesMap.has(normPath)) {
-        baseContent = fullFilesMap.get(normPath);
-      } else if (typeof LunoApiClient !== 'undefined' && LunoApiClient.fetchFsRead) {
-        let res = await LunoApiClient.fetchFsRead(normPath, targetProj);
-        if (res && res.content !== undefined) {
-          baseContent = res.content;
-        }
-      }
-
-      if (baseContent && baseContent.trim() && globalThis.LunoClassPatcher) {
-        try {
-          let patched = baseContent;
-          if (f.action === 'delete') {
-            patched = globalThis.LunoClassPatcher.deleteMethodInSource(baseContent, f.methodSpec || normPath);
-          } else {
-            patched = globalThis.LunoClassPatcher.patchMethodInSource(baseContent, f.methodSpec || normPath, f.content);
-          }
-          fullFilesMap.set(normPath, patched);
-        } catch(astErr) {
-          console.warn('[LunoManifestDecisionEngine] AST memory patch notice:', astErr.message);
-        }
-      }
     }
 
-    // Write updated base files
+    // Direct writes assembled for transmission to storage
     fullFilesMap.forEach((content, filePath) => {
       processedFilesList.push({
         tagName: 'script',
@@ -159,7 +214,7 @@ class LunoManifestDecisionEngine {
       });
     });
 
-    // Journal patches into LunoPatchLog.html
+    // Append verified journal blocks to LunoPatchLog.html
     if (journalPatchBlocks.length > 0) {
       let currentLog = '';
       try {
@@ -169,7 +224,7 @@ class LunoManifestDecisionEngine {
             currentLog = logRes.content.trimEnd();
           }
         }
-      } catch(e) {}
+      } catch (e) {}
 
       const newLogContent = (currentLog ? currentLog + '\n\n' : '') + journalPatchBlocks.join('\n\n') + '\n';
       processedFilesList.push({

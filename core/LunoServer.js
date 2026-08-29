@@ -133,6 +133,14 @@ class LunoServer {
     if (normalized.startsWith('Luno Workspace/')) normalized = normalized.slice(15).trim();
     const targetDir = baseDir || LunoServer.getRootDir();
 
+    // Direct resolution for offline node_modules assets
+    if (normalized.startsWith('node_modules/')) {
+      const lunoModules = path.join(LunoServer.getRootDir(), normalized);
+      if (fs.existsSync(lunoModules)) return lunoModules;
+      const webModules = path.join(webRoot, normalized);
+      if (fs.existsSync(webModules)) return webModules;
+    }
+
     if (normalized.startsWith('Library/') || normalized.startsWith('library/')) {
       const localCandidate = path.join(targetDir, normalized);
       if (targetDir !== webRoot && path.basename(targetDir).toLowerCase() !== 'library') {
@@ -191,7 +199,6 @@ class LunoServer {
       if (!filePath) continue;
 
       const action = (f.action || 'write').toLowerCase();
-      const ext = filePath.split('.').pop().toLowerCase();
       let canonicalPath = filePath.replace(/\\/g, '/').replace(/^\/+/, '');
       if (canonicalPath.startsWith('Luno Workspace/')) canonicalPath = canonicalPath.slice(15).trim();
 
@@ -201,39 +208,6 @@ class LunoServer {
           'Server-side patch consolidation is permanently disabled. ' +
           'All AST patching must resolve client-side in the browser via LunoManifestDecisionEngine before saving.'
         );
-      }
-
-      if (action === 'merge' && (ext === 'json' || canonicalPath.endsWith('.json'))) {
-        const fullPath = LunoServer.sanitizeAndResolvePath(canonicalPath, baseDir);
-        let existing = {};
-        if (fs.existsSync(fullPath)) {
-          try { existing = JSON.parse(fs.readFileSync(fullPath, 'utf8')); } catch(e){}
-        }
-        let incoming = {};
-        try { incoming = JSON.parse(f.content); } catch(e){ incoming = {}; }
-
-        for (const [k, v] of Object.entries(incoming)) {
-          if (v === '__luno_delete__') {
-            delete existing[k];
-          } else if (Array.isArray(v) && Array.isArray(existing[k])) {
-            const set = new Set(existing[k]);
-            v.forEach(item => {
-              if (item !== '__luno_delete__') set.add(item);
-            });
-            existing[k] = Array.from(set);
-          } else if (v && typeof v === 'object' && !Array.isArray(v) && existing[k] && typeof existing[k] === 'object' && !Array.isArray(existing[k])) {
-            Object.assign(existing[k], v);
-          } else {
-            existing[k] = v;
-          }
-        }
-
-        fs.mkdirSync(path.dirname(fullPath), { recursive: true });
-        fs.writeFileSync(fullPath, JSON.stringify(existing, null, 2) + '\n', 'utf8');
-        savedFiles.push(canonicalPath);
-        modifiedCount++;
-        fileDetails.push("  • " + canonicalPath + " [JSON Merged]");
-        continue;
       }
 
       const fullPath = LunoServer.sanitizeAndResolvePath(canonicalPath, baseDir);
@@ -449,12 +423,14 @@ class LunoServer {
             name === 'simpleVersion'
           ) continue;
 
-          if (!includeLibrary && name.toLowerCase() === 'library' && projFolder.toLowerCase() !== 'library') {
-            continue;
-          }
-
-          if (projFolder === 'Luno' && allSiblings.includes(name) && name !== 'Luno') {
-            continue;
+          // Sibling exclusions only apply at the top root scan level
+          if (depth === 0) {
+            if (!includeLibrary && name.toLowerCase() === 'library' && projFolder.toLowerCase() !== 'library') {
+              continue;
+            }
+            if (projFolder === 'Luno' && allSiblings.includes(name) && name !== 'Luno') {
+              continue;
+            }
           }
 
           const fullPath = path.join(dir, name);
@@ -667,32 +643,6 @@ class LunoServer {
     });
   }
 
-  static handleCreateProject(req, res) {
-    let body = '';
-    req.on('data', c => { body += c; });
-    req.on('end', () => {
-      try {
-        const parsed = JSON.parse(body || '{}');
-        const projName = (parsed.projectPath || parsed.name || '').trim().replace(/[^a-zA-Z0-9_\-]/g, '');
-        if (!projName) return LunoServer.sendJSON(res, 400, { success: false, error: 'Invalid project name' });
-
-        const webRoot = LunoServer.getWebRootDir();
-        const targetDir = path.join(webRoot, projName);
-        fs.mkdirSync(targetDir, { recursive: true });
-
-        const lunoJsonPath = path.join(targetDir, 'luno.json');
-        if (!fs.existsSync(lunoJsonPath)) {
-          const defaultMeta = { name: projName, version: "1.0.0", description: "Workspace project", type: "luno-web-app", mainClass: "App", main: ["src/App.js"], library: [] };
-          fs.writeFileSync(lunoJsonPath, JSON.stringify(defaultMeta, null, 2), 'utf8');
-        }
-
-        return LunoServer.sendJSON(res, 200, { success: true, project: projName, path: targetDir.replace(/\\/g, '/') });
-      } catch (e) {
-        return LunoServer.sendJSON(res, 500, { success: false, error: e.message });
-      }
-    });
-  }
-
   static handleContextRequest(req, res, url) {
     let body = '';
     req.on('data', c => { body += c; });
@@ -779,7 +729,7 @@ class LunoServer {
           return res.end(fs.readFileSync(indexFile));
         }
         res.writeHead(200, { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-cache" });
-        return res.end('<!DOCTYPE html><html><body style="background:#0d1117;color:#c9d1d9;font-family:monospace;padding:2rem;"><h2>📱 Active Project View: ' + path.basename(baseDir) + '</h2><p>No index.html found in: ' + baseDir + '</p></' + 'body></' + 'html>');
+        return res.end('<!DOCTYPE html><html><body style="background:#0d1117;color:#c9d1d9;font-family:monospace;padding:2rem;"><h2>📱 Active Project View: ' + path.basename(baseDir) + '</h2><p>No index.html found in: ' + baseDir + '</p></body></html>');
       }
 
       if (method === 'GET' && url.pathname === '/api/ping') {
@@ -808,10 +758,6 @@ class LunoServer {
 
       if (method === 'POST' && url.pathname === '/api/fs/set-root') {
         return LunoServer.handleSetRoot(req, res);
-      }
-
-      if (method === 'POST' && url.pathname === '/api/fs/create-project') {
-        return LunoServer.handleCreateProject(req, res);
       }
 
       if (method === 'POST' && url.pathname === '/api/context/request') {
@@ -858,7 +804,7 @@ class LunoServer {
       return res.end(fs.readFileSync(fileToServe, 'utf8'));
     }
     res.writeHead(200, { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-cache" });
-    res.end('<!DOCTYPE html><html><body style="background:#0d1117;color:#c9d1d9;font-family:monospace;padding:2rem;"><h2>🌙 Luno Workspace</h2><p>index.html online.</p></' + 'body></' + 'html>');
+    res.end('<!DOCTYPE html><html><body style="background:#0d1117;color:#c9d1d9;font-family:monospace;padding:2rem;"><h2>🌙 Luno Workspace</h2><p>index.html online.</p></body></html>');
   }
 
   static handleForkProject(req, res) {

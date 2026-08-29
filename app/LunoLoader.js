@@ -16,15 +16,57 @@ var LunoLoader = globalThis.LunoLoader = class LunoLoader {
   ]);
   static loadedStyles = new Set();
 
+  static isLocalNetworkHost(host, port) {
+    if (!host) return false;
+    const h = host.toLowerCase().trim();
+
+    if (h === 'localhost' || h === '127.0.0.1' || h === '0.0.0.0' || h === '::1' || h === '[::1]') {
+      return true;
+    }
+
+    if (h.startsWith('127.')) return true;
+    if (h.startsWith('192.168.')) return true;
+    if (h.startsWith('10.')) return true;
+    if (h.startsWith('169.254.')) return true;
+
+    // RFC 1918 Class B Private Network / Hotspots: 172.16.0.0 - 172.31.255.255
+    if (h.startsWith('172.')) {
+      const parts = h.split('.');
+      if (parts.length >= 2) {
+        const secondOctet = parseInt(parts[1], 10);
+        if (secondOctet >= 16 && secondOctet <= 31) return true;
+      }
+    }
+
+    if (h.endsWith('.local') || h.endsWith('.lan') || h.endsWith('.home') || h.endsWith('.internal') || h.endsWith('.localhost')) {
+      return true;
+    }
+
+    const devPorts = ['8080', '8081', '8088', '3000', '5000', '8000', '5173'];
+    if (port && devPorts.includes(String(port))) {
+      return true;
+    }
+
+    return false;
+  }
+
   static isStaticHosting() {
     try {
       if (typeof window !== 'undefined' && window.location) {
-        var host = (window.location.hostname || '').toLowerCase();
-        var proto = window.location.protocol || '';
+        const proto = window.location.protocol || '';
         if (proto === 'file:') return true;
-        if (host === 'localhost' || host === '127.0.0.1' || host.startsWith('192.168.') || host.startsWith('10.') || host.endsWith('.local')) {
+
+        const host = (window.location.hostname || '').toLowerCase();
+        const port = window.location.port || '';
+
+        if (host.endsWith('github.io') || host.endsWith('pages.dev') || host.endsWith('vercel.app') || host.endsWith('netlify.app')) {
+          return true;
+        }
+
+        if (LunoLoader.isLocalNetworkHost(host, port)) {
           return false;
         }
+
         return true;
       }
     } catch (e) {}
