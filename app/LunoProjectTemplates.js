@@ -8,7 +8,7 @@ class LunoProjectTemplates {
       desc: 'Single-page web application template with standalone vanilla JS architecture and error boundary.',
       files: {
         'luno.json': '{\n  "name": "Starter Web App",\n  "version": "1.0.0",\n  "description": "Custom Luno web application",\n  "type": "luno-web-app",\n  "mainClass": "App",\n  "main": ["src/App.js"],\n  "library": [],\n  "styles": ["css/style.css"]\n}',
-        'index.html': '<!DOCTYPE html>\n<html>\n<head>\n  <meta charset="UTF-8">\n  <title>Starter App</title>\n  <link rel="stylesheet" href="css/style.css">\n  <script>\n    window.addEventListener("error", function(e) {\n      var box = document.getElementById("app-container") || document.body;\n      var errMsg = e.message + " (" + (e.filename || "app") + ":" + e.lineno + ")";\n      box.innerHTML = "<div style=\'padding:1.25rem; background:#161b22; border:2px solid #da3633; border-radius:8px; color:#ff7b72; font-family:monospace;\'>" +\n        "<h3 style=\'margin-top:0; color:#f85149;\'>⚠️ Application Runtime Error</h3>" +\n        "<pre style=\'font-size:12px; white-space:pre-wrap; color:#c9d1d9;\'>" + errMsg + "</pre>" +\n        "<button style=\'margin-top:0.6rem; padding:0.4rem 0.8rem; background:#8257e5; color:#fff; border:none; border-radius:4px; font-weight:bold; cursor:pointer; font-family:monospace;\' onclick=\'if(window.parent && window.parent.postMessage) window.parent.postMessage({type:\"LUNO_SEND_INBOX\", payload:{rawText:\"Error Report:\\n\" + \"" + errMsg.replace(/"/g, "") + "\"}}, \"*\"); this.textContent=\"✓ Sent to Outbox!\";\'>📤 Send Error to AI Outbox</button>" +\n        "</div>";\n    });\n  <\/script>\n</head>\n<body>\n  <div id="app-container"></div>\n  <script src="/app/acorn.js"><\/script>\n  <script src="/app/LunoLoader.js"><\/script>\n  <script>\n    document.addEventListener("DOMContentLoaded", function() {\n      if (typeof LunoLoader !== "undefined") {\n        LunoLoader.loadApp("app-container");\n      }\n    });\n  <\/script>\n</body>\n</html>',
+        'index.html': '<!DOCTYPE html>\n<html>\n<head>\n  <meta charset="UTF-8">\n  <title>Starter App</title>\n  <link rel="stylesheet" href="css/style.css">\n  <script>\n    window.addEventListener("error", function(e) {\n      var box = document.getElementById("app-container") || document.body;\n      var errMsg = e.message + " (" + (e.filename || "app") + ":" + e.lineno + ")";\n      box.innerHTML = "<div style=\'padding:1.25rem; background:#161b22; border:2px solid #da3633; border-radius:8px; color:#ff7b72; font-family:monospace;\'>" +\n        "<h3 style=\'margin-top:0; color:#f85149;\'>⚠️ Application Runtime Error</h3>" +\n        "<pre style=\'font-size:12px; white-space:pre-wrap; color:#c9d1d9;\'>" + errMsg + "</pre>" +\n        "<button style=\'margin-top:0.6rem; padding:0.4rem 0.8rem; background:#8257e5; color:#fff; border:none; border-radius:4px; font-weight:bold; cursor:pointer; font-family:monospace;\' onclick=\'if(window.parent && window.parent.postMessage) window.parent.postMessage({type:\"LUNO_SEND_INBOX\", payload:{rawText:\"Error Report:\\n\" + \"" + errMsg.replace(/"/g, "") + "\"}}, \"*\"); this.textContent=\"✓ Sent to Outbox!\";\'>📤 Send Error to AI Outbox</button>" +\n        "</div>";\n    });\n  <' + '/script>\n</head>\n<body>\n  <div id="app-container"></div>\n  <script src="/app/acorn.js"><' + '/script>\n  <script src="/app/LunoLoader.js"><' + '/script>\n  <script>\n    document.addEventListener("DOMContentLoaded", function() {\n      if (typeof LunoLoader !== "undefined") {\n        LunoLoader.loadApp("app-container");\n      }\n    });\n  <' + '/script>\n</body>\n</html>',
         'css/style.css': '* { box-sizing: border-box; margin: 0; padding: 0; }\nbody { background: #0d1117; color: #c9d1d9; font-family: monospace; min-height: 100vh; padding: 1.5rem; }',
         'src/App.js': 'class App {\n  async run(env) {\n    const target = (env && env.container) || document.getElementById("app-container") || document.body;\n    target.innerHTML = "";\n    const card = document.createElement("div");\n    card.style.cssText = "padding: 2rem; background: #161b22; border: 2px solid #00f2fe; border-radius: 10px; text-align: center; font-family: monospace; color: #00f2fe; max-width: 600px; margin: 2rem auto; box-shadow: 0 4px 16px rgba(0,242,254,0.2);";\n    card.innerHTML = "<h2>🚀 Welcome to Your New Project</h2><p style=\'color: #8b949e; margin-top: 0.5rem; font-size: 0.85rem;\'>Initialized cleanly. Ready for rapid development in Luno!</p>";\n    target.appendChild(card);\n  }\n}\n\nglobalThis.App = App;\nif (typeof module !== "undefined" && module.exports) module.exports = App;'
       }
@@ -19,7 +19,7 @@ class LunoProjectTemplates {
       desc: 'Interactive 3D WebGL viewport starter with self-contained rotation animation.',
       files: {
         'luno.json': '{\n  "name": "3D Canvas App",\n  "version": "1.0.0",\n  "description": "3D Canvas Viewport",\n  "type": "luno-web-app",\n  "mainClass": "App3D",\n  "main": ["src/App3D.js"],\n  "library": [],\n  "styles": ["css/app3d.css"]\n}',
-        'index.html': '<!DOCTYPE html>\n<html>\n<head>\n  <meta charset="UTF-8">\n  <title>3D Canvas App</title>\n  <link rel="stylesheet" href="css/app3d.css">\n  <script>\n    window.addEventListener("error", function(e) {\n      var box = document.getElementById("app-container") || document.body;\n      var errMsg = e.message + " (" + (e.filename || "app") + ":" + e.lineno + ")";\n      box.innerHTML = "<div style=\'padding:1.25rem; background:#161b22; border:2px solid #da3633; border-radius:8px; color:#ff7b72; font-family:monospace;\'>" +\n        "<h3 style=\'margin-top:0; color:#f85149;\'>⚠️ 3D Viewport Error</h3>" +\n        "<pre style=\'font-size:12px; white-space:pre-wrap; color:#c9d1d9;\'>" + errMsg + "</pre>" +\n        "<button style=\'margin-top:0.6rem; padding:0.4rem 0.8rem; background:#8257e5; color:#fff; border:none; border-radius:4px; font-weight:bold; cursor:pointer; font-family:monospace;\' onclick=\'if(window.parent && window.parent.postMessage) window.parent.postMessage({type:\"LUNO_SEND_INBOX\", payload:{rawText:\"Error Report:\\n\" + \"" + errMsg.replace(/"/g, "") + "\"}}, \"*\"); this.textContent=\"✓ Sent to Outbox!\";\'>📤 Send Error to AI Outbox</button>" +\n        "</div>";\n    });\n  <\/script>\n</head>\n<body>\n  <div id="app-container"></div>\n  <script src="/app/acorn.js"><\/script>\n  <script src="/app/LunoLoader.js"><\/script>\n  <script>\n    document.addEventListener("DOMContentLoaded", function() {\n      if (typeof LunoLoader !== "undefined") {\n        LunoLoader.loadApp("app-container");\n      }\n    });\n  <\/script>\n</body>\n</html>',
+        'index.html': '<!DOCTYPE html>\n<html>\n<head>\n  <meta charset="UTF-8">\n  <title>3D Canvas App</title>\n  <link rel="stylesheet" href="css/app3d.css">\n  <script>\n    window.addEventListener("error", function(e) {\n      var box = document.getElementById("app-container") || document.body;\n      var errMsg = e.message + " (" + (e.filename || "app") + ":" + e.lineno + ")";\n      box.innerHTML = "<div style=\'padding:1.25rem; background:#161b22; border:2px solid #da3633; border-radius:8px; color:#ff7b72; font-family:monospace;\'>" +\n        "<h3 style=\'margin-top:0; color:#f85149;\'>⚠️ 3D Viewport Error</h3>" +\n        "<pre style=\'font-size:12px; white-space:pre-wrap; color:#c9d1d9;\'>" + errMsg + "</pre>" +\n        "<button style=\'margin-top:0.6rem; padding:0.4rem 0.8rem; background:#8257e5; color:#fff; border:none; border-radius:4px; font-weight:bold; cursor:pointer; font-family:monospace;\' onclick=\'if(window.parent && window.parent.postMessage) window.parent.postMessage({type:\"LUNO_SEND_INBOX\", payload:{rawText:\"Error Report:\\n\" + \"" + errMsg.replace(/"/g, "") + "\"}}, \"*\"); this.textContent=\"✓ Sent to Outbox!\";\'>📤 Send Error to AI Outbox</button>" +\n        "</div>";\n    });\n  <' + '/script>\n</head>\n<body>\n  <div id="app-container"></div>\n  <script src="/app/acorn.js"><' + '/script>\n  <script src="/app/LunoLoader.js"><' + '/script>\n  <script>\n    document.addEventListener("DOMContentLoaded", function() {\n      if (typeof LunoLoader !== "undefined") {\n        LunoLoader.loadApp("app-container");\n      }\n    });\n  <' + '/script>\n</body>\n</html>',
         'css/app3d.css': '* { box-sizing: border-box; margin: 0; padding: 0; }\nbody { background: #000; color: #00f2fe; font-family: monospace; overflow: hidden; height: 100vh; }',
         'src/App3D.js': 'class App3D {\n  async run(env) {\n    const target = (env && env.container) || document.getElementById("app-container") || document.body;\n    target.innerHTML = "";\n    const canvas = document.createElement("canvas");\n    canvas.width = window.innerWidth;\n    canvas.height = window.innerHeight;\n    target.appendChild(canvas);\n    const ctx = canvas.getContext("2d");\n    let angle = 0;\n    function render() {\n      ctx.fillStyle = "#070a13";\n      ctx.fillRect(0, 0, canvas.width, canvas.height);\n      ctx.save();\n      ctx.translate(canvas.width / 2, canvas.height / 2);\n      ctx.rotate(angle);\n      ctx.strokeStyle = "#00f2fe";\n      ctx.lineWidth = 3;\n      ctx.strokeRect(-60, -60, 120, 120);\n      ctx.restore();\n      angle += 0.02;\n      requestAnimationFrame(render);\n    }\n    render();\n  }\n}\n\nglobalThis.App3D = App3D;\nif (typeof module !== "undefined" && module.exports) module.exports = App3D;'
       }
@@ -267,14 +267,9 @@ class LunoProjectTemplates {
         ].join('\n')
       };
 
-      const res = await fetch('/api/save', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(serverScriptObj)
-      });
-      const data = await res.json();
+      const data = await LunoApiClient.savePayload(serverScriptObj, projectName);
 
-      if (res.ok && data && data.success) {
+      if (data && data.success) {
         if (typeof ClientApp !== 'undefined') {
           if (ClientApp.getTargetProject() === projectName) {
             ClientApp.setTargetProject('Luno');
@@ -285,104 +280,92 @@ class LunoProjectTemplates {
         }
         LunoProjectTemplates.mountFullPageView(container);
       } else {
-        alert('Delete failed: ' + ((data && data.error) || 'Server error'));
+        alert('Delete failed: ' + ((data && data.error) || 'Storage error'));
       }
     } catch (e) {
       alert('Delete network exception: ' + e.message);
     }
   }
 
-    static async createFromTemplate(templateId, parentDir) {
-      const tpl = LunoProjectTemplates.TEMPLATES.find(t => t.id === templateId);
-      if (!tpl) return;
-  
-      const rawName = prompt('Enter new project name (letters, numbers, underscores):', 'my_new_app');
-      if (!rawName) return;
-  
-      const cleanName = rawName.trim().replace(/[^a-zA-Z0-9_\-]/g, '');
-      if (!cleanName) {
-        alert('Invalid project name. Please use alphanumeric characters, dashes, or underscores.');
-        return;
-      }
-  
-      let filesList = [];
-      for (const [relFile, content] of Object.entries(tpl.files)) {
-        filesList.push({
-          filePath: cleanName + '/' + relFile,
-          content: content,
-          action: 'direct'
-        });
-      }
-  
-      // Ensure .nojekyll for instant GitHub Pages support
-      filesList.push({
-        filePath: cleanName + '/.nojekyll',
-        content: '',
-        action: 'direct'
-      });
-  
-      try {
-        if (typeof ClientApp !== 'undefined' && ClientApp.setTargetProject) {
-          ClientApp.setTargetProject(cleanName, { openTab: true });
-        }
-        await fetch('/api/save?project=' + encodeURIComponent(cleanName), {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ files: filesList, serverScript: '', project: cleanName })
-        });
-        if (typeof LunoSpaDock !== 'undefined') {
-          LunoSpaDock.mountView('app_' + cleanName);
-        }
-        if (typeof ClientApp !== 'undefined' && ClientApp.showToast) {
-          ClientApp.showToast('Created project [' + cleanName + '] from template!', 'success', '🌱');
-        }
-      } catch (e) {
-        alert('Error creating project: ' + e.message);
-      }
+  static async createFromTemplate(templateId, parentDir) {
+    const tpl = LunoProjectTemplates.TEMPLATES.find(t => t.id === templateId);
+    if (!tpl) return;
+
+    const rawName = prompt('Enter new project name (letters, numbers, underscores):', 'my_new_app');
+    if (!rawName) return;
+
+    const cleanName = rawName.trim().replace(/[^a-zA-Z0-9_\-]/g, '');
+    if (!cleanName) {
+      alert('Invalid project name. Please use alphanumeric characters, dashes, or underscores.');
+      return;
     }
 
-    static async forkProject(sourceProjectName, container) {
+    let filesList = [];
+    for (const [relFile, content] of Object.entries(tpl.files)) {
+      filesList.push({
+        filePath: cleanName + '/' + relFile,
+        content: content,
+        action: 'direct'
+      });
+    }
+
+    filesList.push({
+      filePath: cleanName + '/.nojekyll',
+      content: '',
+      action: 'direct'
+    });
+
+    try {
+      if (typeof ClientApp !== 'undefined' && ClientApp.setTargetProject) {
+        ClientApp.setTargetProject(cleanName, { openTab: true });
+      }
+
+      await LunoApiClient.savePayload({ files: filesList, serverScript: '', project: cleanName }, cleanName);
+
+      if (typeof LunoSpaDock !== 'undefined') {
+        LunoSpaDock.mountView('app_' + cleanName);
+      }
+      if (typeof ClientApp !== 'undefined' && ClientApp.showToast) {
+        ClientApp.showToast('Created project [' + cleanName + '] from template!', 'success', '🌱');
+      }
+    } catch (e) {
+      alert('Error creating project: ' + e.message);
+    }
+  }
+
+  static async forkProject(sourceProjectName, container) {
     if (!sourceProjectName) return;
-  
+
     var defaultNewName = sourceProjectName + '_fork';
     var rawName = prompt('Enter name for your new project fork (cloning ' + sourceProjectName + '):', defaultNewName);
     if (!rawName) return;
-  
+
     var cleanNewName = rawName.trim().replace(/[^a-zA-Z0-9_\-]/g, '');
     if (!cleanNewName) {
       alert('Invalid project name. Please use alphanumeric characters, dashes, or underscores.');
       return;
     }
-  
+
     if (cleanNewName === sourceProjectName) {
       alert('Fork name must be different from the source project name.');
       return;
     }
-  
+
     if (typeof ClientApp !== 'undefined' && ClientApp.showToast) {
       ClientApp.showToast('Forking [' + sourceProjectName + '] into [' + cleanNewName + '] (with all media & class renaming)...', 'info', '🍴');
     }
-  
+
     try {
-      var res = await fetch('/api/projects/fork', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          sourceProject: sourceProjectName,
-          newProjectName: cleanNewName
-        })
-      });
-  
-      var data = await res.json();
-  
-      if (res.ok && data && data.success) {
+      var data = await LunoApiClient.forkProject(sourceProjectName, cleanNewName);
+
+      if (data && data.success) {
         if (typeof ClientApp !== 'undefined' && ClientApp.setTargetProject) {
           ClientApp.setTargetProject(cleanNewName, { openTab: true });
           if (ClientApp.showToast) {
-            ClientApp.showToast('Successfully forked [' + sourceProjectName + '] into [' + cleanNewName + ']! (' + (data.copiedFilesCount || 0) + ' files preserved, class renamed to ' + (data.targetClassName || 'App') + ')', 'success', '🚀');
+            ClientApp.showToast('Successfully forked [' + sourceProjectName + '] into [' + cleanNewName + ']! (' + (data.copiedFilesCount || 0) + ' files preserved, class renamed to ' + (data.entrypointClass || 'App') + ')', 'success', '🚀');
           }
         }
-  
+
         if (typeof LunoSpaDock !== 'undefined') {
           LunoSpaDock.mountView('app_' + cleanNewName);
         } else if (container) {

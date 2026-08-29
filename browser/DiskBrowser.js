@@ -33,6 +33,7 @@ class DiskBrowser {
     if (!fullPath || typeof fullPath !== 'string') return '';
     var limit = maxChars || 28;
     var norm = fullPath.replace(/\\/g, '/').replace(/^\/+/, '');
+    if (norm.startsWith('Luno Workspace/')) norm = norm.slice(15).trim();
 
     if (norm.startsWith('Luno/')) norm = norm.slice(5);
 
@@ -234,6 +235,7 @@ class DiskBrowser {
         var it = rawItems[i];
         var rel = it.relativePath || it.name;
         var norm = rel.replace(/\\/g, '/').replace(/^\/+/, '');
+        if (norm.startsWith('Luno Workspace/')) norm = norm.slice(15).trim();
 
         if (queryTarget && norm.startsWith(queryTarget + '/')) {
           norm = norm.slice(queryTarget.length + 1);
@@ -341,6 +343,7 @@ class DiskBrowser {
     if (!rawPath || !rawPath.trim()) return;
 
     var cleanPath = rawPath.trim().replace(/\\/g, '/').replace(/^\/+/, '');
+    if (cleanPath.startsWith('Luno Workspace/')) cleanPath = cleanPath.slice(15).trim();
     var fileName = cleanPath.split('/').pop();
     var ext = (fileName.split('.').pop() || '').toLowerCase();
 
@@ -547,7 +550,7 @@ class DiskBrowser {
     btnOutbox.onclick = function() {
       var content = textarea.value;
       var filePrefix = isLib ? ('Library/' + filePath.replace(/^Library\//i, '')) : (targetProj ? (targetProj + '/' + filePath.replace(new RegExp('^' + targetProj + '/'), '')) : filePath);
-      var closeScript = '</' + 'script>';
+      var closeScript = '<' + '/script>';
       var payload = '<script data-file="' + filePrefix + '">\n' + content + '\n' + closeScript;
       if (typeof OutboxQueue !== 'undefined' && OutboxQueue.addBundle) {
         OutboxQueue.addBundle((isLib ? 'Library: ' : 'File: ') + fileName, payload);
@@ -838,7 +841,7 @@ class DiskBrowser {
       if (res && res.content !== undefined) {
         var fileName = relPath.split('/').pop();
         var ext = (fileName.split('.').pop() || '').toLowerCase();
-        var closeTag = (ext === 'css') ? ('</' + 'style>') : (ext === 'html' || ext === 'htm' ? ('</' + 'template>') : (ext === 'svg' ? ('</' + 'svg>') : ('</' + 'script>')));
+        var closeTag = (ext === 'css') ? ('<' + '/style>') : (ext === 'html' || ext === 'htm' ? ('<' + '/template>') : (ext === 'svg' ? ('<' + '/svg>') : ('<' + '/script>')));
         var openTag = (ext === 'css') ? '<style' : (ext === 'html' || ext === 'htm' ? '<template' : (ext === 'svg' ? '<svg' : '<script'));
 
         var filePathPrefix = isLibMode ? ('Library/' + relPath.replace(/^Library\//i, '')) : (target ? (target + '/' + relPath.replace(new RegExp('^' + target + '/'), '')) : relPath);

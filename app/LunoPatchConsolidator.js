@@ -1,6 +1,14 @@
 class LunoPatchConsolidator {
   constructor() {}
 
+  static cleanPath(rawPath) {
+    if (!rawPath || typeof rawPath !== 'string') return '';
+    var clean = rawPath.replace(/\\/g, '/').replace(/^\/+/, '').trim();
+    if (clean.startsWith('Luno Workspace/')) clean = clean.slice(15).trim();
+    if (clean.startsWith('./')) clean = clean.slice(2).trim();
+    return clean;
+  }
+
   /**
    * ⚙️ METHOD: consolidate(projectOverride)
    * Client-side AST consolidation: runs 100% in browser JavaScript memory.
@@ -41,7 +49,7 @@ class LunoPatchConsolidator {
 
       allFiles.forEach(function(f) {
         if (!f || !f.filePath || f.filePath === 'LunoPatchLog.html') return;
-        var norm = f.filePath.replace(/\\/g, '/').replace(/^\/+/, '');
+        var norm = LunoPatchConsolidator.cleanPath(f.filePath);
 
         var isForTarget = false;
         if (targetProj === 'Luno') {
@@ -61,7 +69,7 @@ class LunoPatchConsolidator {
           targetFiles.push(f);
         } else {
           var tag = f.tagName || 'script';
-          var closeTag = '</' + tag + '>';
+          var closeTag = '<' + '/' + tag + '>';
           var methodAttr = f.methodSpec ? (' data-method="' + f.methodSpec + '"') : '';
           var actionAttr = f.action ? (' data-action="' + f.action + '"') : '';
           remainingOtherProjectBlocks.push('<' + tag + ' data-file="' + f.filePath + '"' + methodAttr + actionAttr + '>\n' + f.content + '\n' + closeTag);
@@ -185,4 +193,4 @@ class LunoPatchConsolidator {
 }
 
 globalThis.LunoPatchConsolidator = LunoPatchConsolidator;
-if (typeof module !== "undefined" && module.exports) module.exports = LunoPatchConsolidator;
+if (typeof module !== 'undefined' && module.exports) module.exports = LunoPatchConsolidator;

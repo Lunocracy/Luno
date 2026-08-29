@@ -1,6 +1,6 @@
 {
   "name": "Luno Workspace",
-  "version": "3.6.6",
+  "version": "3.6.7",
   "description": "Mobile-first dual-mode AI development workspace",
   "maxPackageSizeBytes": 500000,
   "type": "luno-core",
@@ -63,19 +63,8 @@
     "Luno/docs/SPS7.md",
     "Luno/docs/BookmarkletStudioRoadmap.md"
   ],
-  "processedCountSinceCheckpoint": 7,
-  "lastCheckpointTime": "2026-08-29T08:58:34.992Z",
+  "processedCountSinceCheckpoint": 0,
+  "lastCheckpointTime": "2026-08-29T13:00:00.000Z",
   "pendingCheckpointDescription": "Clean working tree",
-  "changedMethods": {
-    "Luno/app/LunoCheckpointView.js": "2026-08-29T08:58:14.355Z",
-    "Luno/app/LunoSpaDock.js": "2026-08-29T08:58:14.355Z",
-    "Luno/app/LunoApiClient.js": "2026-08-29T08:58:14.355Z",
-    "Luno/luno.json": "2026-08-29T08:58:14.355Z",
-    "Luno/core/LunoServer.js": "2026-08-29T12:53:07.583Z",
-    "Luno/app/LunoManifestDecisionEngine.js": "2026-08-29T12:49:29.179Z",
-    "Luno/app/LunoFileSystem.js": "2026-08-29T12:50:52.615Z",
-    "Luno/app/LunoLoader.js": "2026-08-29T12:50:52.615Z",
-    "Luno/app/OutboxQueue.js": "2026-08-29T12:51:56.863Z",
-    "Luno/app/acorn.js": "2026-08-29T12:53:07.583Z"
-  }
+  "changedMethods": {}
 }

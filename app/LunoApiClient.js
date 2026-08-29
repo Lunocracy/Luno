@@ -2,13 +2,21 @@ class LunoApiClient {
   constructor() {}
 
   static isStaticMode() {
-    if (typeof LunoFileSystem !== 'undefined') {
+    if (typeof LunoFileSystem !== 'undefined' && typeof LunoFileSystem.isStaticHosting === 'function') {
       return LunoFileSystem.isStaticHosting();
     }
-    if (typeof LunoLoader !== 'undefined') {
+    if (typeof LunoLoader !== 'undefined' && typeof LunoLoader.isStaticHosting === 'function') {
       return LunoLoader.isStaticHosting();
     }
     return false;
+  }
+
+  static cleanPath(rawPath) {
+    if (!rawPath || typeof rawPath !== 'string') return '';
+    var clean = rawPath.replace(/\\/g, '/').replace(/^\/+/, '').trim();
+    if (clean.startsWith('Luno Workspace/')) clean = clean.slice(15).trim();
+    if (clean.startsWith('./')) clean = clean.slice(2).trim();
+    return clean;
   }
 
   static async safeJsonFetch(url, options) {
@@ -48,59 +56,61 @@ class LunoApiClient {
     try {
       return await LunoApiClient.safeJsonFetch('/api/projects/list');
     } catch(e) {
-      const adapter = LunoFileSystem.getAdapter();
+      const adapter = (typeof LunoFileSystem !== 'undefined') ? LunoFileSystem.getAdapter() : null;
       if (adapter && adapter.listProjects) return await adapter.listProjects();
       return { success: true, projects: [{ name: 'Luno' }, { name: 'Library' }] };
     }
   }
 
   static async fetchFsListRecursive(targetPath = '', project = '') {
+    const cleanTarget = LunoApiClient.cleanPath(targetPath);
     if (LunoApiClient.isStaticMode()) {
       const adapter = LunoFileSystem.getAdapter();
       if (adapter && adapter.list) {
-        return await adapter.list(targetPath, project);
+        return await adapter.list(cleanTarget, project);
       }
     }
     try {
       const pParam = project ? ('&project=' + encodeURIComponent(project)) : '';
-      return await LunoApiClient.safeJsonFetch('/api/fs/ls?recursive=true&path=' + encodeURIComponent(targetPath) + pParam);
+      return await LunoApiClient.safeJsonFetch('/api/fs/ls?recursive=true&path=' + encodeURIComponent(cleanTarget) + pParam);
     } catch(e) {
-      const adapter = LunoFileSystem.getAdapter();
-      if (adapter && adapter.list) return await adapter.list(targetPath, project);
+      const adapter = (typeof LunoFileSystem !== 'undefined') ? LunoFileSystem.getAdapter() : null;
+      if (adapter && adapter.list) return await adapter.list(cleanTarget, project);
       return { success: true, items: [] };
     }
   }
 
   static async fetchFsRead(filePath = '', project = '') {
+    const cleanFile = LunoApiClient.cleanPath(filePath);
     if (LunoApiClient.isStaticMode()) {
       const adapter = LunoFileSystem.getAdapter();
       if (adapter && adapter.read) {
-        const r = await adapter.read(filePath, project);
+        const r = await adapter.read(cleanFile, project);
         if (r.success) return r;
       }
       try {
         const fetchUrl = (typeof LunoFileSystem !== 'undefined' && LunoFileSystem.resolveStaticUrl)
-          ? LunoFileSystem.resolveStaticUrl(filePath, project)
-          : ('./' + filePath.replace(/\\/g, '/').replace(/^\/+/, ''));
+          ? LunoFileSystem.resolveStaticUrl(cleanFile, project)
+          : ('./' + cleanFile);
 
         const res = await fetch(fetchUrl);
         if (res.ok) {
           const content = await res.text();
           const trimmed = content.trim();
-          const isHtmlFile = filePath.toLowerCase().endsWith('.html') || filePath.toLowerCase().endsWith('.htm');
+          const isHtmlFile = cleanFile.toLowerCase().endsWith('.html') || cleanFile.toLowerCase().endsWith('.htm');
           if (!isHtmlFile && (trimmed.startsWith('<!DOCTYPE') || trimmed.startsWith('<html'))) {
-            return { success: false, error: 'File not found: ' + filePath };
+            return { success: false, error: 'File not found: ' + cleanFile };
           }
           if (adapter && adapter.write) {
-            await adapter.write(filePath, content, project);
+            await adapter.write(cleanFile, content, project);
           }
           return { success: true, content, size: content.length };
         }
       } catch(fetchErr) {}
-      return { success: false, error: 'File not found in storage: ' + filePath };
+      return { success: false, error: 'File not found in storage: ' + cleanFile };
     }
     const pParam = project ? ('&project=' + encodeURIComponent(project)) : '';
-    return await LunoApiClient.safeJsonFetch('/api/fs/read?path=' + encodeURIComponent(filePath) + pParam);
+    return await LunoApiClient.safeJsonFetch('/api/fs/read?path=' + encodeURIComponent(cleanFile) + pParam);
   }
 
   static async fetchAllCode(project = '', includeLibrary = false) {
@@ -147,10 +157,7 @@ class LunoApiClient {
 
     const fileList = Array.from(discovered);
     for (const rawFile of fileList) {
-      let cleanRel = rawFile.replace(/\\/g, '/').replace(/^\/+/, '');
-      if (cleanRel.startsWith('Luno Workspace/')) cleanRel = cleanRel.slice(15).trim();
-      if (cleanRel.startsWith('./')) cleanRel = cleanRel.slice(2).trim();
-
+      const cleanRel = LunoApiClient.cleanPath(rawFile);
       const readRes = await LunoApiClient.fetchFsRead(cleanRel, proj);
       if (readRes && readRes.success && readRes.content !== undefined) {
         let canonicalKey = cleanRel;
@@ -178,6 +185,12 @@ class LunoApiClient {
     }
     if (payloadObj && typeof payloadObj === 'object' && project) {
       payloadObj.project = project;
+    }
+
+    if (payloadObj && Array.isArray(payloadObj.files)) {
+      payloadObj.files.forEach(f => {
+        if (f.filePath) f.filePath = LunoApiClient.cleanPath(f.filePath);
+      });
     }
 
     if (LunoApiClient.isStaticMode()) {

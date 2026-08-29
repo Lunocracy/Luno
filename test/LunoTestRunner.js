@@ -13,7 +13,7 @@ class LunoTestRunner {
 
   static async runTestSuite() {
     LunoTestRunner.results = [];
-    console.log('🧪 Starting Luno Full Architecture & Determinism Test Suite (15 Tests)...');
+    console.log('🧪 Starting Luno Full Architecture & Determinism Test Suite (18 Tests)...');
 
     if (typeof LunoAcornLoader !== 'undefined' && LunoAcornLoader.ensureLoaded) {
       try { await LunoAcornLoader.ensureLoaded(); } catch (e) {}
@@ -101,7 +101,7 @@ class LunoTestRunner {
     // Test 5: Container Parser HTML Extraction
     try {
       if (typeof LunoPayloadParser !== 'undefined' && typeof LunoPayloadParser.parse === 'function') {
-        var closeScript = '</' + 'script>';
+        var closeScript = '<' + '/script>';
         var payload = '<script data-file="Basic3D/src/App.js">\nconsole.log("ok");\n' + closeScript;
         var parsed = LunoPayloadParser.parse(payload);
         LunoTestRunner.assert(
@@ -188,13 +188,10 @@ class LunoTestRunner {
         var withSetter = LunoClassPatcher.patchMethodInSource(withGetter, 'ItemState.set val', 'set val(v) {\n  this._val = v;\n}', { allowInsert: true });
         var hasGetter = withSetter.includes('get val()') && withSetter.includes('return this._val * 2');
         var hasSetter = withSetter.includes('set val(v)') && withSetter.includes('this._val = v');
-        var detailMsg = (hasGetter && hasSetter)
-          ? 'Successfully inserted getters and setters into class body'
-          : ('Mismatch: hasGetter=' + hasGetter + ', hasSetter=' + hasSetter);
         LunoTestRunner.assert(
           'LunoClassPatcher: Accessor Get/Set AST Integration',
           hasGetter && hasSetter,
-          detailMsg
+          'Successfully inserted getters and setters into class body'
         );
       } else {
         LunoTestRunner.assert('LunoClassPatcher: Accessor Get/Set AST Integration', false, 'LunoClassPatcher missing');
@@ -318,6 +315,87 @@ class LunoTestRunner {
       LunoTestRunner.assert('LunoServer / AST: ES6 Module Tolerance', false, e.message);
     }
 
+    // Test 16: Client-Side Structured JSON Merging (Array Unions & Deletions)
+    try {
+      if (typeof LunoManifestDecisionEngine !== 'undefined' && LunoManifestDecisionEngine.processPayload) {
+        var dummyMeta = { name: "TestApp", library: ["DomBasics.js"], customProp: "oldValue" };
+        var mergePayload = {
+          files: [{
+            filePath: "TestApp/luno.json",
+            action: "merge",
+            content: JSON.stringify({
+              library: ["DomBasics.js", "UITools.js"],
+              customProp: "__luno_delete__",
+              newField: "active"
+            })
+          }]
+        };
+        var processed = await LunoManifestDecisionEngine.processPayload(mergePayload, dummyMeta, "TestApp");
+        var directFile = processed.files.find(f => f.filePath === "TestApp/luno.json");
+        var parsedResult = directFile ? JSON.parse(directFile.content) : null;
+        var hasMergedLibs = parsedResult && Array.isArray(parsedResult.library) && parsedResult.library.includes("UITools.js");
+        var hasDeletedProp = parsedResult && parsedResult.customProp === undefined;
+        var hasNewField = parsedResult && parsedResult.newField === "active";
+
+        LunoTestRunner.assert(
+          'LunoManifestDecisionEngine: Client-Side JSON Merge & Array Union',
+          hasMergedLibs && hasDeletedProp && hasNewField,
+          'Merged JSON properties, unioned arrays, and respected __luno_delete__ deletion'
+        );
+      } else {
+        LunoTestRunner.assert('LunoManifestDecisionEngine: Client JSON Merge', false, 'Engine unavailable');
+      }
+    } catch (e) {
+      LunoTestRunner.assert('LunoManifestDecisionEngine: Client-Side JSON Merge', false, e.message);
+    }
+
+    // Test 17: Hotspot & Local Private IP Network Detection
+    try {
+      if (typeof LunoFileSystem !== 'undefined' && LunoFileSystem.isLocalNetworkHost) {
+        var isHotspotIp = LunoFileSystem.isLocalNetworkHost('172.20.10.4', '8080');
+        var isLanIp = LunoFileSystem.isLocalNetworkHost('192.168.1.105', '8080');
+        var isLoopback = LunoFileSystem.isLocalNetworkHost('127.0.0.1', '');
+        var isGitHubStatic = LunoFileSystem.isLocalNetworkHost('lunocracy.github.io', '');
+
+        LunoTestRunner.assert(
+          'LunoFileSystem / LunoLoader: Hotspot & Private IP Detection',
+          isHotspotIp && isLanIp && isLoopback && !isGitHubStatic,
+          'Correctly identified hotspot 172.20.10.x, LAN 192.168.x.x, and static GitHub Pages'
+        );
+      } else {
+        LunoTestRunner.assert('LunoFileSystem: Private IP Detection', false, 'Helper unavailable');
+      }
+    } catch (e) {
+      LunoTestRunner.assert('LunoFileSystem / LunoLoader: Hotspot Detection', false, e.message);
+    }
+
+    // Test 18: Root-Anchored Library Exclusion vs Project Subdirectories
+    try {
+      if (typeof OutboxQueue !== 'undefined' && OutboxQueue.bundleAndQueueCodebase) {
+        var mockCodebase = {
+          'src/library/helper.js': 'class Helper {}',
+          'Library/DomBasics.js': 'class DomBasics {}',
+          'src/App.js': 'class App {}'
+        };
+        var bundleRes = OutboxQueue.bundleAndQueueCodebase(mockCodebase, {}, 'SubProj', { includeInstructions: false, includeLibrary: false });
+        var queued = OutboxQueue.queue[OutboxQueue.queue.length - 1];
+        var text = queued ? queued.payload : '';
+
+        var retainsSubfolder = text.includes('SubProj/src/library/helper.js');
+        var excludesRootLib = !text.includes('Library/DomBasics.js');
+
+        LunoTestRunner.assert(
+          'OutboxQueue: Root Library Exclusion vs Inner Project Folders',
+          retainsSubfolder && excludesRootLib,
+          'Preserved src/library/helper.js while cleanly excluding root Library/DomBasics.js'
+        );
+      } else {
+        LunoTestRunner.assert('OutboxQueue: Root Library Exclusion', false, 'OutboxQueue unavailable');
+      }
+    } catch (e) {
+      LunoTestRunner.assert('OutboxQueue: Root Library Exclusion', false, e.message);
+    }
+
     return {
       total: LunoTestRunner.results.length,
       passed: LunoTestRunner.results.filter(function(r) { return r.success; }).length,
@@ -346,7 +424,7 @@ class LunoTestRunner {
     var card = m('div', {
       style: { background: '#161b22', border: '2px solid #00f2fe', borderRadius: '10px', padding: '1rem', color: '#c9d1d9', fontFamily: 'monospace', maxWidth: '680px', margin: '1rem auto' }
     },
-      m('h2', { style: { color: '#00f2fe', fontSize: '1.1rem', margin: '0 0 0.8rem 0' } }, '🧪 Luno Diagnostic Test Suite (15 Tests)'),
+      m('h2', { style: { color: '#00f2fe', fontSize: '1.1rem', margin: '0 0 0.8rem 0' } }, '🧪 Luno Diagnostic Test Suite (18 Tests)'),
       m('button', {
         style: { padding: '0.65rem 1.2rem', background: '#238636', color: '#fff', border: 'none', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer', fontFamily: 'monospace', marginBottom: '1rem' },
         onclick: function() {
