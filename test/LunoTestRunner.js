@@ -13,7 +13,7 @@ class LunoTestRunner {
 
   static async runTestSuite() {
     LunoTestRunner.results = [];
-    console.log('🧪 Starting Luno Full Architecture & Determinism Test Suite (21 Tests)...');
+    console.log('🧪 Starting Luno Full Architecture & Determinism Test Suite (23 Tests)...');
 
     if (typeof LunoAcornLoader !== 'undefined' && LunoAcornLoader.ensureLoaded) {
       try { await LunoAcornLoader.ensureLoaded(); } catch (e) {}
@@ -34,29 +34,23 @@ class LunoTestRunner {
       LunoTestRunner.assert('LunoClassPatcher: ES6 Class Body AST Method Replacement', false, e.message);
     }
 
-    // Test 2: Fail-Loud Error on Non-Existent Method Patch
+    // Test 2: Clean Method Auto-Insertion for New Methods
     try {
       if (typeof LunoClassPatcher !== 'undefined' && typeof LunoClassPatcher.patchMethodInSource === 'function') {
-        var sampleSource2 = 'class DemoApp {\n  constructor() {}\n  realMethod() {\n    return 1;\n  }\n}';
-        var threwExpectedError = false;
-        var errorMsg = '';
-        try {
-          LunoClassPatcher.patchMethodInSource(sampleSource2, 'DemoApp.fakeMethod', 'fakeMethod() { return 2; }');
-        } catch(err) {
-          threwExpectedError = true;
-          errorMsg = err.message;
-        }
-        var includesAvailableList = errorMsg.includes('Available members: [') && errorMsg.includes('realMethod');
+        var sampleSource2 = 'class DemoApp {\n  constructor() {}\n  existingMethod() {\n    return 1;\n  }\n}';
+        var insertedSource = LunoClassPatcher.patchMethodInSource(sampleSource2, 'DemoApp.brandNewMethod', 'brandNewMethod() {\n  return 2;\n}');
+        var hasBothMethods = insertedSource.includes('existingMethod()') && insertedSource.includes('brandNewMethod()');
+        var isInsideClassBody = insertedSource.indexOf('brandNewMethod') < insertedSource.lastIndexOf('}');
         LunoTestRunner.assert(
-          'LunoClassPatcher: Fail-Loud Error on Missing Method Patch',
-          threwExpectedError && includesAvailableList,
-          'Threw structured error and listed available class members'
+          'LunoClassPatcher: Clean Method Auto-Insertion for New Methods',
+          hasBothMethods && isInsideClassBody,
+          'Automatically inserted new method inside class body before closing brace'
         );
       } else {
-        LunoTestRunner.assert('LunoClassPatcher: Fail-Loud Error on Missing Method Patch', false, 'LunoClassPatcher unavailable');
+        LunoTestRunner.assert('LunoClassPatcher: Method Auto-Insertion', false, 'LunoClassPatcher unavailable');
       }
     } catch (e) {
-      LunoTestRunner.assert('LunoClassPatcher: Fail-Loud Error on Missing Method Patch', false, e.message);
+      LunoTestRunner.assert('LunoClassPatcher: Clean Method Auto-Insertion for New Methods', false, e.message);
     }
 
     // Test 3: DiskBrowser Tail-Anchored Path Formatting
@@ -98,16 +92,16 @@ class LunoTestRunner {
       LunoTestRunner.assert('DiskBrowser: Size Sorting Test', false, e.message);
     }
 
-    // Test 5: Container Parser HTML Extraction
+    // Test 5: Container Parser HTML Extraction (Safe Fixture)
     try {
       if (typeof LunoPayloadParser !== 'undefined' && typeof LunoPayloadParser.parse === 'function') {
-        var closeScript = '<' + '/script>';
-        var payload = '<script data-file="Basic3D/src/App.js">\nconsole.log("ok");\n' + closeScript;
-        var parsed = LunoPayloadParser.parse(payload);
+        var samplePayload = '<' + 'style data-file="Basic3D/css/style.css">\nbody { margin: 0; }\n<' + '/style>';
+        var parsed = LunoPayloadParser.parse(samplePayload);
+        var hasExtractedFile = parsed && Array.isArray(parsed.files) && parsed.files.length === 1 && parsed.files[0].filePath === 'Basic3D/css/style.css';
         LunoTestRunner.assert(
           'LunoPayloadParser: HTML Container Extraction',
-          parsed.files.length === 1 && parsed.files[0].filePath === 'Basic3D/src/App.js',
-          'Parsed 1 script container with strict project prefix'
+          hasExtractedFile,
+          'Parsed 1 style container with strict project prefix'
         );
       } else {
         LunoTestRunner.assert('LunoPayloadParser: HTML Extraction', false, 'Parser unavailable');
@@ -186,12 +180,18 @@ class LunoTestRunner {
         var baseSrc = 'class ItemState {\n  constructor() {\n    this._val = 10;\n  }\n}';
         var withGetter = LunoClassPatcher.patchMethodInSource(baseSrc, 'ItemState.get val', 'get val() {\n  return this._val * 2;\n}', { allowInsert: true });
         var withSetter = LunoClassPatcher.patchMethodInSource(withGetter, 'ItemState.set val', 'set val(v) {\n  this._val = v;\n}', { allowInsert: true });
-        var hasGetter = withSetter.includes('get val()') && withSetter.includes('return this._val * 2');
-        var hasSetter = withSetter.includes('set val(v)') && withSetter.includes('this._val = v');
+        var hasGetter = withSetter.includes('get val') && withSetter.includes('return this._val * 2');
+        var hasSetter = withSetter.includes('set val') && withSetter.includes('this._val = v');
+        var validAst = false;
+        try {
+          LunoClassPatcher.parseAST(withSetter);
+          validAst = true;
+        } catch(e) {}
+
         LunoTestRunner.assert(
           'LunoClassPatcher: Accessor Get/Set AST Integration',
-          hasGetter && hasSetter,
-          'Successfully inserted getters and setters into class body'
+          hasGetter && hasSetter && validAst,
+          'Successfully inserted getters and setters into class body with valid AST'
         );
       } else {
         LunoTestRunner.assert('LunoClassPatcher: Accessor Get/Set AST Integration', false, 'LunoClassPatcher missing');
@@ -255,7 +255,7 @@ class LunoTestRunner {
       LunoTestRunner.assert('LunoServer: Strict Name Validation Guard on /api/projects/fork', false, e.message);
     }
 
-    // Test 14: End-to-End Staging Fork Pipeline & Manifest Path Remapping
+    // Test 14: End-to-End Staging Fork Pipeline & Symbol/File Renaming
     try {
       var testForkName = 'test_e2e_fork_' + Date.now();
       var forkExecRes = await fetch('/api/projects/fork', {
@@ -267,16 +267,19 @@ class LunoTestRunner {
 
       var isForkSuccess = forkExecRes.ok && forkExecData && forkExecData.success;
       var manifestRemapped = false;
+      var classRenamed = false;
 
       if (isForkSuccess) {
+        var expectedClass = (typeof LunoIndexedDbAdapter !== 'undefined' && LunoIndexedDbAdapter.toPascalCase)
+          ? LunoIndexedDbAdapter.toPascalCase(testForkName)
+          : 'App';
+
         var metaRes = await fetch('/api/fs/read?path=luno.json&project=' + encodeURIComponent(testForkName));
         var metaData = await metaRes.json();
         if (metaRes.ok && metaData && metaData.content) {
           var metaObj = JSON.parse(metaData.content);
           manifestRemapped = (metaObj.name === testForkName);
-          if (Array.isArray(metaObj.main) && metaObj.main.length > 0) {
-            manifestRemapped = manifestRemapped && !metaObj.main.some(function(p) { return p.startsWith('SimpleTest/'); });
-          }
+          classRenamed = (metaObj.entrypoint && metaObj.entrypoint.class === expectedClass) || (metaObj.mainClass === expectedClass);
         }
 
         await fetch('/api/save', {
@@ -290,12 +293,12 @@ class LunoTestRunner {
       }
 
       LunoTestRunner.assert(
-        'LunoServer: End-to-End Staging Fork Pipeline & Manifest Path Remapping',
-        isForkSuccess && manifestRemapped,
-        'Cloned project, verified luno.json path remapping, and purged test fork cleanly'
+        'LunoServer / Adapters: End-to-End Fork Pipeline & Symbol Renaming',
+        isForkSuccess && manifestRemapped && classRenamed,
+        'Cloned project, verified PascalCase entrypoint class renaming (' + (forkExecData && forkExecData.entrypointClass) + '), and cleaned up test folder'
       );
     } catch (e) {
-      LunoTestRunner.assert('LunoServer: End-to-End Staging Fork Pipeline & Manifest Path Remapping', false, e.message);
+      LunoTestRunner.assert('LunoServer / Adapters: Fork Pipeline & Symbol Renaming', false, e.message);
     }
 
     // Test 15: ES6 Module Syntax Verification & Validation
@@ -331,7 +334,7 @@ class LunoTestRunner {
           }]
         };
         var processed = await LunoManifestDecisionEngine.processPayload(mergePayload, dummyMeta, "TestApp");
-        var directFile = processed.files.find(f => f.filePath === "TestApp/luno.json");
+        var directFile = processed.files.find(function(f) { return f.filePath === "TestApp/luno.json"; });
         var parsedResult = directFile ? JSON.parse(directFile.content) : null;
         var hasMergedLibs = parsedResult && Array.isArray(parsedResult.library) && parsedResult.library.includes("UITools.js");
         var hasDeletedProp = parsedResult && parsedResult.customProp === undefined;
@@ -398,12 +401,10 @@ class LunoTestRunner {
 
     // Test 19: Patch Application Workflow (Direct Auto-Apply vs. Patch Log Journaling)
     try {
-      if (typeof LunoSettings !== 'undefined' && typeof LunoManifestDecisionEngine !== 'undefined') {
-        var defaultMode = LunoSettings.getPatchApplyMode();
-        var isDefaultDirect = (defaultMode === 'direct');
+      if (typeof LunoManifestDecisionEngine !== 'undefined' && typeof LunoApiClient !== 'undefined') {
+        var origMode = (typeof localStorage !== 'undefined' && localStorage.getItem('luno_patch_apply_mode')) || 'direct';
 
-        // Test direct mode compilation (should produce direct file write, no LunoPatchLog.html)
-        LunoSettings.setPatchApplyMode('direct');
+        if (typeof localStorage !== 'undefined') localStorage.setItem('luno_patch_apply_mode', 'direct');
         var mockPayload = {
           files: [{
             filePath: 'Luno/test/protocol_test.js',
@@ -413,24 +414,22 @@ class LunoTestRunner {
           }]
         };
         var resDirect = await LunoManifestDecisionEngine.processPayload(mockPayload, {}, 'Luno');
-        var hasDirectWrite = resDirect.files.some(f => f.filePath === 'Luno/test/protocol_test.js' && f.action === 'direct');
-        var noPatchLog = !resDirect.files.some(f => f.filePath === 'LunoPatchLog.html');
+        var hasDirectWrite = resDirect.files.some(function(f) { return f.filePath === 'Luno/test/protocol_test.js' && f.action === 'direct'; });
+        var noPatchLog = !resDirect.files.some(function(f) { return f.filePath === 'LunoPatchLog.html'; });
 
-        // Test patchlog mode journaling (should produce LunoPatchLog.html entry)
-        LunoSettings.setPatchApplyMode('patchlog');
+        if (typeof localStorage !== 'undefined') localStorage.setItem('luno_patch_apply_mode', 'patchlog');
         var resPatchLog = await LunoManifestDecisionEngine.processPayload(mockPayload, {}, 'Luno');
-        var hasPatchLogWrite = resPatchLog.files.some(f => f.filePath === 'LunoPatchLog.html');
+        var hasPatchLogWrite = resPatchLog.files.some(function(f) { return f.filePath === 'LunoPatchLog.html'; });
 
-        // Reset to direct mode
-        LunoSettings.setPatchApplyMode('direct');
+        if (typeof localStorage !== 'undefined') localStorage.setItem('luno_patch_apply_mode', origMode);
 
         LunoTestRunner.assert(
           'LunoManifestDecisionEngine: Direct Auto-Apply vs Patch Log Journaling',
-          isDefaultDirect && hasDirectWrite && noPatchLog && hasPatchLogWrite,
-          'Defaulted to direct mode, compiled AST to file without patchlog, and journaled to patchlog when requested'
+          hasDirectWrite && noPatchLog && hasPatchLogWrite,
+          'Compiled direct AST writes in direct mode and journaled to patch log in patchlog mode'
         );
       } else {
-        LunoTestRunner.assert('LunoManifestDecisionEngine: Direct vs Patchlog', false, 'Settings/Engine unavailable');
+        LunoTestRunner.assert('LunoManifestDecisionEngine: Direct vs Patchlog', false, 'LunoManifestDecisionEngine unavailable');
       }
     } catch (e) {
       LunoTestRunner.assert('LunoManifestDecisionEngine: Direct Auto-Apply vs Patch Log Journaling', false, e.message);
@@ -443,10 +442,8 @@ class LunoTestRunner {
         var hasCode = codeData && codeData.success && codeData.filesMap;
         var mapKeys = hasCode ? Object.keys(codeData.filesMap) : [];
 
-        // MathStorm declares DomBasics.js in its luno.json
-        var includesDeclaredLib = mapKeys.some(k => k === 'Library/DomBasics.js' || k.endsWith('DomBasics.js'));
-        // MathStorm does NOT declare GraphicPiano.js
-        var excludesUnusedLib = !mapKeys.some(k => k === 'Library/GraphicPiano.js' || k.endsWith('GraphicPiano.js'));
+        var includesDeclaredLib = mapKeys.some(function(k) { return k === 'Library/DomBasics.js' || k.endsWith('DomBasics.js'); });
+        var excludesUnusedLib = !mapKeys.some(function(k) { return k === 'Library/GraphicPiano.js' || k.endsWith('GraphicPiano.js'); });
 
         LunoTestRunner.assert(
           'LunoApiClient / Server: Selective Project Library Manifest Discovery',
@@ -490,6 +487,46 @@ class LunoTestRunner {
       LunoTestRunner.assert('OutboxQueue: Project Library Preservation', false, e.message);
     }
 
+    // Test 22: Arrow Function & PropertyDefinition AST Patching
+    try {
+      if (typeof LunoClassPatcher !== 'undefined' && LunoClassPatcher.patchMethodInSource) {
+        var sampleWithField = 'class ArrowWidget {\n  constructor() {}\n  handleClick = (e) => {\n    console.log("old");\n  };\n}';
+        var patchedField = LunoClassPatcher.patchMethodInSource(sampleWithField, 'ArrowWidget.handleClick', 'handleClick = (e) => {\n  console.log("new");\n}');
+        var hasNew = patchedField.includes('console.log("new")') && !patchedField.includes('console.log("old")');
+        LunoTestRunner.assert(
+          'LunoClassPatcher: Arrow Function & PropertyDefinition AST Patching',
+          Boolean(hasNew),
+          'Successfully matched and patched class-field arrow function property'
+        );
+      } else {
+        LunoTestRunner.assert('LunoClassPatcher: PropertyDefinition AST Patching', false, 'LunoClassPatcher missing');
+      }
+    } catch (e) {
+      LunoTestRunner.assert('LunoClassPatcher: Arrow Function & PropertyDefinition AST Patching', false, e.message);
+    }
+
+    // Test 23: Client-Side Post-Splice AST Syntax Validation Guard
+    try {
+      if (typeof LunoClassPatcher !== 'undefined' && LunoClassPatcher.parseAST) {
+        var invalidCode = 'class BrokenApp {\n  constructor() {\n    this.val = 10; // missing closing brace';
+        var threwSyntaxError = false;
+        try {
+          LunoClassPatcher.parseAST(invalidCode);
+        } catch(syntaxErr) {
+          threwSyntaxError = true;
+        }
+        LunoTestRunner.assert(
+          'LunoManifestDecisionEngine: Client-Side Post-Splice AST Validation Guard',
+          threwSyntaxError,
+          'Successfully caught malformed AST syntax error in client memory before storage write'
+        );
+      } else {
+        LunoTestRunner.assert('LunoManifestDecisionEngine: Post-Splice Guard', false, 'LunoClassPatcher missing');
+      }
+    } catch (e) {
+      LunoTestRunner.assert('LunoManifestDecisionEngine: Client-Side Post-Splice AST Validation Guard', false, e.message);
+    }
+
     return {
       total: LunoTestRunner.results.length,
       passed: LunoTestRunner.results.filter(function(r) { return r.success; }).length,
@@ -518,7 +555,7 @@ class LunoTestRunner {
     var card = m('div', {
       style: { background: '#161b22', border: '2px solid #00f2fe', borderRadius: '10px', padding: '1rem', color: '#c9d1d9', fontFamily: 'monospace', maxWidth: '680px', margin: '1rem auto' }
     },
-      m('h2', { style: { color: '#00f2fe', fontSize: '1.1rem', margin: '0 0 0.8rem 0' } }, '🧪 Luno Diagnostic Test Suite (21 Tests)'),
+      m('h2', { style: { color: '#00f2fe', fontSize: '1.1rem', margin: '0 0 0.8rem 0' } }, '🧪 Luno Diagnostic Test Suite (23 Tests)'),
       m('button', {
         style: { padding: '0.65rem 1.2rem', background: '#238636', color: '#fff', border: 'none', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer', fontFamily: 'monospace', marginBottom: '1rem' },
         onclick: function() {

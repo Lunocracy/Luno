@@ -5,6 +5,16 @@ class LunoIndexedDbAdapter {
   static db = null;
   static manifestCache = new Map();
 
+  static toPascalCase(str) {
+    if (!str || typeof str !== 'string') return 'App';
+    var clean = str.trim().replace(/[-_]+/g, ' ').replace(/[^\w\s]/g, '');
+    var parts = clean.split(/\s+/).filter(Boolean);
+    if (parts.length === 0) return 'App';
+    return parts.map(function(w) {
+      return w.charAt(0).toUpperCase() + w.slice(1);
+    }).join('');
+  }
+
   static async getDb() {
     if (LunoIndexedDbAdapter.db) return LunoIndexedDbAdapter.db;
     return new Promise((resolve, reject) => {
@@ -218,43 +228,124 @@ class LunoIndexedDbAdapter {
     const fileStore = tx.objectStore(LunoIndexedDbAdapter.STORE_FILES);
     const projStore = tx.objectStore(LunoIndexedDbAdapter.STORE_PROJECTS);
 
+    const newIdentifier = LunoIndexedDbAdapter.toPascalCase(newProject);
+    let oldIdentifier = LunoIndexedDbAdapter.toPascalCase(sourceProject);
+
+    const sourceMetaRaw = await new Promise(res => {
+      fileStore.get(sourceProject + '::luno.json').onsuccess = (e) => res(e.target.result ? e.target.result.content : '');
+    });
+
+    let sourceMeta = {};
+    if (sourceMetaRaw) {
+      try {
+        sourceMeta = JSON.parse(sourceMetaRaw);
+        if (sourceMeta.entrypoint && sourceMeta.entrypoint.class) {
+          oldIdentifier = sourceMeta.entrypoint.class;
+        } else if (sourceMeta.mainClass) {
+          oldIdentifier = sourceMeta.mainClass;
+        }
+      } catch (e) {}
+    }
+
+    const renamedFilesMap = {};
     let copiedCount = 0;
+
     for (const f of sourceFiles) {
       const oldKey = sourceProject + '::' + f.relativePath;
-      const newKey = newProject + '::' + f.relativePath;
-
       const fileData = await new Promise(res => {
         fileStore.get(oldKey).onsuccess = (e) => res(e.target.result);
       });
 
-      if (fileData) {
-        let newContent = fileData.content;
-        if (f.relativePath === 'luno.json') {
-          try {
-            const meta = JSON.parse(newContent);
-            meta.name = newProject;
-            newContent = JSON.stringify(meta, null, 2);
-          } catch(e) {}
-        }
+      if (!fileData) continue;
 
-        fileStore.put({
-          id: newKey,
-          project: newProject,
-          path: f.relativePath,
-          content: newContent,
-          size: newContent.length,
-          updatedAt: Date.now()
-        });
-        copiedCount++;
+      let targetRelPath = f.relativePath;
+      const pathParts = targetRelPath.split('/');
+      const fileName = pathParts[pathParts.length - 1];
+      const nameParts = fileName.split('.');
+      const baseName = nameParts[0];
+      const ext = nameParts.slice(1).join('.');
+
+      if (baseName === oldIdentifier && ext) {
+        pathParts[pathParts.length - 1] = newIdentifier + '.' + ext;
+        targetRelPath = pathParts.join('/');
+        renamedFilesMap[f.relativePath] = targetRelPath;
       }
+
+      const newKey = newProject + '::' + targetRelPath;
+      let newContent = fileData.content || '';
+
+      const isTextFile = /\.(js|mjs|json|html|htm|css|md|txt|svg)$/i.test(targetRelPath);
+      if (isTextFile && typeof newContent === 'string') {
+        if (oldIdentifier && newIdentifier && oldIdentifier !== newIdentifier) {
+          const classWordRegex = new RegExp('\\b' + oldIdentifier + '\\b', 'g');
+          newContent = newContent.replace(classWordRegex, newIdentifier);
+        }
+        const oldPrefixRegex = new RegExp('\\b' + sourceProject + '/', 'g');
+        newContent = newContent.replace(oldPrefixRegex, newProject + '/');
+      }
+
+      if (targetRelPath === 'luno.json') {
+        try {
+          const meta = JSON.parse(newContent);
+          meta.name = newProject;
+          meta.description = meta.description
+            ? (meta.description + ' (Forked from ' + sourceProject + ')')
+            : ('Forked application from ' + sourceProject);
+          meta.processedCountSinceCheckpoint = 0;
+          meta.lastCheckpointTime = new Date().toISOString();
+          meta.pendingCheckpointDescription = 'Clean fork initialized from ' + sourceProject;
+
+          if (meta.entrypoint && typeof meta.entrypoint === 'object') {
+            meta.entrypoint.class = newIdentifier;
+            if (meta.entrypoint.file) {
+              for (const [oldP, newP] of Object.entries(renamedFilesMap)) {
+                if (meta.entrypoint.file.endsWith(oldP)) {
+                  meta.entrypoint.file = meta.entrypoint.file.replace(new RegExp(oldP + '$'), newP);
+                }
+              }
+            }
+          }
+          if (meta.mainClass) {
+            meta.mainClass = newIdentifier;
+          }
+
+          if (Array.isArray(meta.main)) {
+            meta.main = meta.main.map(p => {
+              let updated = p;
+              for (const [oldP, newP] of Object.entries(renamedFilesMap)) {
+                if (updated.endsWith(oldP)) updated = updated.replace(new RegExp(oldP + '$'), newP);
+              }
+              return updated;
+            });
+          }
+
+          newContent = JSON.stringify(meta, null, 2) + '\n';
+        } catch (e) {}
+      }
+
+      fileStore.put({
+        id: newKey,
+        project: newProject,
+        path: targetRelPath,
+        content: newContent,
+        size: newContent.length,
+        updatedAt: Date.now()
+      });
+      copiedCount++;
     }
 
-    projStore.put({ name: newProject, updatedAt: Date.now() });
+    projStore.put({
+      name: newProject,
+      updatedAt: Date.now()
+    });
 
     return {
       success: true,
       project: newProject,
       sourceProject: sourceProject,
+      entrypointClass: newIdentifier,
+      oldEntrypointClass: oldIdentifier,
+      renamedFilesCount: Object.keys(renamedFilesMap).length,
       copiedFilesCount: copiedCount
     };
   }
@@ -305,6 +396,209 @@ class LunoWebFsApiAdapter {
       return { success: false, error: e.message };
     }
   }
+
+  static async list(targetPath = '', projectName = '') {
+    try {
+      if (!LunoWebFsApiAdapter.dirHandle) {
+        await LunoWebFsApiAdapter.pickDirectory();
+      }
+      const proj = projectName || (typeof ClientApp !== 'undefined' && ClientApp.getTargetProject ? ClientApp.getTargetProject() : 'Luno');
+      const rootDirHandle = LunoWebFsApiAdapter.dirHandle;
+      let targetDirHandle = rootDirHandle;
+
+      if (proj) {
+        try { targetDirHandle = await rootDirHandle.getDirectoryHandle(proj, { create: false }); } catch(e) {}
+      }
+
+      const items = [];
+      async function scanDir(handle, relPath = '') {
+        const it = handle.values();
+        let step = await it.next();
+        while (!step.done) {
+          const entry = step.value;
+          if (!entry.name.startsWith('.') && entry.name !== 'node_modules' && !entry.name.endsWith('.bak')) {
+            const currentRel = relPath ? (relPath + '/' + entry.name) : entry.name;
+            if (entry.kind === 'file') {
+              const file = await entry.getFile();
+              items.push({
+                name: entry.name,
+                relativePath: currentRel,
+                isDirectory: false,
+                size: file.size,
+                mtimeMs: file.lastModified
+              });
+            } else if (entry.kind === 'directory') {
+              await scanDir(entry, currentRel);
+            }
+          }
+          step = await it.next();
+        }
+      }
+
+      await scanDir(targetDirHandle, '');
+      return { success: true, items: items };
+    } catch(err) {
+      return { success: false, items: [], error: err.message };
+    }
+  }
+
+  static async listProjects() {
+    try {
+      if (!LunoWebFsApiAdapter.dirHandle) {
+        await LunoWebFsApiAdapter.pickDirectory();
+      }
+      const projects = [];
+      const it = LunoWebFsApiAdapter.dirHandle.values();
+      let step = await it.next();
+      while (!step.done) {
+        const entry = step.value;
+        if (entry.kind === 'directory' && !entry.name.startsWith('.') && entry.name !== 'node_modules') {
+          projects.push({
+            name: entry.name,
+            version: '1.0.0',
+            description: 'Web File System project',
+            fileCount: 0
+          });
+        }
+        step = await it.next();
+      }
+      if (projects.length === 0) {
+        projects.push({ name: 'Luno', version: '1.0.0', description: 'Workspace core', fileCount: 0 });
+      }
+      return { success: true, projects: projects };
+    } catch(err) {
+      return { success: false, projects: [], error: err.message };
+    }
+  }
+
+  static async fork(sourceProject, newProject) {
+    if (!LunoWebFsApiAdapter.dirHandle) {
+      await LunoWebFsApiAdapter.pickDirectory();
+    }
+    const rootHandle = LunoWebFsApiAdapter.dirHandle;
+    const sourceHandle = await rootHandle.getDirectoryHandle(sourceProject, { create: false });
+    const targetHandle = await rootHandle.getDirectoryHandle(newProject, { create: true });
+
+    const toPascal = (typeof LunoIndexedDbAdapter !== 'undefined' && LunoIndexedDbAdapter.toPascalCase)
+      ? LunoIndexedDbAdapter.toPascalCase
+      : (str) => (str || 'App').replace(/[-_]+/g, ' ').replace(/[^\w\s]/g, '').split(/\s+/).filter(Boolean).map(w => w.charAt(0).toUpperCase() + w.slice(1)).join('') || 'App';
+
+    const newIdentifier = toPascal(newProject);
+    let oldIdentifier = toPascal(sourceProject);
+
+    let sourceMeta = {};
+    try {
+      const metaHandle = await sourceHandle.getFileHandle('luno.json');
+      const metaFile = await metaHandle.getFile();
+      sourceMeta = JSON.parse(await metaFile.text());
+      if (sourceMeta.entrypoint && sourceMeta.entrypoint.class) {
+        oldIdentifier = sourceMeta.entrypoint.class;
+      } else if (sourceMeta.mainClass) {
+        oldIdentifier = sourceMeta.mainClass;
+      }
+    } catch(e) {}
+
+    let copiedCount = 0;
+    const renamedFilesMap = {};
+
+    async function copyDir(srcH, destH, relPath = '') {
+      const it = srcH.values();
+      let step = await it.next();
+      while (!step.done) {
+        const entry = step.value;
+        if (!entry.name.startsWith('.') && entry.name !== 'node_modules' && !entry.name.endsWith('.bak')) {
+          if (entry.kind === 'directory') {
+            const subDest = await destH.getDirectoryHandle(entry.name, { create: true });
+            await copyDir(entry, subDest, relPath ? (relPath + '/' + entry.name) : entry.name);
+          } else if (entry.kind === 'file') {
+            const file = await entry.getFile();
+            let content = await file.text();
+            let fileName = entry.name;
+            const nameParts = fileName.split('.');
+            const baseName = nameParts[0];
+            const ext = nameParts.slice(1).join('.');
+
+            if (baseName === oldIdentifier && ext) {
+              fileName = newIdentifier + '.' + ext;
+              const srcRel = relPath ? (relPath + '/' + entry.name) : entry.name;
+              const destRel = relPath ? (relPath + '/' + fileName) : fileName;
+              renamedFilesMap[srcRel] = destRel;
+            }
+
+            const isText = /\.(js|mjs|json|html|htm|css|md|txt|svg)$/i.test(fileName);
+            if (isText) {
+              if (oldIdentifier && newIdentifier && oldIdentifier !== newIdentifier) {
+                content = content.replace(new RegExp('\\b' + oldIdentifier + '\\b', 'g'), newIdentifier);
+              }
+              content = content.replace(new RegExp('\\b' + sourceProject + '/', 'g'), newProject + '/');
+            }
+
+            if (fileName === 'luno.json') {
+              try {
+                const meta = JSON.parse(content);
+                meta.name = newProject;
+                meta.description = meta.description
+                  ? (meta.description + ' (Forked from ' + sourceProject + ')')
+                  : ('Forked application from ' + sourceProject);
+                meta.processedCountSinceCheckpoint = 0;
+                meta.lastCheckpointTime = new Date().toISOString();
+                meta.pendingCheckpointDescription = 'Clean fork initialized from ' + sourceProject;
+
+                if (meta.entrypoint && typeof meta.entrypoint === 'object') {
+                  meta.entrypoint.class = newIdentifier;
+                  if (meta.entrypoint.file) {
+                    for (const [oldP, newP] of Object.entries(renamedFilesMap)) {
+                      if (meta.entrypoint.file.endsWith(oldP)) {
+                        meta.entrypoint.file = meta.entrypoint.file.replace(new RegExp(oldP + '$'), newP);
+                      }
+                    }
+                  }
+                }
+                if (meta.mainClass) meta.mainClass = newIdentifier;
+
+                if (Array.isArray(meta.main)) {
+                  meta.main = meta.main.map(p => {
+                    let updated = p;
+                    for (const [oldP, newP] of Object.entries(renamedFilesMap)) {
+                      if (updated.endsWith(oldP)) updated = updated.replace(new RegExp(oldP + '$'), newP);
+                    }
+                    return updated;
+                  });
+                }
+                content = JSON.stringify(meta, null, 2) + '\n';
+              } catch(e) {}
+            }
+
+            const destFileH = await destH.getFileHandle(fileName, { create: true });
+            const writable = await destFileH.createWritable();
+            await writable.write(content);
+            await writable.close();
+            copiedCount++;
+          }
+        }
+        step = await it.next();
+      }
+    }
+
+    await copyDir(sourceHandle, targetHandle, '');
+
+    try {
+      const noJekyllH = await targetHandle.getFileHandle('.nojekyll', { create: true });
+      const w = await noJekyllH.createWritable();
+      await w.write('');
+      await w.close();
+    } catch(e) {}
+
+    return {
+      success: true,
+      project: newProject,
+      sourceProject: sourceProject,
+      entrypointClass: newIdentifier,
+      oldEntrypointClass: oldIdentifier,
+      renamedFilesCount: Object.keys(renamedFilesMap).length,
+      copiedFilesCount: copiedCount
+    };
+  }
 }
 
 class LunoFileSystem {
@@ -334,7 +628,6 @@ class LunoFileSystem {
     if (h.startsWith('10.')) return true;
     if (h.startsWith('169.254.')) return true;
 
-    // RFC 1918 Class B Private Network / Hotspots: 172.16.0.0 - 172.31.255.255
     if (h.startsWith('172.')) {
       const parts = h.split('.');
       if (parts.length >= 2) {

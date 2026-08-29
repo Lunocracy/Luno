@@ -33,43 +33,50 @@ class LunoPromptInstructions {
   }
 
   static getSingleCodeBlockRule() {
-    return [
-      'SINGLE CODE BLOCK REQUIREMENT:',
-      '• All modified files, new files, and server scripts MUST be contained within ONE',
-      '  single ```html ... ``` markdown block in your response.',
-      '• Do not split multiple files across separate markdown code fences.'
-    ].join('\n');
-  }
+      return [
+        'SINGLE CODE BLOCK REQUIREMENT:',
+        '• All modified files, new files, and method patches MUST be contained within ONE',
+        '  single html markdown code block in your response.',
+        '• Do not split multiple files across separate markdown code fences.'
+      ].join('\n');
+    }
 
   static getContainerDirectivesSpec() {
-    var scr = 'scr' + 'ipt';
-    return [
-      'HTML CONTAINER PROTOCOL DIRECTIVES & STRICT PATH RULES:',
-      '• STRICT PATH ANCHORING: Every data-file attribute MUST include the full path up',
-      '  to the workspace root (e.g. data-file="ProjectName/src/App.js", data-file="Luno/app/ClientApp.js",',
-      '  or data-file="Library/DomBasics.js"). Never write ambiguous bare relative paths like data-file="src/App.js".',
-      '',
-      '• Full File Write / Replacement:',
-      '  <' + scr + ' data-file="ProjectName/path/to/file.js">',
-      '  // Full file source code here...',
-      '  </' + scr + '>',
-      '',
-      '• Surgical ES6 Class Method Patch (Updates ONLY that specific method):',
-      '  <' + scr + ' data-file="ProjectName/path/to/file.js" data-method="ClassName.methodName" data-action="patch">',
-      '  methodName(args) {',
-      '    // Complete updated method code only...',
-      '  }',
-      '  </' + scr + '>',
-      '',
-      '• Server Script Execution (Runs with full Node.js process / fs access):',
-      '  <' + scr + ' data-action="run-server">',
-      '  const fs = require("fs");',
-      '  return "Executed successfully";',
-      '  </' + scr + '>',
-      '',
-      '• Stylesheets (<style data-file="ProjectName/css/style.css">) and Templates (<template data-file="ProjectName/view.html">).'
-    ].join('\n');
-  }
+      var scr = 'scr' + 'ipt';
+      return [
+        'HTML CONTAINER PROTOCOL DIRECTIVES & STRICT PATCH PRIORITY:',
+        '• MANDATE: ALWAYS DEFAULT TO SURGICAL METHOD PATCHES for modifying code or adding new methods.',
+        '  Full-file rewrites waste substantial time and tokens; only use full-file writes for BRAND NEW files',
+        '  or when rewriting >80% of an entire file.',
+        '',
+        '• STRICT PATH ANCHORING: Every data-file attribute MUST include the full path up',
+        '  to the workspace root (e.g. data-file="ProjectName/src/App.js", data-file="Luno/app/ClientApp.js",',
+        '  or data-file="Library/DomBasics.js"). Never write ambiguous bare relative paths like data-file="src/App.js".',
+        '',
+        '• 1. Surgical ES6 Class Method Patch (UPDATES OR ADDS SPECIFIC METHODS):',
+        '  <' + scr + ' data-file="ProjectName/path/to/file.js" data-method="ClassName.methodName" data-action="patch">',
+        '  methodName(args) {',
+        '    // Complete updated or new method code only...',
+        '  }',
+        '  </' + scr + '>',
+        '  (Note: If adding a brand new method to ClassName, use this exact patch syntax — Luno will automatically insert it into the class body).',
+        '',
+        '• 2. Multiple Patches in One Response (Group all patches in the single code fence):',
+        '  <' + scr + ' data-file="ProjectName/path/to/FileA.js" data-method="ClassA.methodOne" data-action="patch">',
+        '  methodOne() { ... }',
+        '  </' + scr + '>',
+        '  <' + scr + ' data-file="ProjectName/path/to/FileA.js" data-method="ClassA.methodTwo" data-action="patch">',
+        '  methodTwo() { ... }',
+        '  </' + scr + '>',
+        '',
+        '• 3. Full File Write / Replacement (ONLY FOR BRAND NEW FILES):',
+        '  <' + scr + ' data-file="ProjectName/path/to/NewFile.js">',
+        '  // Full file source code here...',
+        '  </' + scr + '>',
+        '',
+        '• Stylesheets (<' + 'style data-file="ProjectName/css/style.css">) and Templates (<' + 'template data-file="ProjectName/view.html">).'
+      ].join('\n');
+    }
 
   static getSyntaxSafetyRules() {
     return [
@@ -94,22 +101,25 @@ class LunoPromptInstructions {
   }
 
   static getClaudeSpecificRules() {
-    return [
-      'ANTHROPIC CLAUDE SPECIFIC RULES:',
-      '• Do not output artifacts or multi-block commentary inside code blocks.',
-      '• Ensure all file updates are encapsulated in a single ```html code fence.',
-      '• Maintain complete method bodies inside surgical patch containers without ellipses (// ...).'
-    ].join('\n');
-  }
+      var scr = 'scr' + 'ipt';
+      return [
+        'ANTHROPIC CLAUDE SPECIFIC RULES:',
+        '• Always use surgical method patches (<' + scr + ' data-method="ClassName.methodName" data-action="patch">) for class edits.',
+        '• Do not output artifacts or multi-block commentary inside code blocks.',
+        '• Ensure all file updates are encapsulated in a single html code fence.',
+        '• Maintain complete method bodies inside surgical patch containers without ellipses (// ...).'
+      ].join('\n');
+    }
 
   static getChatGptSpecificRules() {
-    return [
-      'OPENAI CHATGPT SPECIFIC RULES:',
-      '• Never split multiple file updates into separate language blocks (```javascript, ```html).',
-      '• Place all script, style, template, and svg containers in a single ```html container.',
-      '• Include complete, executable code without truncated helper placeholders.'
-    ].join('\n');
-  }
+      return [
+        'OPENAI CHATGPT SPECIFIC RULES:',
+        '• Prefer surgical method patches over full file rewrites for existing codebase files.',
+        '• Never split multiple file updates into separate language blocks.',
+        '• Place all script, style, template, and svg containers in a single html container.',
+        '• Include complete, executable code without truncated helper placeholders.'
+      ].join('\n');
+    }
 
   static assembleFullInstructions(flavorOverride) {
     var flavor = flavorOverride || LunoPromptInstructions.activeModelTarget || 'universal';

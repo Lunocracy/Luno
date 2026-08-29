@@ -2,47 +2,57 @@ class LunoClassPatcher {
   constructor() {}
 
   static parseAST(sourceText) {
-    if (!sourceText || typeof sourceText !== 'string' || !sourceText.trim()) {
-      throw new Error('[Luno AST Guard] parseAST received empty source text.');
-    }
-
-    var acornObj = (typeof window !== 'undefined' && window.acorn) || (typeof globalThis !== 'undefined' && globalThis.acorn);
-    if (!acornObj && typeof require !== 'undefined') {
-      try { acornObj = require('acorn'); } catch (e) {}
-      if (!acornObj) {
-        try {
-          var p = require('path');
-          var root = (typeof LunoServer !== 'undefined' && LunoServer.getRootDir) ? LunoServer.getRootDir() : process.cwd();
-          acornObj = require(p.join(root, 'node_modules', 'acorn'));
-        } catch (e2) {}
+      if (!sourceText || typeof sourceText !== 'string' || !sourceText.trim()) {
+        throw new Error('[Luno AST Guard] parseAST received empty source text.');
       }
-    }
-
-    if (!acornObj || typeof acornObj.parse !== 'function') {
-      throw new Error('[Luno AST Guard] Acorn AST parser is not loaded in memory.');
-    }
-
-    var parseOpts = {
-      ecmaVersion: 'latest',
-      sourceType: 'module',
-      allowReturnOutsideFunction: true,
-      allowImportExportEverywhere: true,
-      allowHashBang: true,
-      ranges: true,
-      locations: true
-    };
-
-    try {
-      return acornObj.parse(sourceText, parseOpts);
-    } catch (e) {
+  
+      var acornObj = (typeof window !== 'undefined' && window.acorn) || (typeof globalThis !== 'undefined' && globalThis.acorn);
+      if (!acornObj && typeof require !== 'undefined') {
+        try { acornObj = require('acorn'); } catch (e) {}
+        if (!acornObj) {
+          try {
+            var p = require('path');
+            var root = (typeof LunoServer !== 'undefined' && LunoServer.getRootDir) ? LunoServer.getRootDir() : process.cwd();
+            var appAcorn = p.join(root, 'app', 'acorn.js');
+            if (require('fs').existsSync(appAcorn)) {
+              acornObj = require(appAcorn);
+            }
+          } catch (e2) {}
+        }
+        if (!acornObj) {
+          try {
+            var p = require('path');
+            var root = (typeof LunoServer !== 'undefined' && LunoServer.getRootDir) ? LunoServer.getRootDir() : process.cwd();
+            acornObj = require(p.join(root, 'node_modules', 'acorn'));
+          } catch (e3) {}
+        }
+      }
+  
+      if (!acornObj || typeof acornObj.parse !== 'function') {
+        throw new Error('[Luno AST Guard] Acorn AST parser is not loaded in memory.');
+      }
+  
+      var parseOpts = {
+        ecmaVersion: 'latest',
+        sourceType: 'module',
+        allowReturnOutsideFunction: true,
+        allowImportExportEverywhere: true,
+        allowHashBang: true,
+        ranges: true,
+        locations: true
+      };
+  
       try {
-        parseOpts.sourceType = 'script';
         return acornObj.parse(sourceText, parseOpts);
-      } catch (e2) {
-        throw new Error('[Luno AST Guard] Acorn failed to parse source AST: ' + e2.message);
+      } catch (e) {
+        try {
+          parseOpts.sourceType = 'script';
+          return acornObj.parse(sourceText, parseOpts);
+        } catch (e2) {
+          throw new Error('[Luno AST Guard] Acorn failed to parse source AST: ' + e2.message);
+        }
       }
     }
-  }
 
   static parseSpec(targetSpec) {
     if (!targetSpec || typeof targetSpec !== 'string' || !targetSpec.trim()) {
@@ -204,195 +214,195 @@ class LunoClassPatcher {
   }
 
   static findMethodBounds(sourceCode, rawTarget) {
-    if (!sourceCode || !rawTarget) return null;
-    var parsed = LunoClassPatcher.parseSpec(rawTarget);
-    var ast = LunoClassPatcher.parseAST(sourceCode);
-    var classNodes = LunoClassPatcher.findClassNodes(ast, parsed.className);
-
-    if (classNodes.length === 0) return null;
-    var targetClass = classNodes[0];
-    if (!targetClass.bodyNode || !Array.isArray(targetClass.bodyNode.body)) return null;
-
-    for (var i = 0; i < targetClass.bodyNode.body.length; i++) {
-      var member = targetClass.bodyNode.body[i];
-      if (member.type === 'MethodDefinition' || member.type === 'PropertyDefinition') {
-        var keyName = member.key ? (member.key.name || member.key.value) : null;
-        var staticMatch = (parsed.isStatic === null) ? true : (Boolean(member.static) === Boolean(parsed.isStatic));
-        var memberKind = member.kind || 'method';
-        var kindMatch = (parsed.kind === 'get' || parsed.kind === 'set')
-          ? (memberKind === parsed.kind)
-          : (memberKind === 'method' || memberKind === 'constructor');
-
-        if (keyName === parsed.memberName && staticMatch && kindMatch) {
-          if (member.range) {
-            return { startIdx: member.range[0], endIdx: member.range[1] };
+      if (!sourceCode || !rawTarget) return null;
+      var parsed = LunoClassPatcher.parseSpec(rawTarget);
+      var ast = LunoClassPatcher.parseAST(sourceCode);
+      var classNodes = LunoClassPatcher.findClassNodes(ast, parsed.className);
+  
+      if (classNodes.length === 0) return null;
+      var targetClass = classNodes[0];
+      if (!targetClass.bodyNode || !Array.isArray(targetClass.bodyNode.body)) return null;
+  
+      for (var i = 0; i < targetClass.bodyNode.body.length; i++) {
+        var member = targetClass.bodyNode.body[i];
+        if (member.type === 'MethodDefinition' || member.type === 'PropertyDefinition' || member.type === 'ClassProperty') {
+          var keyName = member.key ? (member.key.name || member.key.value) : null;
+          var staticMatch = (parsed.isStatic === null) ? true : (Boolean(member.static) === Boolean(parsed.isStatic));
+          var memberKind = member.kind || (member.type === 'PropertyDefinition' ? 'property' : 'method');
+          var kindMatch = (parsed.kind === 'get' || parsed.kind === 'set')
+            ? (memberKind === parsed.kind)
+            : (memberKind === 'method' || memberKind === 'constructor' || memberKind === 'property');
+  
+          if (keyName === parsed.memberName && staticMatch && kindMatch) {
+            if (member.range) {
+              return { startIdx: member.range[0], endIdx: member.range[1] };
+            }
           }
         }
       }
+      return null;
     }
-    return null;
-  }
 
   static deleteMethodInSource(existingSource, targetSpec) {
-    if (!existingSource || typeof existingSource !== 'string' || !existingSource.trim()) {
+      if (!existingSource || typeof existingSource !== 'string' || !existingSource.trim()) {
+        return existingSource;
+      }
+  
+      var parsed = LunoClassPatcher.parseSpec(targetSpec);
+      var ast = LunoClassPatcher.parseAST(existingSource);
+      var classNodes = LunoClassPatcher.findClassNodes(ast, parsed.className);
+  
+      if (classNodes.length === 0) {
+        throw new Error('[Luno AST Guard] Cannot delete member: Target class "' + parsed.className + '" not found in source AST.');
+      }
+  
+      var targetClass = classNodes[0];
+      if (!targetClass.bodyNode || !Array.isArray(targetClass.bodyNode.body)) return existingSource;
+  
+      var memberNode = null;
+      var available = [];
+  
+      for (var i = 0; i < targetClass.bodyNode.body.length; i++) {
+        var member = targetClass.bodyNode.body[i];
+        if (member.type === 'MethodDefinition' || member.type === 'PropertyDefinition' || member.type === 'ClassProperty') {
+          var keyName = member.key ? (member.key.name || member.key.value) : null;
+          if (keyName) {
+            available.push((member.static ? 'static ' : '') + keyName);
+          }
+  
+          var staticMatch = (parsed.isStatic === null) ? true : (Boolean(member.static) === Boolean(parsed.isStatic));
+          var memberKind = member.kind || (member.type === 'PropertyDefinition' ? 'property' : 'method');
+          var kindMatch = (parsed.kind === 'get' || parsed.kind === 'set')
+            ? (memberKind === parsed.kind)
+            : (memberKind === 'method' || memberKind === 'constructor' || memberKind === 'property');
+  
+          if (keyName === parsed.memberName && staticMatch && kindMatch) {
+            memberNode = member;
+            break;
+          }
+        }
+      }
+  
+      if (!memberNode) {
+        throw new Error(
+          '[Luno AST Guard] Cannot delete member "' + (parsed.isStatic ? 'static ' : '') + parsed.memberName + '" from class "' + parsed.className + '": ' +
+          'Member not found in class body. Available members: [' + available.join(', ') + '].'
+        );
+      }
+  
+      if (memberNode && memberNode.range) {
+        var start = memberNode.range[0];
+        var end = memberNode.range[1];
+  
+        var idx = start - 1;
+        while (idx >= 0 && (existingSource[idx] === ' ' || existingSource[idx] === '\t' || existingSource[idx] === '\r' || existingSource[idx] === '\n')) {
+          idx--;
+        }
+        if (idx >= 1 && existingSource[idx] === '/' && existingSource[idx - 1] === '*') {
+          var commentStart = existingSource.lastIndexOf('/*', idx);
+          if (commentStart !== -1) {
+            idx = commentStart - 1;
+            while (idx >= 0 && (existingSource[idx] === ' ' || existingSource[idx] === '\t' || existingSource[idx] === '\r' || existingSource[idx] === '\n')) {
+              idx--;
+            }
+          }
+        }
+        start = Math.max(0, idx + 1);
+  
+        return existingSource.slice(0, start) + '\n' + existingSource.slice(end).replace(/^[\r\n]+/, '');
+      }
+  
       return existingSource;
     }
 
-    var parsed = LunoClassPatcher.parseSpec(targetSpec);
-    var ast = LunoClassPatcher.parseAST(existingSource);
-    var classNodes = LunoClassPatcher.findClassNodes(ast, parsed.className);
-
-    if (classNodes.length === 0) {
-      throw new Error('[Luno AST Guard] Cannot delete member: Target class "' + parsed.className + '" not found in source AST.');
-    }
-
-    var targetClass = classNodes[0];
-    if (!targetClass.bodyNode || !Array.isArray(targetClass.bodyNode.body)) return existingSource;
-
-    var memberNode = null;
-    var available = [];
-
-    for (var i = 0; i < targetClass.bodyNode.body.length; i++) {
-      var member = targetClass.bodyNode.body[i];
-      if (member.type === 'MethodDefinition' || member.type === 'PropertyDefinition') {
-        var keyName = member.key ? (member.key.name || member.key.value) : null;
-        if (keyName) {
-          available.push((member.static ? 'static ' : '') + keyName);
-        }
-
-        var staticMatch = (parsed.isStatic === null) ? true : (Boolean(member.static) === Boolean(parsed.isStatic));
-        var memberKind = member.kind || 'method';
-        var kindMatch = (parsed.kind === 'get' || parsed.kind === 'set')
-          ? (memberKind === parsed.kind)
-          : (memberKind === 'method' || memberKind === 'constructor');
-
-        if (keyName === parsed.memberName && staticMatch && kindMatch) {
-          memberNode = member;
-          break;
-        }
+  static patchMethodInSource(existingSource, targetSpec, methodCode, options) {
+      if (!existingSource || typeof existingSource !== 'string' || !existingSource.trim()) {
+        throw new Error('[Luno AST Guard] Cannot patch method: existingSource is empty.');
       }
-    }
-
-    if (!memberNode) {
-      throw new Error(
-        '[Luno AST Guard] Cannot delete member "' + (parsed.isStatic ? 'static ' : '') + parsed.memberName + '" from class "' + parsed.className + '": ' +
-        'Member not found in class body. Available members: [' + available.join(', ') + '].'
-      );
-    }
-
-    if (memberNode && memberNode.range) {
-      var start = memberNode.range[0];
-      var end = memberNode.range[1];
-
-      var idx = start - 1;
-      while (idx >= 0 && (existingSource[idx] === ' ' || existingSource[idx] === '\t' || existingSource[idx] === '\r' || existingSource[idx] === '\n')) {
-        idx--;
+  
+      var opts = options || {};
+      var allowInsert = (opts.allowInsert !== false && opts.insertIfMissing !== false);
+      var parsed = LunoClassPatcher.parseSpec(targetSpec);
+      var className = parsed.className;
+      var memberName = parsed.memberName;
+      var isStatic = parsed.isStatic;
+      var targetKind = parsed.kind;
+  
+      var cleanMethod = String(LunoClassPatcher.normalizeMethodCode(memberName, methodCode, isStatic, targetKind) || '').trim();
+      if (!cleanMethod) return existingSource;
+  
+      var ast = LunoClassPatcher.parseAST(existingSource);
+      var classNodes = LunoClassPatcher.findClassNodes(ast, className);
+  
+      if (classNodes.length === 0) {
+        var allFound = LunoClassPatcher.findClassNodes(ast).map(function(c) { return c.name || 'Anonymous'; });
+        throw new Error('[Luno AST Guard] Target class "' + (className || 'target') + '" not found in source AST. Available classes: [' + allFound.join(', ') + '].');
       }
-      if (idx >= 1 && existingSource[idx] === '/' && existingSource[idx - 1] === '*') {
-        var commentStart = existingSource.lastIndexOf('/*', idx);
-        if (commentStart !== -1) {
-          idx = commentStart - 1;
-          while (idx >= 0 && (existingSource[idx] === ' ' || existingSource[idx] === '\t' || existingSource[idx] === '\r' || existingSource[idx] === '\n')) {
-            idx--;
+  
+      var targetClassNode = classNodes[0].node;
+      var classBody = targetClassNode.body;
+  
+      if (!classBody || !Array.isArray(classBody.body) || !classBody.range) {
+        throw new Error('[Luno AST Guard] Target class "' + className + '" has an invalid class body in AST.');
+      }
+  
+      var existingMemberNode = null;
+      var availableMembers = [];
+  
+      for (var i = 0; i < classBody.body.length; i++) {
+        var member = classBody.body[i];
+        if (member.type === 'MethodDefinition' || member.type === 'PropertyDefinition' || member.type === 'ClassProperty') {
+          var keyName = member.key ? (member.key.name || member.key.value) : null;
+          if (keyName) {
+            availableMembers.push((member.static ? 'static ' : '') + keyName);
+          }
+  
+          var staticMatch = (isStatic === null) ? true : (Boolean(member.static) === Boolean(isStatic));
+          var memberKind = member.kind || (member.type === 'PropertyDefinition' ? 'property' : 'method');
+          var kindMatch = false;
+  
+          if (targetKind === 'get' || targetKind === 'set') {
+            kindMatch = (memberKind === targetKind);
+          } else if (targetKind === 'constructor') {
+            kindMatch = (memberKind === 'constructor');
+          } else {
+            kindMatch = (memberKind === 'method' || memberKind === 'constructor' || memberKind === 'property');
+          }
+  
+          if (keyName === memberName && staticMatch && kindMatch) {
+            existingMemberNode = member;
+            break;
           }
         }
       }
-      start = Math.max(0, idx + 1);
-
-      return existingSource.slice(0, start) + '\n' + existingSource.slice(end).replace(/^[\r\n]+/, '');
-    }
-
-    return existingSource;
-  }
-
-  static patchMethodInSource(existingSource, targetSpec, methodCode, options) {
-    if (!existingSource || typeof existingSource !== 'string' || !existingSource.trim()) {
-      throw new Error('[Luno AST Guard] Cannot patch method: existingSource is empty.');
-    }
-
-    var opts = options || {};
-    var parsed = LunoClassPatcher.parseSpec(targetSpec);
-    var className = parsed.className;
-    var memberName = parsed.memberName;
-    var isStatic = parsed.isStatic;
-    var targetKind = parsed.kind;
-
-    var cleanMethod = String(LunoClassPatcher.normalizeMethodCode(memberName, methodCode, isStatic, targetKind) || '').trim();
-    if (!cleanMethod) return existingSource;
-
-    var ast = LunoClassPatcher.parseAST(existingSource);
-    var classNodes = LunoClassPatcher.findClassNodes(ast, className);
-
-    if (classNodes.length === 0) {
-      var allFound = LunoClassPatcher.findClassNodes(ast).map(function(c) { return c.name || 'Anonymous'; });
-      throw new Error('[Luno AST Guard] Target class "' + (className || 'target') + '" not found in source AST. Available classes: [' + allFound.join(', ') + '].');
-    }
-
-    var targetClassNode = classNodes[0].node;
-    var classBody = targetClassNode.body;
-
-    if (!classBody || !Array.isArray(classBody.body) || !classBody.range) {
-      throw new Error('[Luno AST Guard] Target class "' + className + '" has an invalid class body in AST.');
-    }
-
-    var existingMemberNode = null;
-    var availableMembers = [];
-
-    for (var i = 0; i < classBody.body.length; i++) {
-      var member = classBody.body[i];
-      if (member.type === 'MethodDefinition' || member.type === 'PropertyDefinition') {
-        var keyName = member.key ? (member.key.name || member.key.value) : null;
-        if (keyName) {
-          availableMembers.push((member.static ? 'static ' : '') + keyName);
-        }
-
-        var staticMatch = (isStatic === null) ? true : (Boolean(member.static) === Boolean(isStatic));
-        var memberKind = member.kind || (member.type === 'PropertyDefinition' ? 'property' : 'method');
-        var kindMatch = false;
-
-        if (targetKind === 'get' || targetKind === 'set') {
-          kindMatch = (memberKind === targetKind);
-        } else if (targetKind === 'constructor') {
-          kindMatch = (memberKind === 'constructor');
-        } else {
-          kindMatch = (memberKind === 'method' || memberKind === 'constructor');
-        }
-
-        if (keyName === memberName && staticMatch && kindMatch) {
-          existingMemberNode = member;
-          break;
-        }
+  
+      var baseIndentation = '  ';
+  
+      if (existingMemberNode && existingMemberNode.range) {
+        var startIdx = existingMemberNode.range[0];
+        var endIdx = existingMemberNode.range[1];
+  
+        var indentedMethod = baseIndentation + cleanMethod.split('\n').map(function(line, idx) {
+          return idx === 0 ? line : (baseIndentation + line);
+        }).join('\n');
+  
+        return existingSource.slice(0, startIdx) + indentedMethod.trimStart() + existingSource.slice(endIdx);
       }
-    }
-
-    var baseIndentation = '  ';
-
-    if (existingMemberNode && existingMemberNode.range) {
-      var startIdx = existingMemberNode.range[0];
-      var endIdx = existingMemberNode.range[1];
-
-      var indentedMethod = baseIndentation + cleanMethod.split('\n').map(function(line, idx) {
+  
+      if (!allowInsert) {
+        throw new Error(
+          '[Luno AST Guard] Target member "' + (isStatic ? 'static ' : '') + memberName + '" was not found in class "' + className + '". ' +
+          'Available members: [' + availableMembers.join(', ') + '].'
+        );
+      }
+  
+      var closeBraceIdx = classBody.range[1] - 1;
+      var indentedNewMethod = '\n' + baseIndentation + cleanMethod.split('\n').map(function(line, idx) {
         return idx === 0 ? line : (baseIndentation + line);
-      }).join('\n');
-
-      return existingSource.slice(0, startIdx) + indentedMethod.trimStart() + existingSource.slice(endIdx);
+      }).join('\n') + '\n';
+  
+      return existingSource.slice(0, closeBraceIdx) + indentedNewMethod + existingSource.slice(closeBraceIdx);
     }
-
-    if (!opts.allowInsert && !opts.insertIfMissing) {
-      throw new Error(
-        '[Luno AST Guard] Target member "' + (isStatic ? 'static ' : '') + memberName + '" was not found in class "' + className + '". ' +
-        'Cannot surgically patch a non-existent member. Available members: [' + availableMembers.join(', ') + ']. ' +
-        'If you are adding a new method, please output the full file rewrite.'
-      );
-    }
-
-    var closeBraceIdx = classBody.range[1] - 1;
-    var indentedNewMethod = '\n' + baseIndentation + cleanMethod.split('\n').map(function(line, idx) {
-      return idx === 0 ? line : (baseIndentation + line);
-    }).join('\n') + '\n';
-
-    return existingSource.slice(0, closeBraceIdx) + indentedNewMethod + existingSource.slice(closeBraceIdx);
-  }
 }
 
 if (typeof window !== 'undefined') window.LunoClassPatcher = LunoClassPatcher;
