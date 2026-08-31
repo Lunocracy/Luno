@@ -63,15 +63,17 @@
     "Luno/docs/SPS7.md",
     "Luno/docs/BookmarkletStudioRoadmap.md"
   ],
-  "processedCountSinceCheckpoint": 0,
+  "processedCountSinceCheckpoint": 13,
   "changedMethods": {
     "Luno/luno.json": "2026-08-29T22:38:31.027Z",
-    "Luno/test/LunoTestRunner.js": "2026-08-29T23:54:44.644Z",
-    "Luno/core/LunoClassPatcher.js": "2026-08-29T23:53:27.427Z",
-    "Luno/app/LunoPayloadParser.js": "2026-08-29T23:53:27.427Z",
-    "Luno/app/LunoManifestDecisionEngine.js": "2026-08-29T23:31:00.988Z",
+    "Luno/test/LunoTestRunner.js": "2026-08-31T01:46:37.951Z",
+    "Luno/core/LunoClassPatcher.js": "2026-08-31T01:42:41.771Z",
+    "Luno/app/LunoPayloadParser.js": "2026-08-31T01:39:21.467Z",
+    "Luno/app/LunoManifestDecisionEngine.js": "2026-08-31T01:37:21.746Z",
     "Luno/app/LunoPromptInstructions.js": "2026-08-29T23:36:31.328Z",
-    "Luno/app/OutboxQueue.js": "2026-08-29T23:37:04.923Z"
+    "Luno/app/OutboxQueue.js": "2026-08-29T23:37:04.923Z",
+    "Luno/app/ClientAppPaster.js": "2026-08-31T01:37:21.746Z",
+    "Luno/app/LunoPatchConsolidator.js": "2026-08-31T01:42:41.771Z"
   },
   "lastCheckpointTime": "2026-08-29T23:55:02.114Z",
   "pendingCheckpointDescription": "Clean working tree"

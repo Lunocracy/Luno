@@ -111,15 +111,14 @@ class LunoPayloadParser {
         var headerStr = cleaned.substring(openIdx + 1 + tagWord.length, headerEndIdx);
         var closeTag = '</' + tagWord;
 
-        // Lexical token scanner supporting nested template literal expressions and backslash parity
+        // Lexical scanner with explicit template stack and backslash parity
         var closeSearchIdx = -1;
         var i = headerEndIdx + 1;
         var inString = false;
         var strChar = '';
         var inLineComment = false;
         var inBlockComment = false;
-        var templateDepth = 0;
-        var braceStack = [];
+        var stack = []; // Elements: 'TEMPLATE_RAW' or { type: 'INTERPOLATION', braceDepth: number }
 
         while (i < len) {
           var curr = cleaned.charAt(i);
@@ -134,7 +133,10 @@ class LunoPayloadParser {
           }
           var isEscaped = (backslashCount % 2 === 1);
 
-          // 1. Comment handling
+          var currentContext = stack.length > 0 ? stack[stack.length - 1] : null;
+          var isInsideRawTemplate = (currentContext === 'TEMPLATE_RAW');
+
+          // 1. Line and block comments (only active in JS code / interpolation, not inside strings or raw template text)
           if (inLineComment) {
             if (curr === '\n' || curr === '\r') inLineComment = false;
             i++;
@@ -150,7 +152,7 @@ class LunoPayloadParser {
             continue;
           }
 
-          // 2. String literal handling with backslash parity
+          // 2. String literal handling (active in JS code / interpolation)
           if (inString) {
             if (curr === strChar && !isEscaped) {
               inString = false;
@@ -159,29 +161,41 @@ class LunoPayloadParser {
             continue;
           }
 
-          // 3. Template literal interpolation (${...}) and nesting
-          if (templateDepth > 0) {
+          // 3. Raw template-literal body processing
+          if (isInsideRawTemplate) {
             if (curr === '`' && !isEscaped) {
-              templateDepth--;
-              if (braceStack.length > 0 && braceStack[braceStack.length - 1] === 'TEMPLATE') {
-                braceStack.pop();
-              }
+              stack.pop(); // Exit raw template literal
               i++;
               continue;
             }
             if (curr === '$' && next === '{' && !isEscaped) {
-              braceStack.push('INTERPOLATION');
+              stack.push({ type: 'INTERPOLATION', braceDepth: 1 });
               i += 2;
               continue;
             }
-            if (curr === '}' && braceStack.length > 0 && braceStack[braceStack.length - 1] === 'INTERPOLATION') {
-              braceStack.pop();
+            // In raw template string mode, bare quotes and slashes are plain characters!
+            i++;
+            continue;
+          }
+
+          // 4. Interpolation expression body processing (${ ... })
+          if (currentContext && currentContext.type === 'INTERPOLATION') {
+            if (curr === '{') {
+              currentContext.braceDepth++;
+              i++;
+              continue;
+            }
+            if (curr === '}') {
+              currentContext.braceDepth--;
+              if (currentContext.braceDepth === 0) {
+                stack.pop(); // Return to previous template literal context
+              }
               i++;
               continue;
             }
           }
 
-          // 4. Token openers
+          // 5. General JS expression token openers (top-level or inside interpolation)
           if (curr === '/' && next === '/' && !isEscaped) {
             inLineComment = true;
             i += 2;
@@ -199,14 +213,13 @@ class LunoPayloadParser {
             continue;
           }
           if (curr === '`' && !isEscaped) {
-            templateDepth++;
-            braceStack.push('TEMPLATE');
+            stack.push('TEMPLATE_RAW');
             i++;
             continue;
           }
 
-          // 5. Check for structural container close tag at top-level
-          if (templateDepth === 0 && curr === '<' && cleaned.substring(i, i + closeTag.length) === closeTag) {
+          // 6. Check for structural container close tag at top-level
+          if (stack.length === 0 && curr === '<' && cleaned.substring(i, i + closeTag.length) === closeTag) {
             var afterCloseIdx = i + closeTag.length;
             while (afterCloseIdx < len && (cleaned.charAt(afterCloseIdx) === ' ' || cleaned.charAt(afterCloseIdx) === '\t' || cleaned.charAt(afterCloseIdx) === '\r' || cleaned.charAt(afterCloseIdx) === '\n')) {
               afterCloseIdx++;

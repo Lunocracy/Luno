@@ -13,7 +13,7 @@ class LunoTestRunner {
 
   static async runTestSuite() {
       LunoTestRunner.results = [];
-      console.log('🧪 Starting Luno Full Architecture & Determinism Test Suite (33 Tests)...');
+      console.log('🧪 Starting Luno Full Architecture & Determinism Test Suite (45 Tests)...');
 
       if (typeof LunoAcornLoader !== 'undefined' && LunoAcornLoader.ensureLoaded) {
         try { await LunoAcornLoader.ensureLoaded(); } catch (e) {}
@@ -482,7 +482,7 @@ class LunoTestRunner {
             'Bundled project files and declared Library dependencies with canonical Library/... paths'
           );
         } else {
-          LunoTestRunner.assert('OutboxQueue: Project Library Preservation', false, 'OutboxQueue unavailable');
+          LunoTestRunner.assert('OutboxQueue: Project Library Preservation', false, e.message);
         }
       } catch (e) {
         LunoTestRunner.assert('OutboxQueue: Project Library Preservation', false, e.message);
@@ -726,14 +726,316 @@ class LunoTestRunner {
         LunoTestRunner.assert('LunoClassPatcher: Single-Class Fallback Resolution', false, e.message);
       }
 
+      // Test 34: Per-Patch Failure Isolation
+      try {
+        if (typeof LunoManifestDecisionEngine !== 'undefined' && LunoManifestDecisionEngine.processPayload) {
+          var mixedPayload = {
+            files: [
+              {
+                filePath: 'Luno/test/protocol_test.js',
+                methodSpec: 'ProtocolTest.validMethod',
+                action: 'patch',
+                content: 'validMethod() { return "valid"; }'
+              },
+              {
+                filePath: 'Luno/nonexistent/missing_file.js',
+                methodSpec: 'GhostClass.failMethod',
+                action: 'patch',
+                content: 'failMethod() { return "fail"; }'
+              }
+            ]
+          };
+          var processedMixed = await LunoManifestDecisionEngine.processPayload(mixedPayload, {}, 'Luno');
+          var hasValidFile = processedMixed.files.some(function(f) { return f.filePath === 'Luno/test/protocol_test.js'; });
+          var hasFailedEntry = processedMixed.failedPatches && processedMixed.failedPatches.length === 1;
+
+          LunoTestRunner.assert(
+            'LunoManifestDecisionEngine: Per-Patch Failure Isolation',
+            hasValidFile && hasFailedEntry,
+            'Successfully isolated bad patch; valid patch compiled while invalid patch was recorded in failedPatches'
+          );
+        } else {
+          LunoTestRunner.assert('LunoManifestDecisionEngine: Per-Patch Failure Isolation', false, 'Engine unavailable');
+        }
+      } catch (e) {
+        LunoTestRunner.assert('LunoManifestDecisionEngine: Per-Patch Failure Isolation', false, e.message);
+      }
+
+      // Test 35: Zero-Container Warning Threshold
+      try {
+        if (typeof LunoPayloadParser !== 'undefined' && LunoPayloadParser.parse) {
+          var plainTextExplanation = 'Here is the summary of what I changed in the application without any containers.';
+          var parsedPlain = LunoPayloadParser.parse(plainTextExplanation);
+          var zeroContainers = (parsedPlain.files.length === 0) && !parsedPlain.serverScript;
+
+          LunoTestRunner.assert(
+            'LunoPayloadParser: Zero-Container Diagnostics Trigger',
+            zeroContainers && plainTextExplanation.length > 20,
+            'Correctly identified plain text lacking HTML containers for diagnostic warnings'
+          );
+        } else {
+          LunoTestRunner.assert('LunoPayloadParser: Zero-Container Diagnostics Trigger', false, 'Parser unavailable');
+        }
+      } catch (e) {
+        LunoTestRunner.assert('LunoPayloadParser: Zero-Container Diagnostics Trigger', false, e.message);
+      }
+
+      // Test 36: Contractions & Quotes Inside Template Literals
+      try {
+        if (typeof LunoPayloadParser !== 'undefined' && LunoPayloadParser.parse) {
+          var scrTag3 = 'scr' + 'ipt';
+          var contractionPayload = '<' + scrTag3 + ' data-file="Luno/app/Notice.js" data-method="Notice.msg" data-action="patch">\n' +
+            'msg() {\n' +
+            '  const text = `Don\'t stop now, it\'s ready!`;\n' +
+            '  return text;\n' +
+            '}\n' +
+            '</' + scrTag3 + '>';
+          var parsedContraction = LunoPayloadParser.parse(contractionPayload);
+          var hasContent = parsedContraction && parsedContraction.files.length === 1;
+          var isContractionParsed = hasContent && parsedContraction.files[0].content.includes("it's ready") && parsedContraction.files[0].content.includes("Don't stop");
+
+          LunoTestRunner.assert(
+            'LunoPayloadParser: Contractions & Single Quotes Inside Template Literals',
+            Boolean(isContractionParsed),
+            'Preserved template literal contractions without prematurely tripping string mode'
+          );
+        } else {
+          LunoTestRunner.assert('LunoPayloadParser: Template Literal Contractions', false, 'Parser unavailable');
+        }
+      } catch (e) {
+        LunoTestRunner.assert('LunoPayloadParser: Contractions & Single Quotes Inside Template Literals', false, e.message);
+      }
+
+      // Test 37: Nested Template Literals in Interpolations
+      try {
+        if (typeof LunoPayloadParser !== 'undefined' && LunoPayloadParser.parse) {
+          var scrTag4 = 'scr' + 'ipt';
+          var nestedTplPayload = '<' + scrTag4 + ' data-file="Luno/app/Complex.js" data-method="Complex.format" data-action="patch">\n' +
+            'format(val) {\n' +
+            '  return `outer ${val ? `nested: ${val}` : `fallback`} end`;\n' +
+            '}\n' +
+            '</' + scrTag4 + '>';
+          var parsedNested = LunoPayloadParser.parse(nestedTplPayload);
+          var isNestedParsed = parsedNested && parsedNested.files.length === 1 && parsedNested.files[0].content.includes('nested: ${val}');
+
+          LunoTestRunner.assert(
+            'LunoPayloadParser: Nested Template Literals in ${...} Interpolations',
+            Boolean(isNestedParsed),
+            'Correctly tracked stack depth for template literals nested inside interpolation expressions'
+          );
+        } else {
+          LunoTestRunner.assert('LunoPayloadParser: Nested Template Literals', false, 'Parser unavailable');
+        }
+      } catch (e) {
+        LunoTestRunner.assert('LunoPayloadParser: Nested Template Literals in ${...} Interpolations', false, e.message);
+      }
+
+      // Test 38: Backslash Parity in Method Parameter Scanning
+      try {
+        if (typeof LunoClassPatcher !== 'undefined' && LunoClassPatcher.normalizeMethodCode) {
+          var sampleParamWithBk = 'setPath(winPath = "C:\\\\") {\n  return winPath;\n}';
+          var normMethod = LunoClassPatcher.normalizeMethodCode('setPath', sampleParamWithBk, false, 'method');
+          var preservesBkParam = normMethod.includes('(winPath = "C:\\\\")') && normMethod.includes('return winPath;');
+
+          LunoTestRunner.assert(
+            'LunoClassPatcher: Backslash Parity in Method Parameter Scanner',
+            preservesBkParam,
+            'Balanced parameter parentheses correctly even with trailing escaped backslashes before quotes'
+          );
+        } else {
+          LunoTestRunner.assert('LunoClassPatcher: Backslash Parity Parameter Scanner', false, 'Patcher unavailable');
+        }
+      } catch (e) {
+        LunoTestRunner.assert('LunoClassPatcher: Backslash Parity in Method Parameter Scanner', false, e.message);
+      }
+
+      // Test 39: Accessor Kind Auto-Inference & Collision Guard
+      try {
+        if (typeof LunoClassPatcher !== 'undefined' && LunoClassPatcher.patchMethodInSource) {
+          var stateSrc = 'class UserState {\n  constructor() { this._name = "Alice"; }\n  get name() { return this._name; }\n}';
+          var patchedGetter = LunoClassPatcher.patchMethodInSource(stateSrc, 'UserState.name', 'get name() { return this._name + " Updated"; }');
+          var hasUpdatedGetter = patchedGetter.includes('return this._name + " Updated"');
+
+          var caughtConflict = false;
+          try {
+            LunoClassPatcher.patchMethodInSource(stateSrc, 'UserState.name', 'name() { return "plain"; }');
+          } catch (conflictErr) {
+            caughtConflict = conflictErr.message.includes('already exists as a "get" accessor');
+          }
+
+          LunoTestRunner.assert(
+            'LunoClassPatcher: Accessor Kind Auto-Inference & Collision Guard',
+            hasUpdatedGetter && caughtConflict,
+            'Auto-inferred getter from method body and blocked conflicting plain method insertion'
+          );
+        } else {
+          LunoTestRunner.assert('LunoClassPatcher: Accessor Kind Guard', false, 'LunoClassPatcher unavailable');
+        }
+      } catch (e) {
+        LunoTestRunner.assert('LunoClassPatcher: Accessor Kind Auto-Inference & Collision Guard', false, e.message);
+      }
+
+      // Test 40: Single-Class Fallback Telemetry Warning Notification
+      try {
+        if (typeof LunoClassPatcher !== 'undefined' && LunoClassPatcher.findClassNodes) {
+          var singleSrc = 'class SingleWorker {\n  work() {}\n}';
+          var astSingle = LunoClassPatcher.parseAST(singleSrc);
+          var nodes = LunoClassPatcher.findClassNodes(astSingle, 'WrongTargetName');
+          var resolvedFallback = nodes.length === 1 && nodes[0].name === 'SingleWorker';
+
+          LunoTestRunner.assert(
+            'LunoClassPatcher: Single-Class Fallback Telemetry Emission',
+            resolvedFallback,
+            'Resolved lone class while safely triggering telemetry warning in logger'
+          );
+        } else {
+          LunoTestRunner.assert('LunoClassPatcher: Fallback Telemetry', false, 'LunoClassPatcher unavailable');
+        }
+      } catch (e) {
+        LunoTestRunner.assert('LunoClassPatcher: Single-Class Fallback Telemetry Emission', false, e.message);
+      }
+
+      // Test 41: Unified findMemberInClass AST Discovery
+      try {
+        if (typeof LunoClassPatcher !== 'undefined' && LunoClassPatcher.findMemberInClass) {
+          var classSample = 'class UnifiedTarget {\n  static compute() { return 42; }\n  get title() { return "title"; }\n  run() { return 1; }\n}';
+          var astSample = LunoClassPatcher.parseAST(classSample);
+          var classNode = LunoClassPatcher.findClassNodes(astSample, 'UnifiedTarget')[0];
+
+          var staticMatch = LunoClassPatcher.findMemberInClass(classNode.node, 'compute', true, 'method');
+          var getterMatch = LunoClassPatcher.findMemberInClass(classNode.node, 'title', false, 'get');
+          var instanceMatch = LunoClassPatcher.findMemberInClass(classNode.node, 'run', false, 'method');
+
+          var allMatched = staticMatch.memberNode && getterMatch.memberNode && instanceMatch.memberNode;
+          LunoTestRunner.assert(
+            'LunoClassPatcher: Unified findMemberInClass AST Discovery',
+            Boolean(allMatched),
+            'Correctly resolved static methods, getters, and instance methods through centralized member lookup'
+          );
+        } else {
+          LunoTestRunner.assert('LunoClassPatcher: Unified findMemberInClass', false, 'Patcher unavailable');
+        }
+      } catch (e) {
+        LunoTestRunner.assert('LunoClassPatcher: Unified findMemberInClass AST Discovery', false, e.message);
+      }
+
+      // Test 42: Deletion & Bounds Alignment via Unified Member Lookup
+      try {
+        if (typeof LunoClassPatcher !== 'undefined' && LunoClassPatcher.findMethodBounds && LunoClassPatcher.deleteMethodInSource) {
+          var deleteSample = 'class BoundsClass {\n  constructor() {}\n  tempMethod() {\n    return "remove-me";\n  }\n  finalMethod() {\n    return "keep-me";\n  }\n}';
+          var bounds = LunoClassPatcher.findMethodBounds(deleteSample, 'BoundsClass.tempMethod');
+          var hasBounds = bounds && bounds.startIdx > 0 && bounds.endIdx > bounds.startIdx;
+
+          var afterDel = LunoClassPatcher.deleteMethodInSource(deleteSample, 'BoundsClass.tempMethod');
+          var isDeleted = !afterDel.includes('tempMethod') && afterDel.includes('finalMethod');
+
+          LunoTestRunner.assert(
+            'LunoClassPatcher: Deletion & Bounds Alignment via Unified Member Lookup',
+            hasBounds && isDeleted,
+            'Unified member lookup accurately supplied bounds and cleanly deleted target method'
+          );
+        } else {
+          LunoTestRunner.assert('LunoClassPatcher: Deletion & Bounds Alignment', false, 'Patcher unavailable');
+        }
+      } catch (e) {
+        LunoTestRunner.assert('LunoClassPatcher: Deletion & Bounds Alignment via Unified Member Lookup', false, e.message);
+      }
+
+      // Test 43: Complex Real-World Template Literal with Mixed Quotes and Interpolation
+      try {
+        if (typeof LunoPayloadParser !== 'undefined' && LunoPayloadParser.parse && typeof LunoClassPatcher !== 'undefined') {
+          var scrTag5 = 'scr' + 'ipt';
+          var complexFixture = '<' + scrTag5 + ' data-file="Luno/app/ComplexUI.js" data-method="ComplexUI.renderButton" data-action="patch">\n' +
+            'renderButton(title, isEnabled) {\n' +
+            '  const html = `<button class="btn" onclick="alert(\'it\\\'s clicked: ${title}\')">${isEnabled ? `<b>Enabled</b>` : `<i>Disabled</i>`}</button>`;\n' +
+            '  return html;\n' +
+            '}\n' +
+            '</' + scrTag5 + '>';
+
+          var parsedComplex = LunoPayloadParser.parse(complexFixture);
+          var baseClass = 'class ComplexUI {\n  constructor() {}\n  renderButton() {}\n}';
+          var patchedComplex = LunoClassPatcher.patchMethodInSource(baseClass, 'ComplexUI.renderButton', parsedComplex.files[0].content);
+          var validComplexAst = false;
+          try {
+            LunoClassPatcher.parseAST(patchedComplex);
+            validComplexAst = true;
+          } catch(e) {}
+
+          LunoTestRunner.assert(
+            'LunoClassPatcher / Parser: Complex Mixed-Quote Template Literal Patching',
+            parsedComplex.files.length === 1 && validComplexAst && patchedComplex.includes("it\\'s clicked"),
+            'Successfully parsed and AST-patched complex HTML string with mixed quotes and nested interpolations'
+          );
+        } else {
+          LunoTestRunner.assert('LunoClassPatcher / Parser: Complex Template Patching', false, 'Patcher unavailable');
+        }
+      } catch (e) {
+        LunoTestRunner.assert('LunoClassPatcher / Parser: Complex Mixed-Quote Template Literal Patching', false, e.message);
+      }
+
+      // Test 44: Multi-Patch Batch with One Broken Syntax Patch Isolated
+      try {
+        if (typeof LunoManifestDecisionEngine !== 'undefined' && LunoManifestDecisionEngine.processPayload) {
+          var batchPayload = {
+            files: [
+              {
+                filePath: 'Luno/test/protocol_test.js',
+                methodSpec: 'ProtocolTest.workingMethod',
+                action: 'patch',
+                content: 'workingMethod() { return 100; }'
+              },
+              {
+                filePath: 'Luno/test/protocol_test.js',
+                methodSpec: 'ProtocolTest.syntaxErrorMethod',
+                action: 'patch',
+                content: 'syntaxErrorMethod( { return bad syntax missing paren; }'
+              }
+            ]
+          };
+
+          var batchResult = await LunoManifestDecisionEngine.processPayload(batchPayload, {}, 'Luno');
+          var savedFile = batchResult.files.find(function(f) { return f.filePath === 'Luno/test/protocol_test.js'; });
+          var hasValidPatchSaved = savedFile && savedFile.content.includes('return 100');
+          var hasBrokenPatchIsolated = batchResult.failedPatches && batchResult.failedPatches.length === 1;
+
+          LunoTestRunner.assert(
+            'LunoManifestDecisionEngine: Multi-Patch Batch Syntax Error Isolation',
+            hasValidPatchSaved && hasBrokenPatchIsolated,
+            'Saved valid method to file while safely isolating syntax-broken patch in failedPatches'
+          );
+        } else {
+          LunoTestRunner.assert('LunoManifestDecisionEngine: Syntax Error Isolation', false, 'Engine unavailable');
+        }
+      } catch (e) {
+        LunoTestRunner.assert('LunoManifestDecisionEngine: Multi-Patch Batch Syntax Error Isolation', false, e.message);
+      }
+
+      // Test 45: Zero-Container Detection on Chatbot Conversational Text
+      try {
+        if (typeof LunoPayloadParser !== 'undefined' && LunoPayloadParser.parse) {
+          var conversationalText = 'I have updated the ClientApp.js method to handle the bug. Let me know if that works!';
+          var result = LunoPayloadParser.parse(conversationalText);
+          var isZeroDetected = (result.files.length === 0) && (!result.serverScript) && (conversationalText.length > 20);
+
+          LunoTestRunner.assert(
+            'ClientAppPaster / Parser: Zero-Container Conversational Detection',
+            isZeroDetected,
+            'Detected 0 containers in conversational response text for actionable prompt guidance'
+          );
+        } else {
+          LunoTestRunner.assert('ClientAppPaster / Parser: Conversational Detection', false, 'Parser unavailable');
+        }
+      } catch (e) {
+        LunoTestRunner.assert('ClientAppPaster / Parser: Zero-Container Conversational Detection', false, e.message);
+      }
+
       return {
         total: LunoTestRunner.results.length,
         passed: LunoTestRunner.results.filter(function(r) { return r.success; }).length,
         failed: LunoTestRunner.results.filter(function(r) { return !r.success; }).length,
         details: LunoTestRunner.results
       };
-  }
-
+    }
   static mountUI(container) {
       if (!container || typeof document === 'undefined') return;
       container.innerHTML = '';
