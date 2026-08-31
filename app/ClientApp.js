@@ -286,6 +286,57 @@ class ClientApp {
     card.appendChild(box);
     root.appendChild(card);
   }
+
+  static async switchExclusiveTargetProject(projectName) {
+      var pName = projectName || 'Luno';
+      var isLunoSelf = (pName === 'Luno');
+      var currentTarget = (typeof ClientApp !== 'undefined' && ClientApp.getTargetProject) ? ClientApp.getTargetProject() : '';
+      var currentActiveView = (typeof LunoSpaDock !== 'undefined' && LunoSpaDock.activeDockView) || '';
+      var openTabs = (typeof LunoSpaHeaderNav !== 'undefined' && LunoSpaHeaderNav.getOpenProjectTabs)
+        ? LunoSpaHeaderNav.getOpenProjectTabs()
+        : [];
+
+      var tabsToClose = isLunoSelf ? openTabs : openTabs.filter(function(t) { return t !== pName; });
+
+      // Clean up DOM nodes and iframe caches for all closed tabs
+      if (typeof LunoSpaHeaderNav !== 'undefined' && LunoSpaHeaderNav.cleanupProjectTab) {
+        tabsToClose.forEach(function(t) {
+          LunoSpaHeaderNav.cleanupProjectTab(t);
+        });
+      }
+
+      if (isLunoSelf) {
+        if (typeof LunoSpaHeaderNav !== 'undefined' && LunoSpaHeaderNav.saveOpenProjectTabs) {
+          LunoSpaHeaderNav.saveOpenProjectTabs([]);
+        }
+        ClientApp.setTargetProject('Luno');
+        if (typeof LunoSpaDock !== 'undefined' && LunoSpaDock.mountView) {
+          await LunoSpaDock.mountView('workspace');
+        }
+        if (tabsToClose.length > 0 && typeof ClientApp.showToast === 'function') {
+          ClientApp.showToast('Target set to [Luno] (Self-Improve) — Home view active', 'success', '⚡');
+        }
+        return;
+      }
+
+      // Retain only the new target in open tabs for sibling apps
+      if (typeof LunoSpaHeaderNav !== 'undefined' && LunoSpaHeaderNav.saveOpenProjectTabs) {
+        LunoSpaHeaderNav.saveOpenProjectTabs([pName]);
+      }
+
+      // Update target project state and active app storage
+      ClientApp.setTargetProject(pName, { openTab: true });
+
+      // Mount and focus the target project preview
+      if (typeof LunoSpaDock !== 'undefined' && LunoSpaDock.mountView) {
+        await LunoSpaDock.mountView('app_' + pName);
+      }
+
+      // Inform user when other tabs were culled
+      if (tabsToClose.length > 0 && typeof ClientApp.showToast === 'function') {
+        ClientApp.showToast('Switched to [' + pName + '] (closed ' + tabsToClose.length + ' other preview tab' + (tabsToClose.length === 1 ? '' : 's') + ')', 'info', '🎯');
+      }
+    }
 }
 
 globalThis.ClientApp = ClientApp;
