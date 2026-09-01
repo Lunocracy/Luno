@@ -187,7 +187,6 @@ class OutboxQueue {
         instructionPreamble = LunoPromptInstructions.assembleFullInstructions() + '\n';
       }
 
-      // Generate compact class & method topology index
       var topologyHeader = '';
       if (includeTopology) {
         var topologyLines = [
@@ -202,23 +201,104 @@ class OutboxQueue {
           var fContent = filesMap[fPath];
           if (!fContent || (!fPath.endsWith('.js') && !fPath.endsWith('.mjs'))) continue;
 
-          var classMatches = fContent.match(/class\s+([A-Za-z0-9_$]+)/);
-          if (classMatches) {
-            var clsName = classMatches[1];
-            var methods = [];
-            var methodRegex = /(?:static\s+)?(?:async\s+)?(?:get\s+|set\s+)?\*?\s*([A-Za-z0-9_$]+)\s*\(([^)]*)\)\s*\{/g;
-            var m;
-            while ((m = methodRegex.exec(fContent)) !== null) {
-              var mSig = m[0].replace(/\s*\{$/, '').trim();
-              if (mSig && !mSig.startsWith('function') && !mSig.startsWith('if') && !mSig.startsWith('for') && !mSig.startsWith('while') && !mSig.startsWith('switch') && !mSig.startsWith('catch')) {
-                methods.push('  • ' + mSig);
+          var ast = null;
+          try {
+            if (typeof LunoClassPatcher !== 'undefined' && LunoClassPatcher.parseAST) {
+              ast = LunoClassPatcher.parseAST(fContent);
+            } else if (typeof acorn !== 'undefined' && acorn.parse) {
+              ast = acorn.parse(fContent, { ecmaVersion: 'latest', sourceType: 'module', ranges: true });
+            }
+          } catch(e) {
+            try {
+              if (typeof acorn !== 'undefined' && acorn.parse) {
+                ast = acorn.parse(fContent, { ecmaVersion: 'latest', sourceType: 'script', ranges: true });
               }
-            }
-            if (methods.length > 0) {
-              foundAny = true;
-              topologyLines.push('📁 ' + fPath + ' ➔ class ' + clsName + ' (' + methods.length + ' methods):');
-              topologyLines.push(methods.slice(0, 15).join('\n') + (methods.length > 15 ? ('\n  • ... (' + (methods.length - 15) + ' more methods)') : ''));
-            }
+            } catch(e2) {}
+          }
+
+          if (ast && Array.isArray(ast.body)) {
+            var classesInFile = [];
+            var walk = function(node, parent) {
+              if (!node || typeof node !== 'object') return;
+              if (node.type === 'ClassDeclaration' || node.type === 'ClassExpression') {
+                var clsName = (node.id && node.id.name) ? node.id.name : null;
+                if (!clsName && parent) {
+                  if (parent.type === 'VariableDeclarator' && parent.id && parent.id.name) {
+                    clsName = parent.id.name;
+                  } else if (parent.type === 'AssignmentExpression' && parent.left) {
+                    if (parent.left.type === 'Identifier') clsName = parent.left.name;
+                    else if (parent.left.type === 'MemberExpression' && parent.left.property) {
+                      clsName = parent.left.property.name || parent.left.property.value;
+                    }
+                  }
+                }
+                if (clsName && node.body && Array.isArray(node.body.body)) {
+                  classesInFile.push({ name: clsName, node: node });
+                }
+              }
+              for (var k in node) {
+                if (k === 'parent') continue;
+                var child = node[k];
+                if (Array.isArray(child)) {
+                  for (var ci = 0; ci < child.length; ci++) {
+                    if (child[ci] && typeof child[ci].type === 'string') walk(child[ci], node);
+                  }
+                } else if (child && typeof child.type === 'string') {
+                  walk(child, node);
+                }
+              }
+            };
+            walk(ast, null);
+
+            classesInFile.forEach(function(cls) {
+              var methods = [];
+              var bodyMembers = cls.node.body.body;
+              for (var mIdx = 0; mIdx < bodyMembers.length; mIdx++) {
+                var member = bodyMembers[mIdx];
+                if (member.type === 'MethodDefinition' || member.type === 'PropertyDefinition' || member.type === 'ClassProperty') {
+                  var keyName = member.key ? (member.key.name || member.key.value) : null;
+                  if (!keyName) continue;
+
+                  var prefix = member.static ? 'static ' : '';
+                  if (member.kind === 'get') prefix += 'get ';
+                  else if (member.kind === 'set') prefix += 'set ';
+                  else if (member.value && member.value.async) prefix += 'async ';
+
+                  var isGen = (member.value && member.value.generator) ? '*' : '';
+                  var paramList = [];
+                  if (member.value && Array.isArray(member.value.params)) {
+                    paramList = member.value.params.map(function(p) {
+                      if (p.type === 'Identifier') return p.name;
+                      if (p.type === 'AssignmentPattern' && p.left && p.left.name) return p.left.name;
+                      if (p.type === 'RestElement' && p.argument && p.argument.name) return '...' + p.argument.name;
+                      if (p.range) return fContent.slice(p.range[0], p.range[1]);
+                      return 'arg';
+                    });
+                  }
+
+                  var isFieldArrow = (member.type === 'PropertyDefinition' || member.type === 'ClassProperty') &&
+                    member.value && (member.value.type === 'ArrowFunctionExpression' || member.value.type === 'FunctionExpression');
+
+                  if (isFieldArrow && member.value.params) {
+                    paramList = member.value.params.map(function(p) {
+                      return (p.type === 'Identifier') ? p.name : (p.range ? fContent.slice(p.range[0], p.range[1]) : 'arg');
+                    });
+                  }
+
+                  var sig = prefix + isGen + keyName + '(' + paramList.join(', ') + ')';
+                  if ((member.type === 'PropertyDefinition' || member.type === 'ClassProperty') && !isFieldArrow) {
+                    sig = prefix + keyName;
+                  }
+                  methods.push('  • ' + sig);
+                }
+              }
+
+              if (methods.length > 0) {
+                foundAny = true;
+                topologyLines.push('📁 ' + fPath + ' ➔ class ' + cls.name + ' (' + methods.length + ' methods):');
+                topologyLines.push(methods.slice(0, 15).join('\n') + (methods.length > 15 ? ('\n  • ... (' + (methods.length - 15) + ' more methods)') : ''));
+              }
+            });
           }
         }
 
@@ -240,7 +320,6 @@ class OutboxQueue {
         var normPath = rawPath.replace(/\\/g, '/').replace(/^\/+/, '');
         var canonicalPath = normPath;
 
-        // Handle root-level library module paths
         if (canonicalPath.startsWith('Library/') || canonicalPath.startsWith('library/')) {
           if (!includeAllLibrary && !includeProjectLibrary && pName.toLowerCase() !== 'library') {
             continue;

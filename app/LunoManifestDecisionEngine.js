@@ -97,7 +97,6 @@ class LunoManifestDecisionEngine {
           const isSurgicalPatch = Boolean(f.methodSpec || f.action === 'patch' || f.action === 'delete');
           const isExplicitMerge = (f.action === 'merge');
 
-          // 1. Client-Side JSON Merging
           if (isExplicitMerge && (normPath.endsWith('.json') || normPath.endsWith('.jsonc'))) {
             let baseJsonContent = '';
             if (fullFilesMap.has(normPath)) {
@@ -149,14 +148,12 @@ class LunoManifestDecisionEngine {
             continue;
           }
 
-          // 2. Full Direct File Write
           if (!isSurgicalPatch) {
             fullFilesMap.set(normPath, f.content || '');
             patchActionsSummary.push({ path: normPath, mode: 'full-file', target: normPath, success: true });
             continue;
           }
 
-          // 3. Surgical AST Method Patching / Journaling (100% Client-Side)
           let baseContent = '';
           if (fullFilesMap.has(normPath)) {
             baseContent = fullFilesMap.get(normPath);
@@ -186,7 +183,6 @@ class LunoManifestDecisionEngine {
             patched = globalThis.LunoClassPatcher.patchMethodInSource(baseContent, f.methodSpec || normPath, f.content, { allowInsert: true });
           }
 
-          // Post-splice AST validation pass in browser memory
           if (normPath.endsWith('.js') || normPath.endsWith('.mjs')) {
             try {
               globalThis.LunoClassPatcher.parseAST(patched);
@@ -294,19 +290,17 @@ class LunoManifestDecisionEngine {
       let norm = rawPath.replace(/\\/g, '/').replace(/^\/+/, '').trim();
       if (norm.startsWith('Luno Workspace/')) norm = norm.slice(15).trim();
       if (norm.startsWith('./')) norm = norm.slice(2).trim();
-  
+
       if (norm === 'LunoPatchLog.html') return norm;
-  
-      // Handle shared Library root paths
+
       if (norm.startsWith('Library/') || norm.startsWith('library/')) {
         return 'Library/' + norm.replace(/^(?:Library|library)\//, '');
       }
-  
+
       if (!norm.startsWith(targetProj + '/')) {
         norm = targetProj + '/' + norm;
       }
-  
-      // 1. Direct hit check
+
       if (typeof LunoApiClient !== 'undefined' && LunoApiClient.fetchFsRead) {
         try {
           let testRead = await LunoApiClient.fetchFsRead(norm, targetProj);
@@ -315,8 +309,7 @@ class LunoManifestDecisionEngine {
           }
         } catch (e) {}
       }
-  
-      // 2. Manifest declaration match
+
       const baseName = norm.split('/').pop();
       const manifestPaths = [];
       if (manifestObj) {
@@ -326,7 +319,7 @@ class LunoManifestDecisionEngine {
         [].concat(manifestObj.docs || []).forEach(p => p && manifestPaths.push(p));
         if (manifestObj.entrypoint && manifestObj.entrypoint.file) manifestPaths.push(manifestObj.entrypoint.file);
       }
-  
+
       for (let mPath of manifestPaths) {
         let cleanM = mPath.replace(/\\/g, '/').replace(/^\/+/, '').trim();
         if (cleanM.endsWith('/' + baseName) || cleanM === baseName) {
@@ -344,8 +337,7 @@ class LunoManifestDecisionEngine {
           }
         }
       }
-  
-      // 3. Standard subfolder probing (app, core, browser, docs, src, test)
+
       const candidateFolders = ['app', 'core', 'browser', 'docs', 'src', 'test'];
       for (let folder of candidateFolders) {
         let candidate = targetProj + '/' + folder + '/' + baseName;
@@ -358,7 +350,7 @@ class LunoManifestDecisionEngine {
           } catch(e) {}
         }
       }
-  
+
       return norm;
     }
 }

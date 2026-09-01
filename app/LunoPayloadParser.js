@@ -77,7 +77,6 @@ class LunoPayloadParser {
           continue;
         }
 
-        // Verify tag word boundary: next character must be whitespace or '>'
         var nextChar = cleaned.charAt(openIdx + 1 + tagWord.length);
         if (nextChar && nextChar !== ' ' && nextChar !== '\t' && nextChar !== '\n' && nextChar !== '\r' && nextChar !== '>') {
           pos = openIdx + 1;
@@ -111,20 +110,37 @@ class LunoPayloadParser {
         var headerStr = cleaned.substring(openIdx + 1 + tagWord.length, headerEndIdx);
         var closeTag = '</' + tagWord;
 
-        // Lexical scanner with explicit template stack and backslash parity
         var closeSearchIdx = -1;
         var i = headerEndIdx + 1;
+
+        var isScript = (tagWord === SCRIPT_WORD);
+        var isStyle = (tagWord === STYLE_WORD);
+        var isMarkup = (tagWord === TEMPLATE_WORD || tagWord === SVG_WORD);
+
+        // JS State trackers
         var inString = false;
         var strChar = '';
         var inLineComment = false;
         var inBlockComment = false;
+        var inHtmlComment = false;
+        var inRegex = false;
+        var inRegexCharClass = false;
         var stack = []; // Elements: 'TEMPLATE_RAW' or { type: 'INTERPOLATION', braceDepth: number }
+
+        var lastNonWsChar = '';
+        var lastWord = '';
+
+        var isRegexPrefix = function(prevChar, prevWord) {
+          if (!prevChar) return true;
+          if ('(,=:[!&|;{}?+-*%^~<>'.indexOf(prevChar) !== -1) return true;
+          var keywords = ['return', 'case', 'typeof', 'void', 'delete', 'throw', 'yield', 'await', 'in', 'instanceof', 'of', 'new'];
+          return keywords.indexOf(prevWord) !== -1;
+        };
 
         while (i < len) {
           var curr = cleaned.charAt(i);
           var next = (i + 1 < len) ? cleaned.charAt(i + 1) : '';
 
-          // Calculate backslash parity for escaped characters
           var backslashCount = 0;
           var b = i - 1;
           while (b >= 0 && cleaned.charAt(b) === '\\') {
@@ -133,10 +149,83 @@ class LunoPayloadParser {
           }
           var isEscaped = (backslashCount % 2 === 1);
 
+          // --- GRAMMAR BRANCH 1: CSS (<style>) ---
+          if (isStyle) {
+            if (inBlockComment) {
+              if (curr === '*' && next === '/') {
+                inBlockComment = false;
+                i += 2;
+                continue;
+              }
+              i++;
+              continue;
+            }
+            if (inString) {
+              if (curr === strChar && !isEscaped) {
+                inString = false;
+              }
+              i++;
+              continue;
+            }
+            if (curr === '/' && next === '*' && !isEscaped) {
+              inBlockComment = true;
+              i += 2;
+              continue;
+            }
+            if ((curr === '"' || curr === "'") && !isEscaped) {
+              inString = true;
+              strChar = curr;
+              i++;
+              continue;
+            }
+            if (curr === '<' && cleaned.substring(i, i + closeTag.length) === closeTag) {
+              var afterCloseIdx = i + closeTag.length;
+              while (afterCloseIdx < len && (cleaned.charAt(afterCloseIdx) === ' ' || cleaned.charAt(afterCloseIdx) === '\t' || cleaned.charAt(afterCloseIdx) === '\r' || cleaned.charAt(afterCloseIdx) === '\n')) {
+                afterCloseIdx++;
+              }
+              if (afterCloseIdx < len && cleaned.charAt(afterCloseIdx) === '>') {
+                closeSearchIdx = i;
+                break;
+              }
+            }
+            i++;
+            continue;
+          }
+
+          // --- GRAMMAR BRANCH 2: HTML / Template / SVG (<template>, <svg>) ---
+          if (isMarkup) {
+            if (inHtmlComment) {
+              if (curr === '-' && next === '-' && (i + 2 < len) && cleaned.charAt(i + 2) === '>') {
+                inHtmlComment = false;
+                i += 3;
+                continue;
+              }
+              i++;
+              continue;
+            }
+            if (curr === '<' && next === '!' && cleaned.substring(i, i + 4) === '<!--') {
+              inHtmlComment = true;
+              i += 4;
+              continue;
+            }
+            if (curr === '<' && cleaned.substring(i, i + closeTag.length) === closeTag) {
+              var afterCloseIdx2 = i + closeTag.length;
+              while (afterCloseIdx2 < len && (cleaned.charAt(afterCloseIdx2) === ' ' || cleaned.charAt(afterCloseIdx2) === '\t' || cleaned.charAt(afterCloseIdx2) === '\r' || cleaned.charAt(afterCloseIdx2) === '\n')) {
+                afterCloseIdx2++;
+              }
+              if (afterCloseIdx2 < len && cleaned.charAt(afterCloseIdx2) === '>') {
+                closeSearchIdx = i;
+                break;
+              }
+            }
+            i++;
+            continue;
+          }
+
+          // --- GRAMMAR BRANCH 3: JavaScript / JSON (<script>) ---
           var currentContext = stack.length > 0 ? stack[stack.length - 1] : null;
           var isInsideRawTemplate = (currentContext === 'TEMPLATE_RAW');
 
-          // 1. Line and block comments (only active in JS code / interpolation, not inside strings or raw template text)
           if (inLineComment) {
             if (curr === '\n' || curr === '\r') inLineComment = false;
             i++;
@@ -152,19 +241,43 @@ class LunoPayloadParser {
             continue;
           }
 
-          // 2. String literal handling (active in JS code / interpolation)
           if (inString) {
             if (curr === strChar && !isEscaped) {
               inString = false;
+              lastNonWsChar = strChar;
+              lastWord = '';
             }
             i++;
             continue;
           }
 
-          // 3. Raw template-literal body processing
+          if (inRegex) {
+            if (curr === '[' && !isEscaped) {
+              inRegexCharClass = true;
+            } else if (curr === ']' && !isEscaped) {
+              inRegexCharClass = false;
+            } else if (curr === '/' && !isEscaped && !inRegexCharClass) {
+              inRegex = false;
+              i++;
+              while (i < len && /[a-z]/i.test(cleaned.charAt(i))) {
+                i++;
+              }
+              lastNonWsChar = '/';
+              lastWord = '';
+              continue;
+            } else if (curr === '\n' || curr === '\r') {
+              inRegex = false;
+              inRegexCharClass = false;
+            }
+            i++;
+            continue;
+          }
+
           if (isInsideRawTemplate) {
             if (curr === '`' && !isEscaped) {
-              stack.pop(); // Exit raw template literal
+              stack.pop();
+              lastNonWsChar = '`';
+              lastWord = '';
               i++;
               continue;
             }
@@ -173,12 +286,10 @@ class LunoPayloadParser {
               i += 2;
               continue;
             }
-            // In raw template string mode, bare quotes and slashes are plain characters!
             i++;
             continue;
           }
 
-          // 4. Interpolation expression body processing (${ ... })
           if (currentContext && currentContext.type === 'INTERPOLATION') {
             if (curr === '{') {
               currentContext.braceDepth++;
@@ -188,24 +299,32 @@ class LunoPayloadParser {
             if (curr === '}') {
               currentContext.braceDepth--;
               if (currentContext.braceDepth === 0) {
-                stack.pop(); // Return to previous template literal context
+                stack.pop();
               }
               i++;
               continue;
             }
           }
 
-          // 5. General JS expression token openers (top-level or inside interpolation)
-          if (curr === '/' && next === '/' && !isEscaped) {
-            inLineComment = true;
-            i += 2;
-            continue;
+          if (curr === '/' && !isEscaped) {
+            if (next === '/') {
+              inLineComment = true;
+              i += 2;
+              continue;
+            }
+            if (next === '*') {
+              inBlockComment = true;
+              i += 2;
+              continue;
+            }
+            if (isRegexPrefix(lastNonWsChar, lastWord)) {
+              inRegex = true;
+              inRegexCharClass = false;
+              i++;
+              continue;
+            }
           }
-          if (curr === '/' && next === '*' && !isEscaped) {
-            inBlockComment = true;
-            i += 2;
-            continue;
-          }
+
           if ((curr === '"' || curr === "'") && !isEscaped) {
             inString = true;
             strChar = curr;
@@ -218,22 +337,31 @@ class LunoPayloadParser {
             continue;
           }
 
-          // 6. Check for structural container close tag at top-level
           if (stack.length === 0 && curr === '<' && cleaned.substring(i, i + closeTag.length) === closeTag) {
-            var afterCloseIdx = i + closeTag.length;
-            while (afterCloseIdx < len && (cleaned.charAt(afterCloseIdx) === ' ' || cleaned.charAt(afterCloseIdx) === '\t' || cleaned.charAt(afterCloseIdx) === '\r' || cleaned.charAt(afterCloseIdx) === '\n')) {
-              afterCloseIdx++;
+            var afterCloseIdx3 = i + closeTag.length;
+            while (afterCloseIdx3 < len && (cleaned.charAt(afterCloseIdx3) === ' ' || cleaned.charAt(afterCloseIdx3) === '\t' || cleaned.charAt(afterCloseIdx3) === '\r' || cleaned.charAt(afterCloseIdx3) === '\n')) {
+              afterCloseIdx3++;
             }
-            if (afterCloseIdx < len && cleaned.charAt(afterCloseIdx) === '>') {
+            if (afterCloseIdx3 < len && cleaned.charAt(afterCloseIdx3) === '>') {
               closeSearchIdx = i;
               break;
             }
           }
 
+          if (curr !== ' ' && curr !== '\t' && curr !== '\r' && curr !== '\n') {
+            lastNonWsChar = curr;
+            if (/[a-zA-Z0-9_$]/.test(curr)) {
+              lastWord += curr;
+            } else {
+              lastWord = '';
+            }
+          } else {
+            lastWord = '';
+          }
+
           i++;
         }
 
-        // Fallback simple search if scanner hit end without finding clean closing tag
         if (closeSearchIdx === -1) {
           var simpleIdx = cleaned.indexOf(closeTag, headerEndIdx + 1);
           if (simpleIdx !== -1) {

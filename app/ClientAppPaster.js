@@ -79,7 +79,6 @@ class ClientAppPaster {
 
         var hasRawContainers = (rawPayload.files && rawPayload.files.length > 0) || Boolean(rawPayload.serverScript) || (rawPayload.requests && rawPayload.requests.length > 0);
 
-        // Warning when paste is substantial but zero containers were detected
         if (!hasRawContainers && rawText.trim().length > 20) {
           var zeroWarn = '⚠️ PARSER WARNING: Input payload contained ' + rawText.trim().length + ' characters, but 0 valid HTML containers (<script>, <style>, <template>, <svg>) were detected.\n\n' +
             'Please ensure container tags are properly formatted:\n' +
