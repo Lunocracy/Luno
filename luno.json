@@ -1,7 +1,7 @@
 {
   "name": "Luno Workspace",
-  "version": "3.7.3",
-  "description": "Mobile-first dual-mode AI development workspace - 7 Core Architectural Fixes Applied (54 Tests)",
+  "version": "3.7.4",
+  "description": "Mobile-first dual-mode AI development workspace - Parser Robustness & Regex Normalizer Fixed (57/57 Tests Verified)",
   "maxPackageSizeBytes": 500000,
   "type": "luno-core",
   "verbosityLevel": "chatty",
@@ -63,15 +63,14 @@
     "Luno/docs/SPS7.md",
     "Luno/docs/BookmarkletStudioRoadmap.md"
   ],
-  "processedCountSinceCheckpoint": 7,
-  "lastCheckpointTime": "2026-08-31T20:00:00.000Z",
-  "pendingCheckpointDescription": "7 Core Architectural Fixes Applied (54/54 Tests Verified)",
+  "processedCountSinceCheckpoint": 1,
+  "lastCheckpointTime": "2026-09-02T05:20:00.000Z",
+  "pendingCheckpointDescription": "Parser Robustness, Tag-Aware Scanning & Regex Normalizer Fixed (57/57 Tests Verified)",
   "changedMethods": {
-    "Luno/luno.json": "2026-09-01T03:01:11.089Z",
-    "core/LunoClassPatcher.js": "2026-09-02T00:18:33.313Z",
-    "app/OutboxQueue.js": "2026-09-02T00:18:33.313Z",
-    "app/LunoPayloadParser.js": "2026-09-02T00:20:41.399Z",
-    "app/LunoContainerParser.js": "2026-09-02T03:02:36.275Z",
-    "app/LunoLinePatcher.js": "2026-09-02T03:02:36.275Z"
+    "Luno/luno.json": "2026-09-02T05:20:00.000Z",
+    "app/LunoPayloadParser.js": "2026-09-02T05:15:00.000Z",
+    "core/LunoClassPatcher.js": "2026-09-02T05:17:00.000Z",
+    "test/LunoTestRunner.js": "2026-09-02T05:19:00.000Z",
+    "luno.json": "2026-09-02T05:17:57.463Z"
   }
 }

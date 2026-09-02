@@ -132,6 +132,7 @@ class LunoClassPatcher {
           kind: kind
         };
       }
+
   static normalizeMethodCode(memberName, methodCode, isStatic, targetKind) {
       var rawStr = String(methodCode !== undefined && methodCode !== null ? methodCode : '').trim();
       if (!rawStr) {
@@ -189,7 +190,18 @@ class LunoClassPatcher {
         var inTemplate = false;
         var inLineComm = false;
         var inBlockComm = false;
+        var inRegex = false;
+        var inRegexCharClass = false;
+        var lastNonWsChar = '';
+        var lastWord = '';
         var closeParenIdx = -1;
+
+        var isRegexPrefix = function(prevChar, prevWord) {
+          if (!prevChar) return true;
+          if ('(,=:[!&|;{}?+-*%^~<>'.indexOf(prevChar) !== -1) return true;
+          var keywords = ['return', 'case', 'typeof', 'void', 'delete', 'throw', 'yield', 'await', 'in', 'instanceof', 'of', 'new'];
+          return keywords.indexOf(prevWord) !== -1;
+        };
 
         for (var i = openParenIdx; i < clean.length; i++) {
           var ch = clean[i];
@@ -213,24 +225,54 @@ class LunoClassPatcher {
           }
 
           if (inStr) {
-            if (ch === strChar && !isEscaped) inStr = false;
+            if (ch === strChar && !isEscaped) {
+              inStr = false;
+              lastNonWsChar = strChar;
+              lastWord = '';
+            }
             continue;
           }
 
           if (inTemplate) {
-            if (ch === '`' && !isEscaped) inTemplate = false;
+            if (ch === '`' && !isEscaped) {
+              inTemplate = false;
+              lastNonWsChar = '`';
+              lastWord = '';
+            }
             continue;
           }
 
-          if (ch === '/' && next === '/' && !isEscaped) {
-            inLineComm = true;
-            i++;
+          if (inRegex) {
+            if (ch === '[' && !isEscaped) inRegexCharClass = true;
+            else if (ch === ']' && !isEscaped) inRegexCharClass = false;
+            else if (ch === '/' && !isEscaped && !inRegexCharClass) {
+              inRegex = false;
+              while (i + 1 < clean.length && /[a-z]/i.test(clean.charAt(i + 1))) i++;
+              lastNonWsChar = '/';
+              lastWord = '';
+            } else if (ch === '\n' || ch === '\r') {
+              inRegex = false;
+              inRegexCharClass = false;
+            }
             continue;
           }
-          if (ch === '/' && next === '*' && !isEscaped) {
-            inBlockComm = true;
-            i++;
-            continue;
+
+          if (ch === '/' && !isEscaped) {
+            if (next === '/') {
+              inLineComm = true;
+              i++;
+              continue;
+            }
+            if (next === '*') {
+              inBlockComm = true;
+              i++;
+              continue;
+            }
+            if (isRegexPrefix(lastNonWsChar, lastWord)) {
+              inRegex = true;
+              inRegexCharClass = false;
+              continue;
+            }
           }
 
           if ((ch === '"' || ch === "'") && !isEscaped) {
@@ -252,6 +294,14 @@ class LunoClassPatcher {
               break;
             }
           }
+
+          if (ch !== ' ' && ch !== '\t' && ch !== '\r' && ch !== '\n') {
+            lastNonWsChar = ch;
+            if (/[a-zA-Z0-9_$]/.test(ch)) lastWord += ch;
+            else lastWord = '';
+          } else {
+            lastWord = '';
+          }
         }
 
         if (closeParenIdx !== -1) {
@@ -267,8 +317,9 @@ class LunoClassPatcher {
       var hasStatic = /\bstatic\b/.test(headerPart) || (isStatic === true);
       var hasAsync = /\basync\b/.test(headerPart);
       var isGenerator = headerPart.includes('*');
-      var isGet = /\bget\b/.test(headerPart) || targetKind === 'get';
-      var isSet = /\bset\b/.test(headerPart) || targetKind === 'set';
+
+      var isGet = (targetKind === 'get') || (targetKind !== 'set' && /(?:^|\s)get\s+/.test(headerPart) && memberName !== 'get');
+      var isSet = (targetKind === 'set') || (targetKind !== 'get' && /(?:^|\s)set\s+/.test(headerPart) && memberName !== 'set');
 
       var params = '()';
       var pStart = headerPart.indexOf('(');
@@ -291,7 +342,6 @@ class LunoClassPatcher {
       out += memberName + params + ' ' + bodyPart;
       return String(out).trim();
     }
-
   static findClassNodes(ast, targetClassName, targetMemberName, isStatic, targetKind) {
         var results = [];
         if (!ast || typeof ast !== 'object') return results;
