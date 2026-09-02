@@ -173,21 +173,21 @@ class LunoClassPatcher {
       var openParenIdx = clean.indexOf('(');
       var firstBraceIdx = clean.indexOf('{');
 
-      if (firstBraceIdx === -1) {
+      if (firstBraceIdx === -1 && openParenIdx === -1) {
         var prefix = (isStatic === true ? 'static ' : '');
         if (memberName === 'constructor') return 'constructor() { ' + clean + ' }';
         return prefix + memberName + '() { ' + clean + ' }';
       }
 
-      var bodyStartIdx = firstBraceIdx;
-      var headerPart = clean.slice(0, firstBraceIdx).trim();
-      var bodyPart = clean.slice(firstBraceIdx).trim();
+      var bodyStartIdx = firstBraceIdx !== -1 ? firstBraceIdx : clean.length;
+      var headerPart = clean.slice(0, bodyStartIdx).trim();
+      var bodyPart = firstBraceIdx !== -1 ? clean.slice(firstBraceIdx).trim() : '{}';
 
       if (openParenIdx !== -1) {
         var depth = 0;
         var inStr = false;
         var strChar = '';
-        var inTemplate = false;
+        var stack = [];
         var inLineComm = false;
         var inBlockComm = false;
         var inRegex = false;
@@ -198,7 +198,9 @@ class LunoClassPatcher {
 
         var isRegexPrefix = function(prevChar, prevWord) {
           if (!prevChar) return true;
-          if ('(,=:[!&|;{}?+-*%^~<>'.indexOf(prevChar) !== -1) return true;
+          // '{' restored (unambiguous regex start, e.g. `${/["]/.test(x)}` or `{ /regex/ }`)
+          // '}' omitted to prevent object literal division {n: 4}/2 misfiring
+          if ('(,=:[!&|;{?+-*%^~<>'.indexOf(prevChar) !== -1) return true;
           var keywords = ['return', 'case', 'typeof', 'void', 'delete', 'throw', 'yield', 'await', 'in', 'instanceof', 'of', 'new'];
           return keywords.indexOf(prevWord) !== -1;
         };
@@ -233,15 +235,6 @@ class LunoClassPatcher {
             continue;
           }
 
-          if (inTemplate) {
-            if (ch === '`' && !isEscaped) {
-              inTemplate = false;
-              lastNonWsChar = '`';
-              lastWord = '';
-            }
-            continue;
-          }
-
           if (inRegex) {
             if (ch === '[' && !isEscaped) inRegexCharClass = true;
             else if (ch === ']' && !isEscaped) inRegexCharClass = false;
@@ -255,6 +248,40 @@ class LunoClassPatcher {
               inRegexCharClass = false;
             }
             continue;
+          }
+
+          var currentContext = stack.length > 0 ? stack[stack.length - 1] : null;
+
+          if (currentContext === 'TEMPLATE_RAW') {
+            if (ch === '`' && !isEscaped) {
+              stack.pop();
+              lastNonWsChar = '`';
+              lastWord = '';
+            } else if (ch === '$' && next === '{' && !isEscaped) {
+              stack.push({ type: 'INTERPOLATION', braceDepth: 1 });
+              lastNonWsChar = '{';
+              lastWord = '';
+              i++;
+            }
+            continue;
+          }
+
+          if (currentContext && currentContext.type === 'INTERPOLATION') {
+            if (ch === '{') {
+              currentContext.braceDepth++;
+              lastNonWsChar = '{';
+              lastWord = '';
+              continue;
+            }
+            if (ch === '}') {
+              currentContext.braceDepth--;
+              if (currentContext.braceDepth === 0) {
+                stack.pop();
+              }
+              lastNonWsChar = '}';
+              lastWord = '';
+              continue;
+            }
           }
 
           if (ch === '/' && !isEscaped) {
@@ -281,17 +308,19 @@ class LunoClassPatcher {
             continue;
           }
           if (ch === '`' && !isEscaped) {
-            inTemplate = true;
+            stack.push('TEMPLATE_RAW');
             continue;
           }
 
-          if (ch === '(') {
-            depth++;
-          } else if (ch === ')') {
-            depth--;
-            if (depth === 0) {
-              closeParenIdx = i;
-              break;
+          if (stack.length === 0) {
+            if (ch === '(') {
+              depth++;
+            } else if (ch === ')') {
+              depth--;
+              if (depth === 0) {
+                closeParenIdx = i;
+                break;
+              }
             }
           }
 
@@ -343,94 +372,96 @@ class LunoClassPatcher {
       return String(out).trim();
     }
   static findClassNodes(ast, targetClassName, targetMemberName, isStatic, targetKind) {
-        var results = [];
-        if (!ast || typeof ast !== 'object') return results;
+      var results = [];
+      if (!ast || typeof ast !== 'object') return results;
 
-        var walk = function(node, parent) {
-          if (!node || typeof node !== 'object') return;
+      var walk = function(node, parent) {
+        if (!node || typeof node !== 'object') return;
 
-          if (node.type === 'ClassDeclaration' || node.type === 'ClassExpression') {
-            var name = (node.id && node.id.name) ? node.id.name : null;
+        if (node.type === 'ClassDeclaration' || node.type === 'ClassExpression') {
+          var name = (node.id && node.id.name) ? node.id.name : null;
 
-            if (!name && parent) {
-              if (parent.type === 'VariableDeclarator' && parent.id && parent.id.name) {
-                name = parent.id.name;
-              } else if (parent.type === 'AssignmentExpression' && parent.left) {
-                if (parent.left.type === 'Identifier') name = parent.left.name;
-                else if (parent.left.type === 'MemberExpression' && parent.left.property) {
-                  name = parent.left.property.name || parent.left.property.value;
-                }
+          if (!name && parent) {
+            if (parent.type === 'VariableDeclarator' && parent.id && parent.id.name) {
+              name = parent.id.name;
+            } else if (parent.type === 'AssignmentExpression' && parent.left) {
+              if (parent.left.type === 'Identifier') name = parent.left.name;
+              else if (parent.left.type === 'MemberExpression' && parent.left.property) {
+                name = parent.left.property.name || parent.left.property.value;
               }
-            }
-
-            var namesSet = new Set();
-            if (name) namesSet.add(name);
-
-            if (!targetClassName || namesSet.has(targetClassName)) {
-              results.push({
-                node: node,
-                name: name,
-                names: namesSet,
-                bodyNode: node.body,
-                range: node.range
-              });
+            } else if (parent.type === 'ExportDefaultDeclaration') {
+              name = 'default';
             }
           }
 
-          for (var key in node) {
-            if (key === 'parent') continue;
-            var child = node[key];
-            if (Array.isArray(child)) {
-              for (var i = 0; i < child.length; i++) {
-                if (child[i] && typeof child[i].type === 'string') walk(child[i], node);
-              }
-            } else if (child && typeof child.type === 'string') {
-              walk(child, node);
-            }
-          }
-        };
+          var namesSet = new Set();
+          if (name) namesSet.add(name);
 
-        walk(ast, null);
-
-        if (results.length === 0 && targetClassName) {
-          var allClassNodes = LunoClassPatcher.findClassNodes(ast, null);
-
-          if (allClassNodes.length === 1) {
-            var loneClass = allClassNodes[0];
-            if (typeof LunoPlaybackLogger !== 'undefined' && typeof LunoPlaybackLogger.warn === 'function') {
-              LunoPlaybackLogger.warn(
-                'AST Single-Class Fallback Notice',
-                'Target class "' + targetClassName + '" not found; auto-resolved to lone class "' + (loneClass.name || 'Anonymous') + '".'
-              );
-            }
-            return allClassNodes;
-          }
-
-          if (allClassNodes.length > 1 && targetMemberName) {
-            var matchingClasses = [];
-            for (var c = 0; c < allClassNodes.length; c++) {
-              var candidate = allClassNodes[c];
-              var match = LunoClassPatcher.findMemberInClass(candidate.node, targetMemberName, isStatic, targetKind);
-              if (match && match.memberNode) {
-                matchingClasses.push(candidate);
-              }
-            }
-
-            if (matchingClasses.length === 1) {
-              var resolvedClass = matchingClasses[0];
-              if (typeof LunoPlaybackLogger !== 'undefined' && typeof LunoPlaybackLogger.warn === 'function') {
-                LunoPlaybackLogger.warn(
-                  'AST Multi-Class Member Resolution Notice',
-                  'Target class "' + targetClassName + '" not found; auto-resolved member "' + targetMemberName + '" to class "' + (resolvedClass.name || 'Anonymous') + '".'
-                );
-              }
-              return [resolvedClass];
-            }
+          if (!targetClassName || namesSet.has(targetClassName) || (targetClassName === 'default' && namesSet.has('default'))) {
+            results.push({
+              node: node,
+              name: name,
+              names: namesSet,
+              bodyNode: node.body,
+              range: node.range
+            });
           }
         }
 
-        return results;
+        for (var key in node) {
+          if (key === 'parent') continue;
+          var child = node[key];
+          if (Array.isArray(child)) {
+            for (var i = 0; i < child.length; i++) {
+              if (child[i] && typeof child[i].type === 'string') walk(child[i], node);
+            }
+          } else if (child && typeof child.type === 'string') {
+            walk(child, node);
+          }
+        }
+      };
+
+      walk(ast, null);
+
+      if (results.length === 0 && targetClassName) {
+        var allClassNodes = LunoClassPatcher.findClassNodes(ast, null);
+
+        if (allClassNodes.length === 1) {
+          var loneClass = allClassNodes[0];
+          if (typeof LunoPlaybackLogger !== 'undefined' && typeof LunoPlaybackLogger.warn === 'function') {
+            LunoPlaybackLogger.warn(
+              'AST Single-Class Fallback Notice',
+              'Target class "' + targetClassName + '" not found; auto-resolved to lone class "' + (loneClass.name || 'Anonymous') + '".'
+            );
+          }
+          return allClassNodes;
+        }
+
+        if (allClassNodes.length > 1 && targetMemberName) {
+          var matchingClasses = [];
+          for (var c = 0; c < allClassNodes.length; c++) {
+            var candidate = allClassNodes[c];
+            var match = LunoClassPatcher.findMemberInClass(candidate.node, targetMemberName, isStatic, targetKind);
+            if (match && match.memberNode) {
+              matchingClasses.push(candidate);
+            }
+          }
+
+          if (matchingClasses.length === 1) {
+            var resolvedClass = matchingClasses[0];
+            if (typeof LunoPlaybackLogger !== 'undefined' && typeof LunoPlaybackLogger.warn === 'function') {
+              LunoPlaybackLogger.warn(
+                'AST Multi-Class Member Resolution Notice',
+                'Target class "' + targetClassName + '" not found; auto-resolved member "' + targetMemberName + '" to class "' + (resolvedClass.name || 'Anonymous') + '".'
+              );
+            }
+            return [resolvedClass];
+          }
+        }
       }
+
+      return results;
+    }
   static findMethodBounds(sourceCode, rawTarget) {
       if (!sourceCode || !rawTarget) return null;
       var parsed = LunoClassPatcher.parseSpec(rawTarget);
@@ -780,10 +811,12 @@ class LunoClassPatcher {
                 else if (parent.left.type === 'MemberExpression' && parent.left.property) {
                   clsName = parent.left.property.name || parent.left.property.value;
                 }
+              } else if (parent.type === 'ExportDefaultDeclaration') {
+                clsName = 'default';
               }
             }
-            if (clsName && node.body && Array.isArray(node.body.body)) {
-              classesInFile.push({ name: clsName, node: node });
+            if (node.body && Array.isArray(node.body.body)) {
+              classesInFile.push({ name: clsName || 'AnonymousClass', node: node });
             }
           }
           for (var k in node) {
@@ -852,7 +885,6 @@ class LunoClassPatcher {
           }
         });
       } else {
-        // Regex fallback for unparseable source files
         var classRegex = /\bclass\s+([A-Za-z0-9_$]+)/g;
         var match;
         while ((match = classRegex.exec(sourceCode)) !== null) {

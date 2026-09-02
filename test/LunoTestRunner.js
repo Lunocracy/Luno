@@ -13,7 +13,7 @@ class LunoTestRunner {
 
   static async runTestSuite() {
       LunoTestRunner.results = [];
-      console.log('🧪 Starting Luno Full Architecture & Determinism Test Suite (57 Tests)...');
+      console.log('🧪 Starting Luno Full Architecture & Determinism Test Suite (63 Tests)...');
 
       if (typeof LunoAcornLoader !== 'undefined' && LunoAcornLoader.ensureLoaded) {
         try { await LunoAcornLoader.ensureLoaded(); } catch (e) {}
@@ -291,7 +291,6 @@ class LunoTestRunner {
             } catch(e) {}
           }
 
-          // Clean up test fork
           if (typeof LunoApiClient !== 'undefined' && LunoApiClient.savePayload) {
             await LunoApiClient.savePayload({
               files: [],
@@ -1188,6 +1187,137 @@ class LunoTestRunner {
         }
       } catch (e) {
         LunoTestRunner.assert('Fix #9: Regex Character-Class & Destructuring Parameter Scanner (LunoClassPatcher)', false, e.message);
+      }
+
+      // Test 58 (Fix #10): Multi-Backtick Fence Stripping (```` or ~~~~)
+      try {
+        if (typeof LunoPayloadParser !== 'undefined' && LunoPayloadParser.stripMarkdownFences) {
+          var QUAD_FENCE = String.fromCharCode(96, 96, 96, 96);
+          var quadPayload = QUAD_FENCE + 'html\r\n<script data-file="Luno/app/QuadTest.js">\r\nclass QuadTest {}\r\n</' + 'script>\r\n' + QUAD_FENCE;
+          var strippedQuad = LunoPayloadParser.stripMarkdownFences(quadPayload);
+          var parsedQuad = LunoPayloadParser.parse(quadPayload);
+          var quadSuccess = strippedQuad.startsWith('<script') && parsedQuad.files.length === 1 && parsedQuad.files[0].filePath === 'Luno/app/QuadTest.js';
+          LunoTestRunner.assert('Fix #10: Multi-Backtick Quad Fence Stripping (LunoPayloadParser)', quadSuccess, 'Handled 4+ backtick and CRLF fences cleanly');
+        } else {
+          LunoTestRunner.assert('Fix #10: Multi-Backtick Fence Stripping', false, 'Parser unavailable');
+        }
+      } catch (e) {
+        LunoTestRunner.assert('Fix #10: Multi-Backtick Quad Fence Stripping (LunoPayloadParser)', false, e.message);
+      }
+
+      // Test 59 (Fix #11): Export Default Class Node AST Topology Discovery
+      try {
+        if (typeof LunoClassPatcher !== 'undefined' && LunoClassPatcher.extractFileTopology) {
+          var exportDefaultSrc = 'export default class MainPresenter {\n  constructor() {}\n  initView() { return true; }\n}';
+          var top = LunoClassPatcher.extractFileTopology(exportDefaultSrc, 'src/MainPresenter.js');
+          var topSuccess = top.length === 1 && (top[0].className === 'MainPresenter' || top[0].className === 'default') && top[0].methods.some(m => m.includes('initView()'));
+          LunoTestRunner.assert('Fix #11: Export Default Class AST Topology Discovery (LunoClassPatcher)', topSuccess, 'Extracted topology for export default class');
+        } else {
+          LunoTestRunner.assert('Fix #11: Export Default Class Topology Discovery', false, 'Patcher unavailable');
+        }
+      } catch (e) {
+        LunoTestRunner.assert('Fix #11: Export Default Class AST Topology Discovery (LunoClassPatcher)', false, e.message);
+      }
+
+      // Test 60 (Fix #12): CRLF & Nested Regex Slash Boundary Stability
+      try {
+        if (typeof LunoPayloadParser !== 'undefined' && LunoPayloadParser.parse) {
+          var scrTagFix12 = 'scr' + 'ipt';
+          var crlfFixture = '<' + scrTagFix12 + ' data-file="Luno/app/CrlfTest.js" data-method="CrlfTest.validate" data-action="patch">\r\n' +
+            'validate(input) {\r\n' +
+            '  const isPath = /^\\/[a-z0-9_\\-\\.]+/i.test(input);\r\n' +
+            '  return isPath;\r\n' +
+            '}\r\n' +
+            '</' + scrTagFix12 + '>';
+          var parsedCrlf = LunoPayloadParser.parse(crlfFixture);
+          var crlfSuccess = parsedCrlf && parsedCrlf.files.length === 1 && parsedCrlf.files[0].content.includes('isPath');
+          LunoTestRunner.assert('Fix #12: CRLF & Nested Regex Slash Boundary Stability (LunoPayloadParser)', crlfSuccess, 'Preserved regex slash within CRLF container');
+        } else {
+          LunoTestRunner.assert('Fix #12: CRLF Boundary Stability', false, 'Parser unavailable');
+        }
+      } catch (e) {
+        LunoTestRunner.assert('Fix #12: CRLF & Nested Regex Slash Boundary Stability (LunoPayloadParser)', false, e.message);
+      }
+
+      // Test 61 (Fix #13): Stack-Based Default Parameter Template Literal Scanner with Nested Backtick Strings
+      try {
+        if (typeof LunoClassPatcher !== 'undefined' && LunoClassPatcher.normalizeMethodCode) {
+          var defaultParamNestedTpl = 'render(tmpl = `${`nested` + "}"}`, flag = true) {\n  return tmpl && flag;\n}';
+          var normNestedCode = LunoClassPatcher.normalizeMethodCode('render', defaultParamNestedTpl, false, 'method');
+          var parsedNestedAstValid = false;
+          try {
+            LunoClassPatcher.parseAST('class NestedTplTester {\n' + normNestedCode + '\n}');
+            parsedNestedAstValid = true;
+          } catch(e) {}
+          var hasCleanHeader = normNestedCode.includes('render(tmpl = `${`nested` + "}"}`, flag = true)');
+          LunoTestRunner.assert(
+            'Fix #13: Stack-Based Default Parameter Template Literal Scanner (LunoClassPatcher)',
+            parsedNestedAstValid && hasCleanHeader,
+            'Accurately balanced parentheses across nested template literals and strings'
+          );
+        } else {
+          LunoTestRunner.assert('Fix #13: Stack-Based Default Parameter Template Scanner', false, 'Patcher unavailable');
+        }
+      } catch (e) {
+        LunoTestRunner.assert('Fix #13: Stack-Based Default Parameter Template Literal Scanner (LunoClassPatcher)', false, e.message);
+      }
+
+      // Test 62 (Fix #14): Object Literal Immediate Division ({ n: 4 } / 2) Regex Misfire Guard
+      try {
+        if (typeof LunoPayloadParser !== 'undefined' && LunoPayloadParser.parse) {
+          var scrTagFix14 = 'scr' + 'ipt';
+          var objDivPayload = '<' + scrTagFix14 + ' data-file="Luno/app/MathHelper.js" data-method="MathHelper.calc" data-action="patch">\n' +
+            'calc() {\n' +
+            '  const res = { n: 4 } / 2;\n' +
+            '  return res;\n' +
+            '}\n' +
+            '</' + scrTagFix14 + '>';
+          var parsedObjDiv = LunoPayloadParser.parse(objDivPayload);
+          var objDivSuccess = parsedObjDiv && parsedObjDiv.files.length === 1 && parsedObjDiv.files[0].content.includes('{ n: 4 } / 2');
+          LunoTestRunner.assert(
+            'Fix #14: Object Literal Immediate Division ({ n: 4 } / 2) Regex Guard (LunoPayloadParser)',
+            Boolean(objDivSuccess),
+            'Prevented object literal close brace } from triggering false regex literal mode'
+          );
+        } else {
+          LunoTestRunner.assert('Fix #14: Object Literal Immediate Division Regex Guard', false, 'Parser unavailable');
+        }
+      } catch (e) {
+        LunoTestRunner.assert('Fix #14: Object Literal Immediate Division ({ n: 4 } / 2) Regex Guard (LunoPayloadParser)', false, e.message);
+      }
+
+      // Test 63 (Fix #15): Interpolation Opening Regex & Nested Brace Division Token Tracking
+      try {
+        if (typeof LunoPayloadParser !== 'undefined' && LunoPayloadParser.parse) {
+          var scrTagFix15 = 'scr' + 'ipt';
+          // Case A: Interpolation opening directly with a regex containing quotes
+          var regexInterpPayload = '<' + scrTagFix15 + ' data-file="Luno/app/InterpRegex.js" data-method="InterpRegex.eval" data-action="patch">\n' +
+            'eval(x) {\n' +
+            '  return `${/["]/.test(x) ? "quote" : "none"}`;\n' +
+            '}\n' +
+            '</' + scrTagFix15 + '>';
+          var parsedRegexInterp = LunoPayloadParser.parse(regexInterpPayload);
+          var hasRegexInterp = parsedRegexInterp && parsedRegexInterp.files.length === 1 && parsedRegexInterp.files[0].content.includes('/["]/.test(x)');
+
+          // Case B: Nested object literal decrement followed by division inside interpolation
+          var nestedDivInterpPayload = '<' + scrTagFix15 + ' data-file="Luno/app/NestedDiv.js" data-method="NestedDiv.calc" data-action="patch">\n' +
+            'calc() {\n' +
+            '  return `${x = {} / 2}`;\n' +
+            '}\n' +
+            '</' + scrTagFix15 + '>';
+          var parsedNestedDiv = LunoPayloadParser.parse(nestedDivInterpPayload);
+          var hasNestedDiv = parsedNestedDiv && parsedNestedDiv.files.length === 1 && parsedNestedDiv.files[0].content.includes('{} / 2');
+
+          LunoTestRunner.assert(
+            'Fix #15: Interpolation Opening Regex & Nested Brace Division Token Tracking (LunoPayloadParser)',
+            hasRegexInterp && hasNestedDiv,
+            'Verified { triggers regex mode in `${/["]/...}` and nested brace decrement sets lastNonWsChar to } in `${{} / 2}`'
+          );
+        } else {
+          LunoTestRunner.assert('Fix #15: Interpolation Token Tracking', false, 'Parser unavailable');
+        }
+      } catch (e) {
+        LunoTestRunner.assert('Fix #15: Interpolation Opening Regex & Nested Brace Division Token Tracking (LunoPayloadParser)', false, e.message);
       }
 
       return {

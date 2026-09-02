@@ -4,25 +4,19 @@ class LunoPayloadParser {
   static stripMarkdownFences(text) {
       if (!text || typeof text !== 'string') return '';
       var cleaned = text.trim();
-      var FENCE = String.fromCharCode(96, 96, 96);
 
-      // Only attempt stripping if the text begins with a markdown fence
-      if (cleaned.startsWith(FENCE)) {
-        var firstNl = cleaned.indexOf('\n');
-        if (firstNl !== -1) {
-          cleaned = cleaned.slice(firstNl + 1);
-        } else {
-          return '';
-        }
-
+      // Match leading markdown code fence with 3 or more backticks or tildes and optional language tag
+      var openFenceMatch = cleaned.match(/^(`{3,}|~{3,})[a-zA-Z0-9_\-]*\r?\n/);
+      if (openFenceMatch) {
+        cleaned = cleaned.slice(openFenceMatch[0].length);
         cleaned = cleaned.trimEnd();
 
-        // Only strip the trailing fence if it is explicitly at the very end of the text
-        var lastNl = cleaned.lastIndexOf('\n');
-        var tail = (lastNl !== -1) ? cleaned.slice(lastNl + 1).trim() : cleaned.trim();
-
-        if (tail.startsWith(FENCE)) {
-          cleaned = (lastNl !== -1) ? cleaned.slice(0, lastNl).trimEnd() : '';
+        // Match trailing closing fence anchored at the end of the text
+        var closeFenceMatch = cleaned.match(/\r?\n(`{3,}|~{3,})\s*$/);
+        if (closeFenceMatch) {
+          cleaned = cleaned.slice(0, cleaned.length - closeFenceMatch[0].length).trimEnd();
+        } else if (/^(`{3,}|~{3,})\s*$/.test(cleaned)) {
+          cleaned = '';
         }
       }
 
@@ -132,7 +126,9 @@ class LunoPayloadParser {
 
         var isRegexPrefix = function(prevChar, prevWord) {
           if (!prevChar) return true;
-          if ('(,=:[!&|;{}?+-*%^~<>'.indexOf(prevChar) !== -1) return true;
+          // '{' restored (unambiguous regex start, e.g. `${/["]/.test(x)}` or `{ /regex/ }`)
+          // '}' omitted to prevent object literal division {n: 4}/2 misfiring
+          if ('(,=:[!&|;{?+-*%^~<>'.indexOf(prevChar) !== -1) return true;
           var keywords = ['return', 'case', 'typeof', 'void', 'delete', 'throw', 'yield', 'await', 'in', 'instanceof', 'of', 'new'];
           return keywords.indexOf(prevWord) !== -1;
         };
@@ -232,16 +228,30 @@ class LunoPayloadParser {
 
           if (isInsideRawTemplate) {
             if (curr === '`' && !isEscaped) { stack.pop(); lastNonWsChar = '`'; lastWord = ''; i++; continue; }
-            if (curr === '$' && next === '{' && !isEscaped) { stack.push({ type: 'INTERPOLATION', braceDepth: 1 }); i += 2; continue; }
+            if (curr === '$' && next === '{' && !isEscaped) {
+              stack.push({ type: 'INTERPOLATION', braceDepth: 1 });
+              lastNonWsChar = '{';
+              lastWord = '';
+              i += 2;
+              continue;
+            }
             i++;
             continue;
           }
 
           if (currentContext && currentContext.type === 'INTERPOLATION') {
-            if (curr === '{') { currentContext.braceDepth++; i++; continue; }
+            if (curr === '{') {
+              currentContext.braceDepth++;
+              lastNonWsChar = '{';
+              lastWord = '';
+              i++;
+              continue;
+            }
             if (curr === '}') {
               currentContext.braceDepth--;
               if (currentContext.braceDepth === 0) stack.pop();
+              lastNonWsChar = '}';
+              lastWord = '';
               i++;
               continue;
             }
@@ -297,7 +307,6 @@ class LunoPayloadParser {
 
         var isJsScript = isScript && typeAttr !== 'application/json' && typeAttr !== 'text/plain' && typeAttr !== 'application/luno-request' && action !== 'request';
 
-        // Part B Safety Net: Validate extracted JS AST and recover boundary if needed
         if (isJsScript && innerContent) {
           var validateJs = function(code, isMethod) {
             var acornObj = (typeof window !== 'undefined' && window.acorn) || (typeof globalThis !== 'undefined' && globalThis.acorn);
@@ -326,7 +335,6 @@ class LunoPayloadParser {
           var isValid = validateJs(innerContent, isMethodPatch);
 
           if (!isValid) {
-            // Check if there is a subsequent </script> tag further down in the text
             var nextCloseIdx = cleaned.indexOf(closeTag, closeEndIdx + 1);
             while (!isValid && nextCloseIdx !== -1) {
               var afterNext = nextCloseIdx + closeTag.length;
