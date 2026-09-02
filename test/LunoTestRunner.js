@@ -13,7 +13,7 @@ class LunoTestRunner {
 
   static async runTestSuite() {
       LunoTestRunner.results = [];
-      console.log('🧪 Starting Luno Full Architecture & Determinism Test Suite (47 Tests)...');
+      console.log('🧪 Starting Luno Full Architecture & Determinism Test Suite (54 Tests)...');
 
       if (typeof LunoAcornLoader !== 'undefined' && LunoAcornLoader.ensureLoaded) {
         try { await LunoAcornLoader.ensureLoaded(); } catch (e) {}
@@ -334,7 +334,7 @@ class LunoTestRunner {
             }]
           };
           var processed = await LunoManifestDecisionEngine.processPayload(mergePayload, dummyMeta, "TestApp");
-          var directFile = processed.files.find(function(f) { return f.filePath === "TestApp/luno.json"; });
+          var directFile = processed.files.find(function(f) { return f.filePath === "TestApp/luno.json" || f.filePath === "luno.json"; });
           var parsedResult = directFile ? JSON.parse(directFile.content) : null;
           var hasMergedLibs = parsedResult && Array.isArray(parsedResult.library) && parsedResult.library.includes("UITools.js");
           var hasDeletedProp = parsedResult && parsedResult.customProp === undefined;
@@ -414,7 +414,7 @@ class LunoTestRunner {
             }]
           };
           var resDirect = await LunoManifestDecisionEngine.processPayload(mockPayload, {}, 'Luno');
-          var hasDirectWrite = resDirect.files.some(function(f) { return f.filePath === 'Luno/test/protocol_test.js' && f.action === 'direct'; });
+          var hasDirectWrite = resDirect.files.some(function(f) { return (f.filePath === 'Luno/test/protocol_test.js' || f.filePath === 'test/protocol_test.js') && f.action === 'direct'; });
           var noPatchLog = !resDirect.files.some(function(f) { return f.filePath === 'LunoPatchLog.html'; });
 
           if (typeof localStorage !== 'undefined') localStorage.setItem('luno_patch_apply_mode', 'patchlog');
@@ -746,7 +746,7 @@ class LunoTestRunner {
             ]
           };
           var processedMixed = await LunoManifestDecisionEngine.processPayload(mixedPayload, {}, 'Luno');
-          var hasValidFile = processedMixed.files.some(function(f) { return f.filePath === 'Luno/test/protocol_test.js'; });
+          var hasValidFile = processedMixed.files.some(function(f) { return f.filePath.endsWith('protocol_test.js'); });
           var hasFailedEntry = processedMixed.failedPatches && processedMixed.failedPatches.length === 1;
 
           LunoTestRunner.assert(
@@ -994,7 +994,7 @@ class LunoTestRunner {
           };
 
           var batchResult = await LunoManifestDecisionEngine.processPayload(batchPayload, {}, 'Luno');
-          var savedFile = batchResult.files.find(function(f) { return f.filePath === 'Luno/test/protocol_test.js'; });
+          var savedFile = batchResult.files.find(function(f) { return f.filePath.endsWith('protocol_test.js'); });
           var hasValidPatchSaved = savedFile && savedFile.content.includes('return 100');
           var hasBrokenPatchIsolated = batchResult.failedPatches && batchResult.failedPatches.length === 1;
 
@@ -1058,10 +1058,86 @@ class LunoTestRunner {
         LunoTestRunner.assert('ClientApp / LunoSpaHeaderNav: Target Switching & Tab Bulk-Close Coordination', false, e.message);
       }
 
+      // --- DEDICATED REGRESSION TESTS FOR FIXES #1 THROUGH #7 ---
+
+      // Test 48 (Fix #1): AST-Driven Multi-Class Separation in Topology Index
+      try {
+        var multiClassFixture = {
+          'src/Adapters.js': 'class FirstAdapter { constructor() {} readFirst() {} }\nclass SecondAdapter { constructor() {} writeSecond() {} }'
+        };
+        OutboxQueue.bundleAndQueueCodebase(multiClassFixture, {}, 'MultiTest', { includeInstructions: false, includeTopology: true });
+        var queuedItem = OutboxQueue.queue[OutboxQueue.queue.length - 1];
+        var payloadText = queuedItem ? queuedItem.payload : '';
+        var hasFirstClass = payloadText.includes('class FirstAdapter (2 methods):') && payloadText.includes('readFirst()');
+        var hasSecondClass = payloadText.includes('class SecondAdapter (2 methods):') && payloadText.includes('writeSecond()');
+        LunoTestRunner.assert('Fix #1: AST-Driven Multi-Class Topology Separation (OutboxQueue)', hasFirstClass && hasSecondClass, 'Separated multi-class methods');
+      } catch (e) {
+        LunoTestRunner.assert('Fix #1: AST-Driven Multi-Class Topology Separation (OutboxQueue)', false, e.message);
+      }
+
+      // Test 49 (Fix #2): Literal Method Names 'get' & 'set' via parseSpec
+      try {
+        var specGet = LunoClassPatcher.parseSpec('KeyValueStore.get');
+        var specSet = LunoClassPatcher.parseSpec('CacheManager.set');
+        var specGetter = LunoClassPatcher.parseSpec('State.get value');
+        LunoTestRunner.assert('Fix #2: Scoped parseSpec Literal "get" / "set" Method Names (LunoClassPatcher)', specGet.memberName === 'get' && specGet.kind === 'method' && specSet.memberName === 'set' && specGetter.kind === 'get', 'Literal get/set parsed');
+      } catch (e) {
+        LunoTestRunner.assert('Fix #2: Scoped parseSpec Literal "get" / "set" Method Names (LunoClassPatcher)', false, e.message);
+      }
+
+      // Test 50 (Fix #3): Regex-Literal Scanner Token Tracking with Quotes & Brackets
+      try {
+        var scrTagFix3 = 'scr' + 'ipt';
+        var regexPayload = '<' + scrTagFix3 + ' data-file="Luno/app/RegexTest.js" data-method="RegexTest.match" data-action="patch">\nmatch(str) { const quotesRegex = /["\']([^"\'\\\\]*)/g; return str.match(quotesRegex); }\n</' + scrTagFix3 + '>';
+        var parsedRegex = LunoPayloadParser.parse(regexPayload);
+        LunoTestRunner.assert('Fix #3: Regex-Literal State & Character-Class Scanner Tracking (LunoPayloadParser)', parsedRegex && parsedRegex.files.length === 1 && parsedRegex.files[0].content.includes('quotesRegex = /["\']'), 'Regex state tracking');
+      } catch (e) {
+        LunoTestRunner.assert('Fix #3: Regex-Literal State & Character-Class Scanner Tracking (LunoPayloadParser)', false, e.message);
+      }
+
+      // Test 51 (Fix #4): Tag-Aware Grammar Branching (CSS // and HTML <!-- -->)
+      try {
+        var stylePayload = '<style data-file="Luno/css/test.css">\n.hero { background: url(//cdn.example.com/img.png); }\n/* Comment */\n</style>';
+        var templatePayload = '<template data-file="Luno/view.html">\n<div>\n  <!-- <script>Fake</script> -->\n  <h1>Active</h1>\n</div>\n</template>';
+        var parsedStyle = LunoPayloadParser.parse(stylePayload);
+        var parsedTpl = LunoPayloadParser.parse(templatePayload);
+        LunoTestRunner.assert('Fix #4: Tag-Aware Grammar Branching for CSS & HTML Comments (LunoPayloadParser)', parsedStyle.files.length === 1 && parsedTpl.files.length === 1 && parsedStyle.files[0].content.includes('url(//cdn.example.com/img.png)'), 'Tag-aware comments');
+      } catch (e) {
+        LunoTestRunner.assert('Fix #4: Tag-Aware Grammar Branching for CSS & HTML Comments (LunoPayloadParser)', false, e.message);
+      }
+
+      // Test 52 (Fix #5): Multi-Class Member Cross-Checking in findClassNodes
+      try {
+        var multiClassSrc = 'class PrimaryEngine { constructor() {} startEngine() {} }\nclass SecondaryEngine { constructor() {} engageBooster() {} }';
+        var astMulti = LunoClassPatcher.parseAST(multiClassSrc);
+        var crossChecked = LunoClassPatcher.findClassNodes(astMulti, 'GenericMismatchedName', 'engageBooster', false, 'method');
+        LunoTestRunner.assert('Fix #5: Multi-Class Member Cross-Checking Resolution (LunoClassPatcher)', crossChecked.length === 1 && crossChecked[0].name === 'SecondaryEngine', 'Cross-checked class member');
+      } catch (e) {
+        LunoTestRunner.assert('Fix #5: Multi-Class Member Cross-Checking Resolution (LunoClassPatcher)', false, e.message);
+      }
+
+      // Test 53 (Fix #6): LunoLinearParser Acorn Module-First Alignment
+      try {
+        var moduleSrc = 'import { config } from "./cfg.js";\nexport class LinearApp {\n  constructor() {}\n}\nLinearApp.version = "1.0";';
+        var parsedLinear = LunoLinearParser.parse(moduleSrc);
+        LunoTestRunner.assert('Fix #6: Acorn Module-First Alignment in LunoLinearParser', parsedLinear.className === 'LinearApp' && parsedLinear.assignments.length > 0, 'Module-first linear parse');
+      } catch (e) {
+        LunoTestRunner.assert('Fix #6: Acorn Module-First Alignment in LunoLinearParser', false, e.message);
+      }
+
+      // Test 54 (Fix #2 + AST): Surgical Patching of Method Named 'get'
+      try {
+        var baseStore = 'class KVStore {\n  constructor() { this.map = {}; }\n  get(key) { return this.map[key] || null; }\n}';
+        var patchedGet = LunoClassPatcher.patchMethodInSource(baseStore, 'KVStore.get', 'get(key) { return this.map[key] !== undefined ? this.map[key] : "DEFAULT"; }');
+        LunoTestRunner.assert('Fix #2 + AST: Surgical Patching of Method Named "get" (LunoClassPatcher)', patchedGet.includes('get(key) {') && !patchedGet.includes('get get(') && patchedGet.includes('"DEFAULT"'), 'Patched get() method');
+      } catch (e) {
+        LunoTestRunner.assert('Fix #2 + AST: Surgical Patching of Method Named "get" (LunoClassPatcher)', false, e.message);
+      }
+
       return {
         total: LunoTestRunner.results.length,
-        passed: LunoTestRunner.results.filter(function(r) { return r.success; }).length,
-        failed: LunoTestRunner.results.filter(function(r) { return !r.success; }).length,
+        passed: LunoTestRunner.results.filter(r => r.success).length,
+        failed: LunoTestRunner.results.filter(r => !r.success).length,
         details: LunoTestRunner.results
       };
     }
@@ -1114,7 +1190,7 @@ class LunoTestRunner {
 
       LunoTestRunner.runTestSuite().then(function(summary) {
         resultsContainer.innerHTML = '';
-        var passedCount = summary ? summary.passed : LunoTestRunner.results.filter(function(r) { return r.success; }).length;
+        var passedCount = summary ? summary.passed : LunoTestRunner.results.filter(r => r.success).length;
         var totalCount = summary ? summary.total : LunoTestRunner.results.length;
         var allPassed = (passedCount === totalCount && totalCount > 0);
 

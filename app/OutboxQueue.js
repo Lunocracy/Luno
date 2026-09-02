@@ -159,234 +159,144 @@ class OutboxQueue {
   }
 
   static bundleAndQueueCodebase(filesMap, manifest, projName, options) {
-      var opts = options || {};
-      var pName = projName || 'Project';
-      var maxBytes = OutboxQueue.getMaxPackageSize();
-      var includeInstructions = opts.includeInstructions !== false;
-      var includeProjectLibrary = (opts.includeProjectLibrary !== false);
-      var includeAllLibrary = Boolean(opts.includeAllLibrary);
-      var includeTopology = opts.includeTopology !== false;
+        var opts = options || {};
+        var pName = projName || 'Project';
+        var maxBytes = OutboxQueue.getMaxPackageSize();
+        var includeInstructions = opts.includeInstructions !== false;
+        var includeProjectLibrary = (opts.includeProjectLibrary !== false);
+        var includeAllLibrary = Boolean(opts.includeAllLibrary);
+        var includeTopology = opts.includeTopology !== false;
 
-      var SCRIPT_WORD = 'scr' + 'ipt';
-      var STYLE_WORD = 'sty' + 'le';
-      var TEMPLATE_WORD = 'temp' + 'late';
-      var SVG_WORD = 'sv' + 'g';
+        var SCRIPT_WORD = 'scr' + 'ipt';
+        var STYLE_WORD = 'sty' + 'le';
+        var TEMPLATE_WORD = 'temp' + 'late';
+        var SVG_WORD = 'sv' + 'g';
 
-      var closeStyle = '</' + STYLE_WORD + '>';
-      var closeTemplate = '</' + TEMPLATE_WORD + '>';
-      var closeScript = '</' + SCRIPT_WORD + '>';
-      var closeSvg = '</' + SVG_WORD + '>';
+        var closeStyle = '</' + STYLE_WORD + '>';
+        var closeTemplate = '</' + TEMPLATE_WORD + '>';
+        var closeScript = '</' + SCRIPT_WORD + '>';
+        var closeSvg = '</' + SVG_WORD + '>';
 
-      var escapeStyle = '<\\/' + STYLE_WORD + '>';
-      var escapeTemplate = '<\\/' + TEMPLATE_WORD + '>';
-      var escapeScript = '<\\/' + SCRIPT_WORD + '>';
-      var escapeSvg = '<\\/' + SVG_WORD + '>';
+        var escapeStyle = '<\\/' + STYLE_WORD + '>';
+        var escapeTemplate = '<\\/' + TEMPLATE_WORD + '>';
+        var escapeScript = '<\\/' + SCRIPT_WORD + '>';
+        var escapeSvg = '<\\/' + SVG_WORD + '>';
 
-      var instructionPreamble = '';
-      if (includeInstructions && typeof LunoPromptInstructions !== 'undefined') {
-        instructionPreamble = LunoPromptInstructions.assembleFullInstructions() + '\n';
-      }
+        var instructionPreamble = '';
+        if (includeInstructions && typeof LunoPromptInstructions !== 'undefined') {
+          instructionPreamble = LunoPromptInstructions.assembleFullInstructions() + '\n';
+        }
 
-      var topologyHeader = '';
-      if (includeTopology) {
-        var topologyLines = [
-          '================================================================================',
-          '🗺️ CODEBASE CLASS & METHOD TOPOLOGY INDEX [' + pName + ']',
-          '================================================================================'
-        ];
-        var foundAny = false;
+        var topologyHeader = '';
+        if (includeTopology) {
+          var topologyLines = [
+            '================================================================================',
+            '🗺️ CODEBASE CLASS & METHOD TOPOLOGY INDEX [' + pName + ']',
+            '================================================================================'
+          ];
+          var foundAny = false;
 
-        for (var fPath in filesMap) {
-          if (!Object.prototype.hasOwnProperty.call(filesMap, fPath)) continue;
-          var fContent = filesMap[fPath];
-          if (!fContent || (!fPath.endsWith('.js') && !fPath.endsWith('.mjs'))) continue;
+          for (var fPath in filesMap) {
+            if (!Object.prototype.hasOwnProperty.call(filesMap, fPath)) continue;
+            var fContent = filesMap[fPath];
+            if (!fContent || (!fPath.endsWith('.js') && !fPath.endsWith('.mjs'))) continue;
 
-          var ast = null;
-          try {
-            if (typeof LunoClassPatcher !== 'undefined' && LunoClassPatcher.parseAST) {
-              ast = LunoClassPatcher.parseAST(fContent);
-            } else if (typeof acorn !== 'undefined' && acorn.parse) {
-              ast = acorn.parse(fContent, { ecmaVersion: 'latest', sourceType: 'module', ranges: true });
-            }
-          } catch(e) {
-            try {
-              if (typeof acorn !== 'undefined' && acorn.parse) {
-                ast = acorn.parse(fContent, { ecmaVersion: 'latest', sourceType: 'script', ranges: true });
-              }
-            } catch(e2) {}
-          }
-
-          if (ast && Array.isArray(ast.body)) {
             var classesInFile = [];
-            var walk = function(node, parent) {
-              if (!node || typeof node !== 'object') return;
-              if (node.type === 'ClassDeclaration' || node.type === 'ClassExpression') {
-                var clsName = (node.id && node.id.name) ? node.id.name : null;
-                if (!clsName && parent) {
-                  if (parent.type === 'VariableDeclarator' && parent.id && parent.id.name) {
-                    clsName = parent.id.name;
-                  } else if (parent.type === 'AssignmentExpression' && parent.left) {
-                    if (parent.left.type === 'Identifier') clsName = parent.left.name;
-                    else if (parent.left.type === 'MemberExpression' && parent.left.property) {
-                      clsName = parent.left.property.name || parent.left.property.value;
-                    }
-                  }
-                }
-                if (clsName && node.body && Array.isArray(node.body.body)) {
-                  classesInFile.push({ name: clsName, node: node });
-                }
-              }
-              for (var k in node) {
-                if (k === 'parent') continue;
-                var child = node[k];
-                if (Array.isArray(child)) {
-                  for (var ci = 0; ci < child.length; ci++) {
-                    if (child[ci] && typeof child[ci].type === 'string') walk(child[ci], node);
-                  }
-                } else if (child && typeof child.type === 'string') {
-                  walk(child, node);
-                }
-              }
-            };
-            walk(ast, null);
+            if (typeof LunoClassPatcher !== 'undefined' && typeof LunoClassPatcher.extractFileTopology === 'function') {
+              classesInFile = LunoClassPatcher.extractFileTopology(fContent, fPath);
+            }
 
-            classesInFile.forEach(function(cls) {
-              var methods = [];
-              var bodyMembers = cls.node.body.body;
-              for (var mIdx = 0; mIdx < bodyMembers.length; mIdx++) {
-                var member = bodyMembers[mIdx];
-                if (member.type === 'MethodDefinition' || member.type === 'PropertyDefinition' || member.type === 'ClassProperty') {
-                  var keyName = member.key ? (member.key.name || member.key.value) : null;
-                  if (!keyName) continue;
-
-                  var prefix = member.static ? 'static ' : '';
-                  if (member.kind === 'get') prefix += 'get ';
-                  else if (member.kind === 'set') prefix += 'set ';
-                  else if (member.value && member.value.async) prefix += 'async ';
-
-                  var isGen = (member.value && member.value.generator) ? '*' : '';
-                  var paramList = [];
-                  if (member.value && Array.isArray(member.value.params)) {
-                    paramList = member.value.params.map(function(p) {
-                      if (p.type === 'Identifier') return p.name;
-                      if (p.type === 'AssignmentPattern' && p.left && p.left.name) return p.left.name;
-                      if (p.type === 'RestElement' && p.argument && p.argument.name) return '...' + p.argument.name;
-                      if (p.range) return fContent.slice(p.range[0], p.range[1]);
-                      return 'arg';
-                    });
-                  }
-
-                  var isFieldArrow = (member.type === 'PropertyDefinition' || member.type === 'ClassProperty') &&
-                    member.value && (member.value.type === 'ArrowFunctionExpression' || member.value.type === 'FunctionExpression');
-
-                  if (isFieldArrow && member.value.params) {
-                    paramList = member.value.params.map(function(p) {
-                      return (p.type === 'Identifier') ? p.name : (p.range ? fContent.slice(p.range[0], p.range[1]) : 'arg');
-                    });
-                  }
-
-                  var sig = prefix + isGen + keyName + '(' + paramList.join(', ') + ')';
-                  if ((member.type === 'PropertyDefinition' || member.type === 'ClassProperty') && !isFieldArrow) {
-                    sig = prefix + keyName;
-                  }
-                  methods.push('  • ' + sig);
-                }
-              }
-
-              if (methods.length > 0) {
+            if (classesInFile && classesInFile.length > 0) {
+              classesInFile.forEach(function(cls) {
+                var methods = cls.methods || [];
+                var unverifiedTag = cls.isUnverified ? ' ⚠️ unverified (parse error) — regex fallback' : '';
                 foundAny = true;
-                topologyLines.push('📁 ' + fPath + ' ➔ class ' + cls.name + ' (' + methods.length + ' methods):');
-                topologyLines.push(methods.slice(0, 15).join('\n') + (methods.length > 15 ? ('\n  • ... (' + (methods.length - 15) + ' more methods)') : ''));
-              }
-            });
+                topologyLines.push('📁 ' + fPath + ' ➔ class ' + cls.className + unverifiedTag + ' (' + methods.length + ' methods):');
+                if (methods.length > 0) {
+                  topologyLines.push(methods.slice(0, 15).join('\n') + (methods.length > 15 ? ('\n  • ... (' + (methods.length - 15) + ' more methods)') : ''));
+                }
+              });
+            }
+          }
+
+          if (foundAny) {
+            topologyLines.push('================================================================================\n');
+            topologyHeader = topologyLines.join('\n') + '\n';
           }
         }
 
-        if (foundAny) {
-          topologyLines.push('================================================================================\n');
-          topologyHeader = topologyLines.join('\n') + '\n';
-        }
-      }
+        var baseHeader = instructionPreamble + topologyHeader;
+        var parts = [];
+        var currentPartText = baseHeader;
+        var currentPartFiles = 0;
+        var totalFiles = 0;
 
-      var baseHeader = instructionPreamble + topologyHeader;
-      var parts = [];
-      var currentPartText = baseHeader;
-      var currentPartFiles = 0;
-      var totalFiles = 0;
+        for (var rawPath in filesMap) {
+          if (!Object.prototype.hasOwnProperty.call(filesMap, rawPath)) continue;
 
-      for (var rawPath in filesMap) {
-        if (!Object.prototype.hasOwnProperty.call(filesMap, rawPath)) continue;
+          var normPath = rawPath.replace(/\\/g, '/').replace(/^\/+/, '');
+          var canonicalPath = normPath;
 
-        var normPath = rawPath.replace(/\\/g, '/').replace(/^\/+/, '');
-        var canonicalPath = normPath;
-
-        if (canonicalPath.startsWith('Library/') || canonicalPath.startsWith('library/')) {
-          if (!includeAllLibrary && !includeProjectLibrary && pName.toLowerCase() !== 'library') {
-            continue;
+          if (canonicalPath.startsWith('Library/') || canonicalPath.startsWith('library/')) {
+            if (!includeAllLibrary && !includeProjectLibrary && pName.toLowerCase() !== 'library') continue;
+            canonicalPath = 'Library/' + canonicalPath.replace(/^(?:Library|library)\//, '');
+          } else if (!canonicalPath.startsWith(pName + '/')) {
+            canonicalPath = pName + '/' + canonicalPath;
           }
-          canonicalPath = 'Library/' + canonicalPath.replace(/^(?:Library|library)\//, '');
-        } else if (!canonicalPath.startsWith(pName + '/')) {
-          canonicalPath = pName + '/' + canonicalPath;
+
+          var content = filesMap[rawPath];
+          var ext = canonicalPath.split('.').pop().toLowerCase();
+          var safeContent = content || '';
+          var block = '';
+
+          if (ext === 'css') {
+            safeContent = safeContent.split(closeStyle).join(escapeStyle);
+            block = '<' + STYLE_WORD + ' data-file="' + canonicalPath + '">\n' + safeContent + '\n' + closeStyle + '\n\n';
+          } else if (ext === 'html' || ext === 'htm') {
+            safeContent = safeContent.split(closeTemplate).join(escapeTemplate);
+            block = '<' + TEMPLATE_WORD + ' data-file="' + canonicalPath + '">\n' + safeContent + '\n' + closeTemplate + '\n\n';
+          } else if (ext === 'json') {
+            safeContent = safeContent.split(closeScript).join(escapeScript);
+            block = '<' + SCRIPT_WORD + ' type="application/json" data-file="' + canonicalPath + '">\n' + safeContent + '\n' + closeScript + '\n\n';
+          } else if (ext === 'md' || ext === 'txt') {
+            safeContent = safeContent.split(closeScript).join(escapeScript);
+            block = '<' + SCRIPT_WORD + ' type="text/plain" data-file="' + canonicalPath + '">\n' + safeContent + '\n' + closeScript + '\n\n';
+          } else if (ext === 'svg') {
+            safeContent = safeContent.split(closeSvg).join(escapeSvg);
+            block = '<' + SVG_WORD + ' data-file="' + canonicalPath + '">\n' + safeContent + '\n' + closeSvg + '\n\n';
+          } else {
+            safeContent = safeContent.split(closeScript).join(escapeScript);
+            block = '<' + SCRIPT_WORD + ' data-file="' + canonicalPath + '">\n' + safeContent + '\n' + closeScript + '\n\n';
+          }
+
+          totalFiles++;
+
+          if ((currentPartText.length + block.length) > maxBytes && currentPartFiles > 0) {
+            parts.push(currentPartText.trim() + '\n\n');
+            currentPartText = baseHeader + block;
+            currentPartFiles = 1;
+          } else {
+            currentPartText += block;
+            currentPartFiles++;
+          }
         }
 
-        var content = filesMap[rawPath];
-        var ext = canonicalPath.split('.').pop().toLowerCase();
-        var safeContent = content || '';
-        var block = '';
-
-        if (ext === 'css') {
-          safeContent = safeContent.split(closeStyle).join(escapeStyle);
-          block = '<' + STYLE_WORD + ' data-file="' + canonicalPath + '">\n' + safeContent + '\n' + closeStyle + '\n\n';
-        } else if (ext === 'html' || ext === 'htm') {
-          safeContent = safeContent.split(closeTemplate).join(escapeTemplate);
-          block = '<' + TEMPLATE_WORD + ' data-file="' + canonicalPath + '">\n' + safeContent + '\n' + closeTemplate + '\n\n';
-        } else if (ext === 'json') {
-          safeContent = safeContent.split(closeScript).join(escapeScript);
-          block = '<' + SCRIPT_WORD + ' type="application/json" data-file="' + canonicalPath + '">\n' + safeContent + '\n' + closeScript + '\n\n';
-        } else if (ext === 'md' || ext === 'txt') {
-          safeContent = safeContent.split(closeScript).join(escapeScript);
-          block = '<' + SCRIPT_WORD + ' type="text/plain" data-file="' + canonicalPath + '">\n' + safeContent + '\n' + closeScript + '\n\n';
-        } else if (ext === 'svg') {
-          safeContent = safeContent.split(closeSvg).join(escapeSvg);
-          block = '<' + SVG_WORD + ' data-file="' + canonicalPath + '">\n' + safeContent + '\n' + closeSvg + '\n\n';
-        } else {
-          safeContent = safeContent.split(closeScript).join(escapeScript);
-          block = '<' + SCRIPT_WORD + ' data-file="' + canonicalPath + '">\n' + safeContent + '\n' + closeScript + '\n\n';
-        }
-
-        totalFiles++;
-
-        if ((currentPartText.length + block.length) > maxBytes && currentPartFiles > 0) {
+        if (currentPartFiles > 0) {
           parts.push(currentPartText.trim() + '\n\n');
-          currentPartText = baseHeader + block;
-          currentPartFiles = 1;
-        } else {
-          currentPartText += block;
-          currentPartFiles++;
         }
+
+        OutboxQueue.queue = OutboxQueue.queue.filter(function(i) {
+          if (!i || !i.title) return false;
+          return !(i.title.startsWith('Codebase Package: ' + pName) || i.title.startsWith('Smart Bundle: ' + pName));
+        });
+
+        for (var i = 0; i < parts.length; i++) {
+          var partTitle = 'Codebase Package: ' + pName + (parts.length > 1 ? (' (Part ' + (i + 1) + '/' + parts.length + ')') : '');
+          OutboxQueue.addBundle(partTitle, parts[i], { priority: 'high' });
+        }
+
+        return { fileCount: totalFiles, totalParts: parts.length, projTitle: pName };
       }
-
-      if (currentPartFiles > 0) {
-        parts.push(currentPartText.trim() + '\n\n');
-      }
-
-      OutboxQueue.queue = OutboxQueue.queue.filter(function(i) {
-        if (!i || !i.title) return false;
-        var isThisProjectPackage = i.title.startsWith('Codebase Package: ' + pName) || i.title.startsWith('Smart Bundle: ' + pName);
-        return !isThisProjectPackage;
-      });
-
-      for (var i = 0; i < parts.length; i++) {
-        var partTitle = 'Codebase Package: ' + pName + (parts.length > 1 ? (' (Part ' + (i + 1) + '/' + parts.length + ')') : '');
-        OutboxQueue.addBundle(partTitle, parts[i], { priority: 'high' });
-      }
-
-      return {
-        fileCount: totalFiles,
-        totalParts: parts.length,
-        projTitle: pName
-      };
-    }
   static getCombinedPackageText(itemId) {
     if (OutboxQueue.queue.length === 0) return '';
 

@@ -194,47 +194,54 @@ class LunoApiClient {
   }
 
   static async savePayload(payload, project = '') {
-    let payloadObj = payload;
-    if (typeof payload === 'string') {
-      try { payloadObj = JSON.parse(payload); } catch (e) { payloadObj = { files: [], rawText: payload }; }
-    }
-    if (payloadObj && typeof payloadObj === 'object' && project) {
-      payloadObj.project = project;
-    }
+      let payloadObj = payload;
+      if (typeof payload === 'string') {
+        try { payloadObj = JSON.parse(payload); } catch (e) { payloadObj = { files: [], rawText: payload }; }
+      }
+      if (payloadObj && typeof payloadObj === 'object' && project) {
+        payloadObj.project = project;
+      }
 
-    if (payloadObj && Array.isArray(payloadObj.files)) {
-      payloadObj.files.forEach(f => {
-        if (f.filePath) f.filePath = LunoApiClient.cleanPath(f.filePath);
-      });
-    }
+      var targetProj = project || (payloadObj && payloadObj.project) || '';
 
-    if (LunoApiClient.isStaticMode()) {
-      const adapter = LunoFileSystem.getAdapter();
-      let modified = 0;
-      if (adapter && adapter.write && Array.isArray(payloadObj.files)) {
-        for (const file of payloadObj.files) {
-          if (file.filePath && file.content !== undefined) {
-            await adapter.write(file.filePath, file.content, project || payloadObj.project);
-            modified++;
+      // Strip redundant projectName/ prefix so server path.join never creates duplicate nested folders
+      if (payloadObj && Array.isArray(payloadObj.files)) {
+        payloadObj.files.forEach(f => {
+          if (f.filePath) {
+            f.filePath = LunoApiClient.cleanPath(f.filePath);
+            if (targetProj && f.filePath.startsWith(targetProj + '/')) {
+              f.filePath = f.filePath.slice(targetProj.length + 1);
+            }
+          }
+        });
+      }
+
+      if (LunoApiClient.isStaticMode()) {
+        const adapter = LunoFileSystem.getAdapter();
+        let modified = 0;
+        if (adapter && adapter.write && Array.isArray(payloadObj.files)) {
+          for (const file of payloadObj.files) {
+            if (file.filePath && file.content !== undefined) {
+              await adapter.write(file.filePath, file.content, targetProj);
+              modified++;
+            }
           }
         }
+        return {
+          success: true,
+          count: modified,
+          modifiedCount: modified,
+          llmFeedback: '✅ Saved ' + modified + ' file(s) successfully.'
+        };
       }
-      return {
-        success: true,
-        count: modified,
-        modifiedCount: modified,
-        llmFeedback: '✅ Saved ' + modified + ' file(s) successfully.'
-      };
+
+      const pParam = targetProj ? ('?project=' + encodeURIComponent(targetProj)) : '';
+      return await LunoApiClient.safeJsonFetch('/api/save' + pParam, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payloadObj)
+      });
     }
-
-    const pParam = project ? ('?project=' + encodeURIComponent(project)) : '';
-    return await LunoApiClient.safeJsonFetch('/api/save' + pParam, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payloadObj)
-    });
-  }
-
   static async forkProject(sourceProject, newProject) {
     if (LunoApiClient.isStaticMode()) {
       const adapter = LunoFileSystem.getAdapter();

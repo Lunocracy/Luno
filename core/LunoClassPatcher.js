@@ -55,91 +55,83 @@ class LunoClassPatcher {
     }
 
   static parseSpec(targetSpec) {
-      if (!targetSpec || typeof targetSpec !== 'string' || !targetSpec.trim()) {
-        throw new Error('[Luno AST Guard] Cannot parse targetSpec: targetSpec is empty.');
-      }
-
-      var clean = targetSpec.trim();
-      if (clean.includes('@')) clean = clean.split('@').pop().trim();
-      clean = clean.replace(/^(?:globalThis|window)\./, '');
-
-      // Strip trailing call parens / parameters (e.g. "App.init()" -> "App.init")
-      clean = clean.replace(/\s*\([\s\S]*?\)\s*$/, '').trim();
-
-      var isStatic = null;
-      var isAsync = false;
-      var isGenerator = false;
-      var kind = 'method';
-
-      // 1. Handle leading global modifiers on the entire spec (e.g., "static App.methodName")
-      if (/^static\s+/i.test(clean)) {
-        isStatic = true;
-        clean = clean.replace(/^static\s+/i, '').trim();
-      }
-      if (/^async\s+/i.test(clean)) {
-        isAsync = true;
-        clean = clean.replace(/^async\s+/i, '').trim();
-      }
-
-      // 2. Split class and member target
-      var className = '';
-      var rawMember = '';
-
-      if (clean.includes('.prototype.')) {
-        var protoParts = clean.split('.prototype.');
-        className = protoParts[0].trim();
-        rawMember = protoParts[1].trim();
-        if (isStatic === null) isStatic = false;
-      } else if (clean.includes('.')) {
-        var dotParts = clean.split('.');
-        rawMember = dotParts.pop().trim();
-        className = dotParts.join('.').trim();
-      } else {
-        rawMember = clean;
-      }
-
-      // 3. Parse member-level modifiers ONLY from rawMember prefix, NOT from literal method names like "get" or "set"
-      var memberTokens = rawMember.split(/\s+/);
-      var actualMemberName = memberTokens[memberTokens.length - 1];
-
-      for (var i = 0; i < memberTokens.length - 1; i++) {
-        var tok = memberTokens[i].toLowerCase();
-        if (tok === 'static') {
-          isStatic = true;
-        } else if (tok === 'async') {
-          isAsync = true;
-        } else if (tok === 'get') {
-          kind = 'get';
-        } else if (tok === 'set') {
-          kind = 'set';
-        } else if (tok === '*') {
-          isGenerator = true;
+        if (!targetSpec || typeof targetSpec !== 'string' || !targetSpec.trim()) {
+          throw new Error('[Luno AST Guard] Cannot parse targetSpec: targetSpec is empty.');
         }
-      }
 
-      if (actualMemberName.startsWith('*')) {
-        isGenerator = true;
-        actualMemberName = actualMemberName.slice(1);
-      }
+        var clean = targetSpec.trim();
+        if (clean.includes('@')) clean = clean.split('@').pop().trim();
+        clean = clean.replace(/^(?:globalThis|window)\./, '');
+        clean = clean.replace(/\s*\([\s\S]*?\)\s*$/, '').trim();
 
-      if (actualMemberName === 'constructor') {
-        isStatic = false;
-        kind = 'constructor';
-      }
+        var isStatic = null;
+        var isAsync = false;
+        var isGenerator = false;
+        var kind = 'method';
 
-      if (!actualMemberName) {
-        throw new Error('[Luno AST Guard] Invalid targetSpec "' + targetSpec + '": Could not extract member name.');
-      }
+        // Strip and record all leading modifier keywords that may precede the class or member
+        var leadingModRegex = /^(static|async|get|set)\s+/i;
+        var matchLead;
+        while ((matchLead = clean.match(leadingModRegex))) {
+          var mod = matchLead[1].toLowerCase();
+          if (mod === 'static') isStatic = true;
+          else if (mod === 'async') isAsync = true;
+          else if (mod === 'get') kind = 'get';
+          else if (mod === 'set') kind = 'set';
+          clean = clean.slice(matchLead[0].length).trim();
+        }
 
-      return {
-        className: className,
-        memberName: actualMemberName,
-        isStatic: isStatic,
-        isAsync: isAsync,
-        isGenerator: isGenerator,
-        kind: kind
-      };
-    }
+        var className = '';
+        var rawMember = '';
+
+        if (clean.includes('.prototype.')) {
+          var protoParts = clean.split('.prototype.');
+          className = protoParts[0].trim();
+          rawMember = protoParts[1].trim();
+          if (isStatic === null) isStatic = false;
+        } else if (clean.includes('.')) {
+          var dotParts = clean.split('.');
+          rawMember = dotParts.pop().trim();
+          className = dotParts.join('.').trim();
+        } else {
+          rawMember = clean;
+        }
+
+        var memberTokens = rawMember.split(/\s+/);
+        var actualMemberName = memberTokens[memberTokens.length - 1];
+
+        for (var i = 0; i < memberTokens.length - 1; i++) {
+          var tok = memberTokens[i].toLowerCase();
+          if (tok === 'static') isStatic = true;
+          else if (tok === 'async') isAsync = true;
+          else if (tok === 'get') kind = 'get';
+          else if (tok === 'set') kind = 'set';
+          else if (tok === '*') isGenerator = true;
+        }
+
+        if (actualMemberName.startsWith('*')) {
+          isGenerator = true;
+          actualMemberName = actualMemberName.slice(1);
+        }
+
+        if (actualMemberName === 'constructor') {
+          isStatic = false;
+          kind = 'constructor';
+        }
+
+        if (!actualMemberName) {
+          throw new Error('[Luno AST Guard] Invalid targetSpec "' + targetSpec + '": Could not extract member name.');
+        }
+
+        return {
+          className: className,
+          memberName: actualMemberName,
+          isStatic: isStatic,
+          isAsync: isAsync,
+          isGenerator: isGenerator,
+          kind: kind
+        };
+      }
   static normalizeMethodCode(memberName, methodCode, isStatic, targetKind) {
       var rawStr = String(methodCode !== undefined && methodCode !== null ? methodCode : '').trim();
       if (!rawStr) {
@@ -301,96 +293,94 @@ class LunoClassPatcher {
     }
 
   static findClassNodes(ast, targetClassName, targetMemberName, isStatic, targetKind) {
-      var results = [];
-      if (!ast || typeof ast !== 'object') return results;
+        var results = [];
+        if (!ast || typeof ast !== 'object') return results;
 
-      var walk = function(node, parent) {
-        if (!node || typeof node !== 'object') return;
+        var walk = function(node, parent) {
+          if (!node || typeof node !== 'object') return;
 
-        if (node.type === 'ClassDeclaration' || node.type === 'ClassExpression') {
-          var name = (node.id && node.id.name) ? node.id.name : null;
+          if (node.type === 'ClassDeclaration' || node.type === 'ClassExpression') {
+            var name = (node.id && node.id.name) ? node.id.name : null;
 
-          if (!name && parent) {
-            if (parent.type === 'VariableDeclarator' && parent.id && parent.id.name) {
-              name = parent.id.name;
-            } else if (parent.type === 'AssignmentExpression' && parent.left) {
-              if (parent.left.type === 'Identifier') name = parent.left.name;
-              else if (parent.left.type === 'MemberExpression' && parent.left.property) {
-                name = parent.left.property.name || parent.left.property.value;
+            if (!name && parent) {
+              if (parent.type === 'VariableDeclarator' && parent.id && parent.id.name) {
+                name = parent.id.name;
+              } else if (parent.type === 'AssignmentExpression' && parent.left) {
+                if (parent.left.type === 'Identifier') name = parent.left.name;
+                else if (parent.left.type === 'MemberExpression' && parent.left.property) {
+                  name = parent.left.property.name || parent.left.property.value;
+                }
               }
             }
-          }
 
-          var namesSet = new Set();
-          if (name) namesSet.add(name);
+            var namesSet = new Set();
+            if (name) namesSet.add(name);
 
-          if (!targetClassName || namesSet.has(targetClassName)) {
-            results.push({
-              node: node,
-              name: name,
-              names: namesSet,
-              bodyNode: node.body,
-              range: node.range
-            });
-          }
-        }
-
-        for (var key in node) {
-          if (key === 'parent') continue;
-          var child = node[key];
-          if (Array.isArray(child)) {
-            for (var i = 0; i < child.length; i++) {
-              if (child[i] && typeof child[i].type === 'string') walk(child[i], node);
-            }
-          } else if (child && typeof child.type === 'string') {
-            walk(child, node);
-          }
-        }
-      };
-
-      walk(ast, null);
-
-      // If target class was not found by exact name, run intelligent multi-class member cross-checking
-      if (results.length === 0 && targetClassName) {
-        var allClassNodes = LunoClassPatcher.findClassNodes(ast, null);
-
-        if (allClassNodes.length === 1) {
-          var fallbackClass = allClassNodes[0];
-          if (typeof LunoPlaybackLogger !== 'undefined' && LunoPlaybackLogger.warn) {
-            LunoPlaybackLogger.warn(
-              'Class Target Fallback',
-              'Target class "' + targetClassName + '" not found in AST; resolved to file lone class "' + (fallbackClass.name || 'Anonymous') + '".'
-            );
-          }
-          return allClassNodes;
-        }
-
-        // Multi-class file: scan all classes to find which one contains the target member
-        if (allClassNodes.length > 1 && targetMemberName) {
-          var matchingClasses = [];
-          for (var c = 0; c < allClassNodes.length; c++) {
-            var candidate = allClassNodes[c];
-            var match = LunoClassPatcher.findMemberInClass(candidate.node, targetMemberName, isStatic, targetKind);
-            if (match && match.memberNode) {
-              matchingClasses.push(candidate);
+            if (!targetClassName || namesSet.has(targetClassName)) {
+              results.push({
+                node: node,
+                name: name,
+                names: namesSet,
+                bodyNode: node.body,
+                range: node.range
+              });
             }
           }
 
-          if (matchingClasses.length === 1) {
-            var matchedClass = matchingClasses[0];
-            if (typeof LunoPlaybackLogger !== 'undefined' && LunoPlaybackLogger.warn) {
+          for (var key in node) {
+            if (key === 'parent') continue;
+            var child = node[key];
+            if (Array.isArray(child)) {
+              for (var i = 0; i < child.length; i++) {
+                if (child[i] && typeof child[i].type === 'string') walk(child[i], node);
+              }
+            } else if (child && typeof child.type === 'string') {
+              walk(child, node);
+            }
+          }
+        };
+
+        walk(ast, null);
+
+        if (results.length === 0 && targetClassName) {
+          var allClassNodes = LunoClassPatcher.findClassNodes(ast, null);
+
+          if (allClassNodes.length === 1) {
+            var loneClass = allClassNodes[0];
+            if (typeof LunoPlaybackLogger !== 'undefined' && typeof LunoPlaybackLogger.warn === 'function') {
               LunoPlaybackLogger.warn(
-                'Multi-Class Member Cross-Check Resolved',
-                'Target class "' + targetClassName + '" mismatched, but member "' + targetMemberName + '" uniquely exists in class "' + (matchedClass.name || 'Anonymous') + '".'
+                'AST Single-Class Fallback Notice',
+                'Target class "' + targetClassName + '" not found; auto-resolved to lone class "' + (loneClass.name || 'Anonymous') + '".'
               );
             }
-            return [matchedClass];
+            return allClassNodes;
+          }
+
+          if (allClassNodes.length > 1 && targetMemberName) {
+            var matchingClasses = [];
+            for (var c = 0; c < allClassNodes.length; c++) {
+              var candidate = allClassNodes[c];
+              var match = LunoClassPatcher.findMemberInClass(candidate.node, targetMemberName, isStatic, targetKind);
+              if (match && match.memberNode) {
+                matchingClasses.push(candidate);
+              }
+            }
+
+            if (matchingClasses.length === 1) {
+              var resolvedClass = matchingClasses[0];
+              if (typeof LunoPlaybackLogger !== 'undefined' && typeof LunoPlaybackLogger.warn === 'function') {
+                LunoPlaybackLogger.warn(
+                  'AST Multi-Class Member Resolution Notice',
+                  'Target class "' + targetClassName + '" not found; auto-resolved member "' + targetMemberName + '" to class "' + (resolvedClass.name || 'Anonymous') + '".'
+                );
+              }
+              return [resolvedClass];
+            }
           }
         }
-      }
 
-      return results;
-    }
+        return results;
+      }
   static findMethodBounds(sourceCode, rawTarget) {
       if (!sourceCode || !rawTarget) return null;
       var parsed = LunoClassPatcher.parseSpec(rawTarget);
@@ -706,6 +696,134 @@ class LunoClassPatcher {
         conflictingAccessorNode: conflictingAccessorNode,
         availableMembers: availableMembers
       };
+    }
+
+  static extractFileTopology(sourceCode, filePath) {
+      if (!sourceCode || typeof sourceCode !== 'string') return [];
+      var classes = [];
+
+      var ast = null;
+      try {
+        if (typeof LunoClassPatcher !== 'undefined' && LunoClassPatcher.parseAST) {
+          ast = LunoClassPatcher.parseAST(sourceCode);
+        } else if (typeof acorn !== 'undefined' && acorn.parse) {
+          ast = acorn.parse(sourceCode, { ecmaVersion: 'latest', sourceType: 'module', ranges: true });
+        }
+      } catch (e) {
+        try {
+          if (typeof acorn !== 'undefined' && acorn.parse) {
+            ast = acorn.parse(sourceCode, { ecmaVersion: 'latest', sourceType: 'script', ranges: true });
+          }
+        } catch (e2) {}
+      }
+
+      if (ast && Array.isArray(ast.body)) {
+        var classesInFile = [];
+        var walk = function(node, parent) {
+          if (!node || typeof node !== 'object') return;
+          if (node.type === 'ClassDeclaration' || node.type === 'ClassExpression') {
+            var clsName = (node.id && node.id.name) ? node.id.name : null;
+            if (!clsName && parent) {
+              if (parent.type === 'VariableDeclarator' && parent.id && parent.id.name) clsName = parent.id.name;
+              else if (parent.type === 'AssignmentExpression' && parent.left) {
+                if (parent.left.type === 'Identifier') clsName = parent.left.name;
+                else if (parent.left.type === 'MemberExpression' && parent.left.property) {
+                  clsName = parent.left.property.name || parent.left.property.value;
+                }
+              }
+            }
+            if (clsName && node.body && Array.isArray(node.body.body)) {
+              classesInFile.push({ name: clsName, node: node });
+            }
+          }
+          for (var k in node) {
+            if (k === 'parent') continue;
+            var child = node[k];
+            if (Array.isArray(child)) {
+              for (var ci = 0; ci < child.length; ci++) {
+                if (child[ci] && typeof child[ci].type === 'string') walk(child[ci], node);
+              }
+            } else if (child && typeof child.type === 'string') {
+              walk(child, node);
+            }
+          }
+        };
+        walk(ast, null);
+
+        classesInFile.forEach(function(cls) {
+          var methods = [];
+          var bodyMembers = cls.node.body.body;
+          for (var mIdx = 0; mIdx < bodyMembers.length; mIdx++) {
+            var member = bodyMembers[mIdx];
+            if (member.type === 'MethodDefinition' || member.type === 'PropertyDefinition' || member.type === 'ClassProperty') {
+              var keyName = member.key ? (member.key.name || member.key.value) : null;
+              if (!keyName) continue;
+
+              var prefix = member.static ? 'static ' : '';
+              if (member.kind === 'get') prefix += 'get ';
+              else if (member.kind === 'set') prefix += 'set ';
+              else if (member.value && member.value.async) prefix += 'async ';
+
+              var isGen = (member.value && member.value.generator) ? '*' : '';
+              var paramList = [];
+              if (member.value && Array.isArray(member.value.params)) {
+                paramList = member.value.params.map(function(p) {
+                  if (p.type === 'Identifier') return p.name;
+                  if (p.type === 'AssignmentPattern' && p.left && p.left.name) return p.left.name;
+                  if (p.type === 'RestElement' && p.argument && p.argument.name) return '...' + p.argument.name;
+                  if (p.range) return sourceCode.slice(p.range[0], p.range[1]);
+                  return 'arg';
+                });
+              }
+
+              var isFieldArrow = (member.type === 'PropertyDefinition' || member.type === 'ClassProperty') &&
+                member.value && (member.value.type === 'ArrowFunctionExpression' || member.value.type === 'FunctionExpression');
+
+              if (isFieldArrow && member.value.params) {
+                paramList = member.value.params.map(function(p) {
+                  return (p.type === 'Identifier') ? p.name : (p.range ? sourceCode.slice(p.range[0], p.range[1]) : 'arg');
+                });
+              }
+
+              var sig = prefix + isGen + keyName + '(' + paramList.join(', ') + ')';
+              if ((member.type === 'PropertyDefinition' || member.type === 'ClassProperty') && !isFieldArrow) {
+                sig = prefix + keyName;
+              }
+              methods.push('  • ' + sig);
+            }
+          }
+
+          if (methods.length > 0 || cls.name) {
+            classes.push({
+              className: cls.name,
+              isUnverified: false,
+              methods: methods
+            });
+          }
+        });
+      } else {
+        // Regex fallback for unparseable source files
+        var classRegex = /\bclass\s+([A-Za-z0-9_$]+)/g;
+        var match;
+        while ((match = classRegex.exec(sourceCode)) !== null) {
+          var cName = match[1];
+          var methodRegex = /(?:static\s+)?(?:async\s+)?(?:\*[\s]*)?(?:get\s+|set\s+)?([A-Za-z0-9_$#]+)\s*\(([^)]*)\)\s*\{/g;
+          var mMatch;
+          var rMethods = [];
+          while ((mMatch = methodRegex.exec(sourceCode)) !== null) {
+            if (mMatch[1] !== 'if' && mMatch[1] !== 'for' && mMatch[1] !== 'while' && mMatch[1] !== 'switch' && mMatch[1] !== 'function') {
+              rMethods.push('  • ' + mMatch[0].replace(/\s*\{$/, ''));
+            }
+          }
+          classes.push({
+            className: cName,
+            isUnverified: true,
+            methods: rMethods
+          });
+        }
+      }
+
+      return classes;
     }
 }
 

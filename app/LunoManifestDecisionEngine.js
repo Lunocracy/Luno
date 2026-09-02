@@ -112,11 +112,7 @@ class LunoManifestDecisionEngine {
 
             let existingObj = {};
             if (baseJsonContent && baseJsonContent.trim()) {
-              try {
-                existingObj = JSON.parse(baseJsonContent);
-              } catch (e) {
-                existingObj = {};
-              }
+              try { existingObj = JSON.parse(baseJsonContent); } catch (e) { existingObj = {}; }
             }
 
             let incomingObj = {};
@@ -131,9 +127,7 @@ class LunoManifestDecisionEngine {
                 delete existingObj[k];
               } else if (Array.isArray(v) && Array.isArray(existingObj[k])) {
                 const set = new Set(existingObj[k]);
-                v.forEach(item => {
-                  if (item !== '__luno_delete__') set.add(item);
-                });
+                v.forEach(item => { if (item !== '__luno_delete__') set.add(item); });
                 existingObj[k] = Array.from(set);
               } else if (v && typeof v === 'object' && !Array.isArray(v) && existingObj[k] && typeof existingObj[k] === 'object' && !Array.isArray(existingObj[k])) {
                 Object.assign(existingObj[k], v);
@@ -165,15 +159,11 @@ class LunoManifestDecisionEngine {
           }
 
           if (!baseContent || !baseContent.trim()) {
-            throw new Error(
-              '[Luno AST Guard] Cannot surgically patch "' + (f.methodSpec || normPath) + '": Base file "' + normPath + '" was not found in storage.'
-            );
+            throw new Error('[Luno AST Guard] Cannot surgically patch "' + (f.methodSpec || normPath) + '": Base file "' + normPath + '" was not found in storage.');
           }
 
           if (!globalThis.LunoClassPatcher) {
-            throw new Error(
-              '[Luno AST Guard] LunoClassPatcher is not loaded in client runtime. Cannot apply surgical patch for "' + (f.methodSpec || normPath) + '".'
-            );
+            throw new Error('[Luno AST Guard] LunoClassPatcher is not loaded in client runtime.');
           }
 
           let patched = baseContent;
@@ -187,10 +177,7 @@ class LunoManifestDecisionEngine {
             try {
               globalThis.LunoClassPatcher.parseAST(patched);
             } catch (syntaxErr) {
-              throw new Error(
-                '[Luno AST Post-Splice Guard] Syntax error generated while patching "' + (f.methodSpec || normPath) + '" in "' + normPath + '":\n' +
-                syntaxErr.message + '\nPatch rejected to prevent file corruption.'
-              );
+              throw new Error('[Luno AST Post-Splice Guard] Syntax error generated while patching "' + (f.methodSpec || normPath) + '":\n' + syntaxErr.message);
             }
           }
 
@@ -206,14 +193,7 @@ class LunoManifestDecisionEngine {
           } else {
             const tagWord = f.tagName || 'script';
             const safeContent = (f.content || '').split('</' + tagWord + '>').join('<\\/' + tagWord + '>');
-            let block = '';
-            if (f.action === 'delete') {
-              block = '<' + tagWord + ' data-file="' + normPath + '" data-method="' + (f.methodSpec || '') + '" data-action="delete"></' + tagWord + '>';
-            } else if (f.methodSpec) {
-              block = '<' + tagWord + ' data-file="' + normPath + '" data-method="' + f.methodSpec + '" data-action="patch">\n' + safeContent + '\n</' + tagWord + '>';
-            } else {
-              block = '<' + tagWord + ' data-file="' + normPath + '" data-method="' + f.methodSpec + '" data-action="patch">\n' + safeContent + '\n</' + tagWord + '>';
-            }
+            let block = '<' + tagWord + ' data-file="' + normPath + '" data-method="' + (f.methodSpec || '') + '" data-action="' + (f.action || 'patch') + '">\n' + safeContent + '\n</' + tagWord + '>';
             journalPatchBlocks.push(block);
             patchActionsSummary.push({
               path: normPath,
@@ -228,27 +208,19 @@ class LunoManifestDecisionEngine {
           if (typeof LunoPlaybackLogger !== 'undefined') {
             LunoPlaybackLogger.error('Patch Rejected', (f.methodSpec || f.filePath) + ': ' + itemErr.message);
           }
-          failedPatches.push({
-            filePath: f.filePath,
-            methodSpec: f.methodSpec || '',
-            action: f.action || 'patch',
-            error: itemErr.message
-          });
-          patchActionsSummary.push({
-            path: f.filePath,
-            target: f.methodSpec || f.filePath,
-            mode: 'failed',
-            action: f.action || 'patch',
-            error: itemErr.message,
-            success: false
-          });
+          failedPatches.push({ filePath: f.filePath, methodSpec: f.methodSpec || '', action: f.action || 'patch', error: itemErr.message });
+          patchActionsSummary.push({ path: f.filePath, target: f.methodSpec || f.filePath, mode: 'failed', action: f.action || 'patch', error: itemErr.message, success: false });
         }
       }
 
       fullFilesMap.forEach((content, filePath) => {
+        let relativePath = filePath;
+        if (targetProj && relativePath.startsWith(targetProj + '/')) {
+          relativePath = relativePath.slice(targetProj.length + 1);
+        }
         processedFilesList.push({
           tagName: 'script',
-          filePath: filePath,
+          filePath: relativePath,
           action: 'direct',
           content: content
         });
@@ -259,9 +231,7 @@ class LunoManifestDecisionEngine {
         try {
           if (typeof LunoApiClient !== 'undefined' && LunoApiClient.fetchFsRead) {
             let logRes = await LunoApiClient.fetchFsRead('LunoPatchLog.html', targetProj);
-            if (logRes && logRes.success && logRes.content) {
-              currentLog = logRes.content.trimEnd();
-            }
+            if (logRes && logRes.success && logRes.content) currentLog = logRes.content.trimEnd();
           }
         } catch (e) {}
 
